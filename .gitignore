@@ -23,3 +23,16 @@ dist-ssr
 *.sln
 *.sw?
 .vs/
+
+# Local secrets — never commit real DB credentials
+backend/appsettings.Development.json
+
+# .NET Build Artifacts
+**/bin/
+**/obj/
+
+# Logs and temp files
+*.txt
+*.sql
+!backend/seed_hardcoded_data.sql
+!schema.sql

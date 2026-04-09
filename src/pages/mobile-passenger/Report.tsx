@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   CheckCircleIcon,
@@ -7,8 +7,6 @@ import {
   XIcon,
 } from 'lucide-react';
 
-const LINES = ['LRT Kelana Jaya', 'KTM Komuter', 'MRT Putrajaya', 'MRT Kajang'];
-const COACHES = ['Coach 1', 'Coach 2', 'Coach 3', 'Coach 4', 'Coach 5', 'Coach 6'];
 const VIOLATION_TYPES = [
   'Male in Women-Only Coach',
   'Harassment / Inappropriate Behaviour',
@@ -28,13 +26,25 @@ function FieldLabel({ children, required }: { children: React.ReactNode; require
 }
 
 export function Report() {
-  const [step, setStep] = useState<'form' | 'sent'>('form');
+  const [step, setStep] = useState<'form' | 'sent' | 'sending'>('form');
   const [line, setLine] = useState('');
   const [coach, setCoach] = useState('');
   const [type, setType] = useState('');
   const [desc, setDesc] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const [linesData, setLinesData] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch('http://localhost:5000/api/data/lines')
+      .then(res => res.json())
+      .then(data => setLinesData(data))
+      .catch(err => console.error('Failed to fetch lines', err));
+  }, []);
+
+  const selectedLineData = linesData.find(l => l.lineName === line);
+  const availableCoaches = selectedLineData?.coaches || [];
 
   const inputClass = (field: string) =>
     `w-full px-3.5 py-3 text-sm rounded-xl border transition-all focus:outline-none focus:ring-2 ${errors[field]
@@ -52,13 +62,37 @@ export function Report() {
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return;
-    setStep('sent');
-    setTimeout(() => {
+    setStep('sending');
+
+    try {
+      const response = await fetch('http://localhost:5000/api/data/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          line,
+          coach,
+          type,
+          desc
+        })
+      });
+
+      if (response.ok) {
+        setStep('sent');
+        setTimeout(() => {
+          setStep('form');
+          setLine(''); setCoach(''); setType(''); setDesc(''); setPhoto(null); setErrors({});
+        }, 3000);
+      } else {
+        setErrors({ desc: 'Failed to submit report. Please try again.' });
+        setStep('form');
+      }
+    } catch (err) {
+      console.error(err);
+      setErrors({ desc: 'Network error. Please try again.' });
       setStep('form');
-      setLine(''); setCoach(''); setType(''); setDesc(''); setPhoto(null); setErrors({});
-    }, 3000);
+    }
   };
 
   if (step === 'sent') {
@@ -103,11 +137,12 @@ export function Report() {
           <FieldLabel required>Train Line</FieldLabel>
           <select
             value={line}
-            onChange={e => { setLine(e.target.value); setErrors(v => ({ ...v, line: '' })); }}
+            onChange={e => { setLine(e.target.value); setCoach(''); setErrors(v => ({ ...v, line: '' })); }}
             className={inputClass('line')}
+            disabled={linesData.length === 0}
           >
-            <option value="">Select line…</option>
-            {LINES.map(l => <option key={l}>{l}</option>)}
+            <option value="">{linesData.length === 0 ? 'Loading lines...' : 'Select line…'}</option>
+            {linesData.map(l => <option key={l.lineId} value={l.lineName}>{l.lineName}</option>)}
           </select>
           {errors.line && <p className="text-xs text-red-500 mt-1">{errors.line}</p>}
         </div>
@@ -119,9 +154,10 @@ export function Report() {
             value={coach}
             onChange={e => { setCoach(e.target.value); setErrors(v => ({ ...v, coach: '' })); }}
             className={inputClass('coach')}
+            disabled={!line || availableCoaches.length === 0}
           >
-            <option value="">Select coach…</option>
-            {COACHES.map(c => <option key={c}>{c}</option>)}
+            <option value="">{!line ? 'Select a line first…' : 'Select coach…'}</option>
+            {availableCoaches.map((c: string) => <option key={c} value={c}>{c}</option>)}
           </select>
           {errors.coach && <p className="text-xs text-red-500 mt-1">{errors.coach}</p>}
         </div>
@@ -189,11 +225,12 @@ export function Report() {
 
       <button
         onClick={handleSubmit}
-        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold text-white shadow-lg active:scale-[0.98] transition-all"
+        disabled={step === 'sending'}
+        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold text-white shadow-lg active:scale-[0.98] transition-all disabled:opacity-75"
         style={{ backgroundColor: '#0B4F6C' }}
       >
         <SendIcon size={15} />
-        Submit Report
+        {step === 'sending' ? 'Submitting...' : 'Submit Report'}
       </button>
     </motion.div>
   );

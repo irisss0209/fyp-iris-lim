@@ -3,8 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   EyeIcon,
   EyeOffIcon,
-  ShieldIcon,
-  ArrowRightIcon,
   CheckCircleIcon,
   LockIcon,
   MailIcon,
@@ -20,33 +18,6 @@ interface LoginPageProps {
   onNavigateSignup: () => void;
 }
 
-// Simulated DB: email → { password, otp, role, label, description }
-const DB_USERS: Record<
-  string,
-  { password: string; otp: string; role: UserRole; label: string; description: string }
-> = {
-  'operator@railly.my': {
-    password: 'operator123',
-    otp: '123456',
-    role: 'command',
-    label: 'Technical Operator',
-    description: 'Central control dashboard',
-  },
-  'police@railly.my': {
-    password: 'police123',
-    otp: '654321',
-    role: 'police',
-    label: 'Auxiliary Police',
-    description: 'Staff alert mobile hub',
-  },
-  'user@railly.my': {
-    password: 'user123',
-    otp: '111111',
-    role: 'saferide',
-    label: 'Public Transport User',
-    description: 'Passenger safety app',
-  },
-};
 
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -60,7 +31,7 @@ const GoogleIcon = () => (
 
 export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) {
   const [step, setStep] = useState<AuthStep>('credentials');
-  const [resolvedUser, setResolvedUser] = useState<(typeof DB_USERS)[string] | null>(null);
+  const [resolvedUser, setResolvedUser] = useState<{ otp: string; role: UserRole; description: string } | null>(null);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -87,17 +58,29 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
     }
 
     setIsLoading(true);
-    await new Promise((r) => setTimeout(r, 900));
-    setIsLoading(false);
 
-    const user = DB_USERS[trimmedEmail];
-    if (!user || user.password !== trimmedPassword) {
-      setError('Invalid email or password. Please try again.');
-      return;
+    try {
+      const response = await fetch('http://localhost:5293/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmedEmail, password: trimmedPassword })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Invalid email or password. Please try again.');
+        setIsLoading(false);
+        return;
+      }
+
+      setResolvedUser(data);
+      setStep('mfa');
+    } catch (err) {
+      setError('Unable to connect to the server. Is the ASP.NET backend running?');
+    } finally {
+      setIsLoading(false);
     }
-
-    setResolvedUser(user);
-    setStep('mfa');
   };
 
   const handlePhoneSubmit = async (e: React.FormEvent) => {
@@ -116,10 +99,8 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
     await new Promise((r) => setTimeout(r, 900));
     setIsLoading(false);
 
-    const user = Object.values(DB_USERS).find(u => u.password === trimmedPassword) || DB_USERS['user@railly.my'];
-
-    setResolvedUser(user);
-    setStep('mfa');
+    setError('Phone login is not currently supported through the mock database.');
+    return;
   };
 
   const verifyOtp = async (code: string): Promise<boolean> => {

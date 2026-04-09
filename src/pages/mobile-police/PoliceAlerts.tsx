@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BellIcon,
@@ -7,8 +7,6 @@ import {
   TrainIcon,
   DoorOpenIcon,
   ClockIcon,
-  CheckCircleIcon,
-  XCircleIcon,
   ArrowUpCircleIcon,
   ShieldAlertIcon,
 } from 'lucide-react';
@@ -33,92 +31,7 @@ interface PoliceAlert {
   snapshotUrl?: string;
 }
 
-const INITIAL_ALERTS: PoliceAlert[] = [
-  {
-    id: 'ALT-001',
-    coach: 'KJ-07 Coach 3',
-    door: 'Door 2 (Front)',
-    line: 'LRT Kelana Jaya',
-    station: 'Masjid Jamek',
-    platform: 'Platform A',
-    time: '14:32',
-    elapsed: 2,
-    severity: 'high',
-    status: 'pending',
-    type: 'Male in Women-Only Coach',
-    snapshotUrl:
-      'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=600&auto=format&fit=crop&q=60',
-  },
-  {
-    id: 'ALT-003',
-    coach: 'MRT-05 Coach 2',
-    door: 'Door 1 (Rear)',
-    line: 'MRT Putrajaya',
-    station: 'Cyberjaya Utama',
-    platform: 'Platform B',
-    time: '14:19',
-    elapsed: 15,
-    severity: 'high',
-    status: 'pending',
-    type: 'Male in Women-Only Coach',
-    snapshotUrl:
-      'https://images.unsplash.com/photo-1474487548417-781cb71495f3?w=600&auto=format&fit=crop&q=60',
-  },
-  {
-    id: 'ALT-005',
-    coach: 'MRT-08 Coach 2',
-    door: 'Door 3 (Middle)',
-    line: 'MRT Putrajaya',
-    station: 'Putrajaya Sentral',
-    platform: 'Platform A',
-    time: '14:05',
-    elapsed: 29,
-    severity: 'medium',
-    status: 'pending',
-    type: 'Possible Violation',
-    snapshotUrl:
-      'https://images.unsplash.com/photo-1559128010-7c1ad6e1b6a5?w=600&auto=format&fit=crop&q=60',
-  },
-  {
-    id: 'ALT-002',
-    coach: 'KTM-12 Coach 1',
-    door: 'Door 2',
-    line: 'KTM Komuter',
-    station: 'KL Sentral',
-    platform: 'Platform C',
-    time: '13:45',
-    elapsed: 50,
-    severity: 'medium',
-    status: 'resolved',
-    type: 'Male in Women-Only Coach',
-  },
-  {
-    id: 'ALT-004',
-    coach: 'KJ-03 Coach 3',
-    door: 'Door 1',
-    line: 'LRT Kelana Jaya',
-    station: 'Bangsar',
-    platform: 'Platform A',
-    time: '13:30',
-    elapsed: 65,
-    severity: 'medium',
-    status: 'dismissed',
-    type: 'Suspicious Package',
-  },
-  {
-    id: 'ALT-006',
-    coach: 'KTM-07 Coach 1',
-    door: 'Door 2',
-    line: 'KTM Komuter',
-    station: 'Subang Jaya',
-    platform: 'Platform B',
-    time: '12:58',
-    elapsed: 97,
-    severity: 'high',
-    status: 'escalated',
-    type: 'Repeated Non-Compliance',
-  },
-];
+
 
 const SUB_TABS: { id: AlertStatus; label: string }[] = [
   { id: 'pending', label: 'Pending' },
@@ -290,11 +203,33 @@ function CompactAlertCard({ alert }: { alert: PoliceAlert }) {
 }
 
 export function PoliceAlerts() {
-  const [alerts, setAlerts] = useState<PoliceAlert[]>(INITIAL_ALERTS);
+  const [alerts, setAlerts] = useState<PoliceAlert[]>([]);
   const [activeStatus, setActiveStatus] = useState<AlertStatus>('pending');
 
-  const handleAction = (id: string, action: 'resolved' | 'dismissed' | 'escalated') => {
+  useEffect(() => {
+    fetch('http://localhost:5000/api/data/police-alerts')
+      .then(res => res.json())
+      .then(data => {
+        setAlerts(data);
+      })
+      .catch(err => {
+        console.error('Failed to fetch police alerts', err);
+      });
+  }, []);
+
+  const handleAction = async (id: string, action: 'resolved' | 'dismissed' | 'escalated') => {
     setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: action } : a));
+    
+    // Update server
+    try {
+      await fetch(`http://localhost:5000/api/data/police-alerts/${id}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: action })
+      });
+    } catch (err) {
+      console.error('Failed to update status', err);
+    }
   };
 
   const filtered = alerts.filter(a => a.status === activeStatus);

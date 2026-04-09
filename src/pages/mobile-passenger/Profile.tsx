@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MailIcon,
@@ -17,10 +17,23 @@ type ProfileSection = null | 'email' | 'phone' | 'password';
 export function Profile({ onLogout }: { onLogout: () => void }) {
   const [openSection, setOpenSection] = useState<ProfileSection>(null);
 
-  const [email, setEmail] = useState('passenger@email.com');
+  const [email, setEmail] = useState('');
   const [tempEmail, setTempEmail] = useState('');
-  const [phone, setPhone] = useState('12-345 6789');
+  const [phone, setPhone] = useState('');
   const [tempPhone, setTempPhone] = useState('');
+  
+  const [stats, setStats] = useState({ reports: 0, accuracy: 100 });
+
+  useEffect(() => {
+    fetch('http://localhost:5000/api/data/profile')
+      .then(res => res.json())
+      .then(data => {
+        setEmail(data.email);
+        setPhone(data.phone || '');
+        setStats({ reports: data.reports, accuracy: data.accuracy });
+      })
+      .catch(console.error);
+  }, []);
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
@@ -90,11 +103,11 @@ export function Profile({ onLogout }: { onLogout: () => void }) {
         <p className="text-xs text-gray-400 mt-0.5">+60 {phone}</p>
         <div className="flex gap-4 mt-4 w-full">
           <div className="flex-1 bg-gray-50 rounded-2xl p-3 border border-gray-100 text-center">
-            <p className="text-xl font-bold text-gray-900">4</p>
+            <p className="text-xl font-bold text-gray-900">{stats.reports}</p>
             <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mt-0.5">Reports</p>
           </div>
           <div className="flex-1 bg-gray-50 rounded-2xl p-3 border border-gray-100 text-center">
-            <p className="text-xl font-bold text-green-600">100%</p>
+            <p className="text-xl font-bold text-green-600">{stats.accuracy}%</p>
             <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mt-0.5">Accuracy</p>
           </div>
         </div>
@@ -139,7 +152,7 @@ export function Profile({ onLogout }: { onLogout: () => void }) {
 
       {/* Phone */}
       <div className="space-y-2">
-        <SectionHeader id="phone" icon={PhoneIcon} label="Phone Number" value={`+60 ${phone}`} />
+        <SectionHeader id="phone" icon={PhoneIcon} label="Phone Number" value={phone ? `+60 ${phone}` : 'Add phone'} />
         <AnimatePresence>
           {openSection === 'phone' && (
             <motion.div

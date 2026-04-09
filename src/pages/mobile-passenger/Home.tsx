@@ -22,41 +22,24 @@ const RED = '#D34026';
 
 const LINES = ['All Lines', 'LRT Kelana Jaya', 'KTM Komuter', 'MRT Putrajaya', 'MRT Kajang'];
 
-const TREND_DATA: Record<string, { day: string; count: number }[]> = {
-  'All Lines': [
-    { day: 'Mon', count: 12 }, { day: 'Tue', count: 19 }, { day: 'Wed', count: 15 },
-    { day: 'Thu', count: 22 }, { day: 'Fri', count: 28 }, { day: 'Sat', count: 35 }, { day: 'Sun', count: 25 },
-  ],
-  'LRT Kelana Jaya': [
-    { day: 'Mon', count: 5 }, { day: 'Tue', count: 8 }, { day: 'Wed', count: 6 },
-    { day: 'Thu', count: 12 }, { day: 'Fri', count: 16 }, { day: 'Sat', count: 18 }, { day: 'Sun', count: 14 },
-  ],
-  'KTM Komuter': [
-    { day: 'Mon', count: 4 }, { day: 'Tue', count: 7 }, { day: 'Wed', count: 5 },
-    { day: 'Thu', count: 6 }, { day: 'Fri', count: 8 }, { day: 'Sat', count: 12 }, { day: 'Sun', count: 7 },
-  ],
-  'MRT Putrajaya': [
-    { day: 'Mon', count: 3 }, { day: 'Tue', count: 4 }, { day: 'Wed', count: 4 },
-    { day: 'Thu', count: 4 }, { day: 'Fri', count: 4 }, { day: 'Sat', count: 5 }, { day: 'Sun', count: 4 },
-  ],
-  'MRT Kajang': [
-    { day: 'Mon', count: 2 }, { day: 'Tue', count: 3 }, { day: 'Wed', count: 3 },
-    { day: 'Thu', count: 4 }, { day: 'Fri', count: 3 }, { day: 'Sat', count: 5 }, { day: 'Sun', count: 4 },
-  ],
-};
+export function Home() {
+  const [lineFilter, setLineFilter] = useState('All Lines');
+  const [trendDataMap, setTrendDataMap] = useState<Record<string, { day: string; count: number }[]>>({});
+  const [lineSummary, setLineSummary] = useState<any[]>([]);
+  const [recentReports, setRecentReports] = useState<any[]>([]);
 
-const LINE_SUMMARY = [
-  { name: 'LRT KJ', value: 79, color: '#0B4F6C', pct: '+8%' },
-  { name: 'KTM', value: 49, color: '#0D6E6E', pct: '+3%' },
-  { name: 'MRT PJ', value: 28, color: '#1A7FAA', pct: '-2%' },
-  { name: 'MRT KJ', value: 24, color: '#6DA5C0', pct: '+1%' },
-];
-
-const RECENT_REPORTS = [
-  { id: 'RPT-021', line: 'LRT KJ', type: 'Male in Women Coach', time: '14 min ago', status: 'Verified' },
-  { id: 'RPT-022', line: 'KTM Komuter', type: 'Harassment', time: 'Just now', status: 'Pending', elapsed: 175 },
-  { id: 'RPT-023', line: 'MRT Putrajaya', type: 'Suspicious Package', time: '1h ago', status: 'Dismissed' },
-];
+  useEffect(() => {
+    fetch('http://localhost:5000/api/data/home-stats')
+      .then(res => res.json())
+      .then(data => {
+        setTrendDataMap(data.trendData || {});
+        setLineSummary(data.lineSummary || []);
+        setRecentReports(data.recentReports || []);
+      })
+      .catch(err => {
+        console.error('Failed to fetch home stats', err);
+      });
+  }, []);
 
 function UrgeButton({ initialElapsed }: { initialElapsed: number }) {
   const [elapsed, setElapsed] = useState(initialElapsed);
@@ -97,11 +80,8 @@ function StatCard({ label, value, sub, color }: { label: string; value: string |
   );
 }
 
-export function Home() {
-  const [lineFilter, setLineFilter] = useState('All Lines');
-
-  const data = TREND_DATA[lineFilter] ?? TREND_DATA['All Lines'];
-  const total = data.reduce((s, d) => s + d.count, 0);
+  const data = trendDataMap[lineFilter] || [];
+  const total = data.reduce((s: any, d: any) => s + d.count, 0);
   const peak = Math.max(...data.map(d => d.count));
   const peakDay = data.find(d => d.count === peak)?.day ?? '-';
 
@@ -176,7 +156,7 @@ export function Home() {
           <span className="text-sm font-semibold text-gray-800">By Line (weekly total)</span>
         </div>
         <div className="space-y-2.5">
-          {LINE_SUMMARY.map(line => (
+          {lineSummary.map((line: any) => (
             <div key={line.name}>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-medium text-gray-600">{line.name}</span>
@@ -203,7 +183,7 @@ export function Home() {
           </div>
           <span className="text-sm font-semibold text-gray-800">Recent Reports</span>
         </div>
-        {RECENT_REPORTS.map(r => (
+        {recentReports.map((r: any) => (
           <div key={r.id} className="flex items-center justify-between py-2.5 border-b border-gray-50 last:border-0">
             <div>
               <p className="text-xs font-semibold text-gray-800">{r.type}</p>
