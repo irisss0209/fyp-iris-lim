@@ -14,8 +14,7 @@ namespace backend.Models
         // 'AI_DETECTION' | 'USER_REPORT'
         [Required]
         [Column("source")]
-        [MaxLength(20)]
-        public string Source { get; set; } = null!;
+        public IncidentSource Source { get; set; }
 
         [Column("detection_id")]
         public int? DetectionId { get; set; }
@@ -25,28 +24,27 @@ namespace backend.Models
 
         // 'Pending' | 'Verified' | 'En_Route' | 'Escalated' | 'Resolved' | 'Dismissed'
         [Column("status")]
-        [MaxLength(20)]
-        public string Status { get; set; } = "Pending";
+        public IncidentStatus Status { get; set; } = IncidentStatus.Pending;
 
         // --- Who handled each step ---
         [Column("verified_by")]
-        [MaxLength(20)]
+        [MaxLength(50)]
         public string? VerifiedBy { get; set; }
 
         [Column("escalated_by")]
-        [MaxLength(20)]
+        [MaxLength(50)]
         public string? EscalatedBy { get; set; }
 
         [Column("enroute_by")]
-        [MaxLength(20)]
+        [MaxLength(50)]
         public string? EnrouteBy { get; set; }
 
         [Column("resolved_by")]
-        [MaxLength(20)]
+        [MaxLength(50)]
         public string? ResolvedBy { get; set; }
 
         [Column("dismissed_by")]
-        [MaxLength(20)]
+        [MaxLength(50)]
         public string? DismissedBy { get; set; }
 
         // --- When each transition happened ---

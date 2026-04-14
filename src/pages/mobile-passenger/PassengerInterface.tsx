@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { BarChart2Icon, AlertTriangleIcon, UserIcon } from 'lucide-react';
 import { Home } from './Home';
-import { Report } from './Report';
-import { Profile } from './Profile';
+import { Report } from './PassengerReport';
+import { Profile } from './PassengerProfile';
+import { UserSession } from '../../App';
 
-export interface SafeRideMobileProps {
+export interface PassengerInterface {
+  session: UserSession;
   onLogout: () => void;
 }
 
@@ -19,7 +21,7 @@ const TABS: { id: Tab; icon: React.ElementType; label: string }[] = [
   { id: 'profile', icon: UserIcon, label: 'Profile' },
 ];
 
-export function SafeRideMobile({ onLogout }: SafeRideMobileProps) {
+export function PassengerInterface({ session, onLogout }: PassengerInterface) {
   const [activeTab, setActiveTab] = useState<Tab>('home');
 
   return (
@@ -28,7 +30,7 @@ export function SafeRideMobile({ onLogout }: SafeRideMobileProps) {
       {/* ── Top Header ── */}
       <div
         className="flex items-center justify-between px-5 pt-12 pb-4 flex-shrink-0"
-        style={{ background: "#FAF9F5" }}
+        style={{ background: '#FAF9F5' }}
       >
         <div className="flex items-center gap-2.5">
           <div
@@ -42,8 +44,12 @@ export function SafeRideMobile({ onLogout }: SafeRideMobileProps) {
           />
           <div>
             <p className="text-black font-bold text-sm leading-none">Railly</p>
-            <p className="text-gray-400 text-xs mt-0.5">For Safer Transit</p>
+            <p className="text-gray-400 text-xs mt-0.5">Passenger Gateway</p>
           </div>
+        </div>
+        <div className="flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1.5">
+          <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Active</span>
         </div>
       </div>
 
@@ -52,7 +58,7 @@ export function SafeRideMobile({ onLogout }: SafeRideMobileProps) {
         <AnimatePresence mode="wait">
           {activeTab === 'home' && <Home key="home" />}
           {activeTab === 'report' && <Report key="report" />}
-          {activeTab === 'profile' && <Profile key="profile" onLogout={onLogout} />}
+          {activeTab === 'profile' && <Profile key="profile" session={session} onLogout={onLogout} />}
         </AnimatePresence>
       </div>
 

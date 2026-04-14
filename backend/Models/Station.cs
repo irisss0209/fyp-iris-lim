@@ -8,7 +8,7 @@ namespace backend.Models
     {
         [Key]
         [Column("station_id")]
-        [MaxLength(20)]
+        [MaxLength(50)]
         public string StationId { get; set; } = null!;
 
         [Required]

@@ -8,12 +8,12 @@ namespace backend.Models
     {
         [Key]
         [Column("camera_id")]
-        [MaxLength(20)]
+        [MaxLength(50)]
         public string CameraId { get; set; } = null!;
 
         [Required]
         [Column("coach_id")]
-        [MaxLength(20)]
+        [MaxLength(50)]
         public string CoachId { get; set; } = null!;
 
         [Column("stream_url")]
@@ -23,8 +23,7 @@ namespace backend.Models
         // 'Active' | 'Inactive' | 'Faulty'
         [Required]
         [Column("status")]
-        [MaxLength(20)]
-        public string Status { get; set; } = "Active";
+        public CameraStatus Status { get; set; } = CameraStatus.Active;
 
         // Navigation
         [ForeignKey(nameof(CoachId))]

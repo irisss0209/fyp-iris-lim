@@ -8,19 +8,18 @@ namespace backend.Models
     {
         [Key]
         [Column("train_id")]
-        [MaxLength(20)]
+        [MaxLength(50)]
         public string TrainId { get; set; } = null!;
 
         [Required]
         [Column("line_id")]
-        [MaxLength(20)]
+        [MaxLength(50)]
         public string LineId { get; set; } = null!;
 
         // 'Active' | 'Inactive' | 'Maintenance'
         [Required]
         [Column("status")]
-        [MaxLength(20)]
-        public string Status { get; set; } = "Active";
+        public AssetStatus Status { get; set; } = AssetStatus.Active;
 
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

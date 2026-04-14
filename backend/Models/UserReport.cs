@@ -13,11 +13,11 @@ namespace backend.Models
 
         [Required]
         [Column("user_id")]
-        [MaxLength(20)]
+        [MaxLength(50)]
         public string UserId { get; set; } = null!;
 
         [Column("coach_id")]
-        [MaxLength(20)]
+        [MaxLength(50)]
         public string? CoachId { get; set; }
 
         [Required]

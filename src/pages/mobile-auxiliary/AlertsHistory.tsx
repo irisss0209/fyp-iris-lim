@@ -7,8 +7,9 @@ import {
   AlertTriangleIcon,
   MinusCircleIcon,
   ClockIcon,
-  MapPinIcon } from
-'lucide-react';
+  MapPinIcon
+} from
+  'lucide-react';
 interface Case {
   id: string;
   caseId: string;
@@ -22,94 +23,94 @@ interface Case {
   notes: string;
 }
 const CASES: Case[] = [
-{
-  id: 'C1',
-  caseId: 'GC-2025-0142',
-  station: 'Masjid Jamek',
-  line: 'LRT Kelana Jaya',
-  datetime: '28 Feb 2025, 14:32',
-  outcome: 'Resolved',
-  duration: '12 min',
-  coachId: 'KJ-07 Coach 3',
-  description: 'Male detected in women-only coach',
-  notes:
-  'Individual voluntarily relocated to correct coach after being informed.'
-},
-{
-  id: 'C2',
-  caseId: 'GC-2025-0141',
-  station: 'KL Sentral',
-  line: 'KTM Komuter',
-  datetime: '28 Feb 2025, 13:45',
-  outcome: 'Resolved',
-  duration: '8 min',
-  coachId: 'KTM-12 Coach 1',
-  description: 'Male detected in women-only coach',
-  notes:
-  'Passenger was unaware of the women-only policy. Educated and relocated.'
-},
-{
-  id: 'C3',
-  caseId: 'GC-2025-0140',
-  station: 'Bangsar',
-  line: 'LRT Kelana Jaya',
-  datetime: '28 Feb 2025, 12:30',
-  outcome: 'Escalated',
-  duration: '25 min',
-  coachId: 'KJ-03 Coach 3',
-  description: 'Repeated non-compliance',
-  notes:
-  'Individual refused to relocate. Escalated to supervisor and formal report filed.'
-},
-{
-  id: 'C4',
-  caseId: 'GC-2025-0139',
-  station: 'Cyberjaya Utama',
-  line: 'MRT Putrajaya',
-  datetime: '27 Feb 2025, 16:15',
-  outcome: 'No Action',
-  duration: '5 min',
-  coachId: 'MRT-05 Coach 2',
-  description: 'False alarm — female passenger',
-  notes:
-  'AI detection was incorrect. Passenger confirmed female. False alarm logged.'
-},
-{
-  id: 'C5',
-  caseId: 'GC-2025-0138',
-  station: 'Subang Jaya',
-  line: 'KTM Komuter',
-  datetime: '27 Feb 2025, 14:00',
-  outcome: 'Resolved',
-  duration: '10 min',
-  coachId: 'KTM-07 Coach 1',
-  description: 'Male detected in women-only coach',
-  notes: 'Resolved without incident.'
-},
-{
-  id: 'C6',
-  caseId: 'GC-2025-0137',
-  station: 'Asia Jaya',
-  line: 'LRT Kelana Jaya',
-  datetime: '26 Feb 2025, 11:30',
-  outcome: 'Resolved',
-  duration: '7 min',
-  coachId: 'KJ-05 Coach 3',
-  description: 'Male detected in women-only coach',
-  notes: 'Quick resolution. Individual cooperative.'
-}];
+  {
+    id: 'C1',
+    caseId: 'GC-2025-0142',
+    station: 'Masjid Jamek',
+    line: 'LRT Kelana Jaya',
+    datetime: '28 Feb 2025, 14:32',
+    outcome: 'Resolved',
+    duration: '12 min',
+    coachId: 'KJ-07 Coach 3',
+    description: 'Male detected in women-only coach',
+    notes:
+      'Individual voluntarily relocated to correct coach after being informed.'
+  },
+  {
+    id: 'C2',
+    caseId: 'GC-2025-0141',
+    station: 'KL Sentral',
+    line: 'KTM Komuter',
+    datetime: '28 Feb 2025, 13:45',
+    outcome: 'Resolved',
+    duration: '8 min',
+    coachId: 'KTM-12 Coach 1',
+    description: 'Male detected in women-only coach',
+    notes:
+      'Passenger was unaware of the women-only policy. Educated and relocated.'
+  },
+  {
+    id: 'C3',
+    caseId: 'GC-2025-0140',
+    station: 'Bangsar',
+    line: 'LRT Kelana Jaya',
+    datetime: '28 Feb 2025, 12:30',
+    outcome: 'Escalated',
+    duration: '25 min',
+    coachId: 'KJ-03 Coach 3',
+    description: 'Repeated non-compliance',
+    notes:
+      'Individual refused to relocate. Escalated to supervisor and formal report filed.'
+  },
+  {
+    id: 'C4',
+    caseId: 'GC-2025-0139',
+    station: 'Cyberjaya Utama',
+    line: 'MRT Putrajaya',
+    datetime: '27 Feb 2025, 16:15',
+    outcome: 'No Action',
+    duration: '5 min',
+    coachId: 'MRT-05 Coach 2',
+    description: 'False alarm — female passenger',
+    notes:
+      'AI detection was incorrect. Passenger confirmed female. False alarm logged.'
+  },
+  {
+    id: 'C5',
+    caseId: 'GC-2025-0138',
+    station: 'Subang Jaya',
+    line: 'KTM Komuter',
+    datetime: '27 Feb 2025, 14:00',
+    outcome: 'Resolved',
+    duration: '10 min',
+    coachId: 'KTM-07 Coach 1',
+    description: 'Male detected in women-only coach',
+    notes: 'Resolved without incident.'
+  },
+  {
+    id: 'C6',
+    caseId: 'GC-2025-0137',
+    station: 'Asia Jaya',
+    line: 'LRT Kelana Jaya',
+    datetime: '26 Feb 2025, 11:30',
+    outcome: 'Resolved',
+    duration: '7 min',
+    coachId: 'KJ-05 Coach 3',
+    description: 'Male detected in women-only coach',
+    notes: 'Quick resolution. Individual cooperative.'
+  }];
 
-export function PoliceHistory() {
+export function AlertsHistory() {
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState<
     'today' | 'week' | 'month' | 'custom'>(
-    'week');
+      'week');
   const [selectedCase, setSelectedCase] = useState<Case | null>(null);
   const filtered = CASES.filter(
     (c) =>
-    c.caseId.toLowerCase().includes(search.toLowerCase()) ||
-    c.station.toLowerCase().includes(search.toLowerCase()) ||
-    c.line.toLowerCase().includes(search.toLowerCase())
+      c.caseId.toLowerCase().includes(search.toLowerCase()) ||
+      c.station.toLowerCase().includes(search.toLowerCase()) ||
+      c.line.toLowerCase().includes(search.toLowerCase())
   );
   const outcomeConfig = {
     Resolved: {
@@ -265,71 +266,71 @@ export function PoliceHistory() {
             </h3>
             <div className="space-y-3">
               {[
-              {
-                label: 'Alert Triggered',
-                detail: 'AI detection on edge device',
-                done: true
-              },
-              {
-                label: 'Operator Verified',
-                detail: 'Command Center confirmed alert',
-                done: true
-              },
-              {
-                label: 'Officer Dispatched',
-                detail: 'PoliceHub notification sent',
-                done: true
-              },
-              {
-                label: 'Officer On Scene',
-                detail: `Arrived within ${selectedCase.duration}`,
-                done: true
-              },
-              {
-                label: 'Case Closed',
-                detail: selectedCase.outcome,
-                done: true
-              }].
-              map((step, i) =>
-              <div key={i} className="flex gap-3">
-                  <div className="flex flex-col items-center">
-                    <div
-                    className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{
-                      backgroundColor: '#2D7A5D'
-                    }}>
+                {
+                  label: 'Alert Triggered',
+                  detail: 'AI detection on edge device',
+                  done: true
+                },
+                {
+                  label: 'Operator Verified',
+                  detail: 'Command Center confirmed alert',
+                  done: true
+                },
+                {
+                  label: 'Officer Dispatched',
+                  detail: 'PoliceHub notification sent',
+                  done: true
+                },
+                {
+                  label: 'Officer On Scene',
+                  detail: `Arrived within ${selectedCase.duration}`,
+                  done: true
+                },
+                {
+                  label: 'Case Closed',
+                  detail: selectedCase.outcome,
+                  done: true
+                }].
+                map((step, i) =>
+                  <div key={i} className="flex gap-3">
+                    <div className="flex flex-col items-center">
+                      <div
+                        className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{
+                          backgroundColor: '#2D7A5D'
+                        }}>
 
-                      <CheckCircleIcon className="w-3 h-3 text-white" />
+                        <CheckCircleIcon className="w-3 h-3 text-white" />
+                      </div>
+                      {i < 4 &&
+                        <div
+                          className="w-0.5 h-5 mt-1"
+                          style={{
+                            backgroundColor: '#E2E8F0'
+                          }} />
+
+                      }
                     </div>
-                    {i < 4 &&
-                  <div
-                    className="w-0.5 h-5 mt-1"
-                    style={{
-                      backgroundColor: '#E2E8F0'
-                    }} />
+                    <div className="pb-1">
+                      <div
+                        className="text-sm font-semibold"
+                        style={{
+                          color: '#1A202C'
+                        }}>
 
-                  }
+                        {step.label}
+                      </div>
+                      <div
+                        className="text-xs"
+                        style={{
+                          color: '#4A5568'
+                        }}>
+
+                        {step.detail}
+                      </div>
+                    </div>
                   </div>
-                  <div className="pb-1">
-                    <div
-                    className="text-sm font-semibold"
-                    style={{
-                      color: '#1A202C'
-                    }}>
-
-                      {step.label}
-                    </div>
-                    <div
-                    className="text-xs"
-                    style={{
-                      color: '#4A5568'
-                    }}>
-
-                      {step.detail}
-                    </div>
-                  </div>
-                </div>
-              )}
+                )}
             </div>
           </div>
 
@@ -410,36 +411,36 @@ export function PoliceHistory() {
       {/* Date Filter */}
       <div className="flex gap-2 px-4 mb-3 overflow-x-auto scrollbar-thin pb-1">
         {[
-        {
-          id: 'today',
-          label: 'Today'
-        },
-        {
-          id: 'week',
-          label: 'This Week'
-        },
-        {
-          id: 'month',
-          label: 'This Month'
-        },
-        {
-          id: 'custom',
-          label: 'Custom'
-        }].
-        map((f) =>
-        <button
-          key={f.id}
-          onClick={() => setDateFilter(f.id as typeof dateFilter)}
-          className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all"
-          style={{
-            backgroundColor: dateFilter === f.id ? '#0B4F6C' : 'white',
-            color: dateFilter === f.id ? 'white' : '#4A5568',
-            border: `1px solid ${dateFilter === f.id ? '#0B4F6C' : '#E2E8F0'}`
-          }}>
+          {
+            id: 'today',
+            label: 'Today'
+          },
+          {
+            id: 'week',
+            label: 'This Week'
+          },
+          {
+            id: 'month',
+            label: 'This Month'
+          },
+          {
+            id: 'custom',
+            label: 'Custom'
+          }].
+          map((f) =>
+            <button
+              key={f.id}
+              onClick={() => setDateFilter(f.id as typeof dateFilter)}
+              className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all"
+              style={{
+                backgroundColor: dateFilter === f.id ? '#0B4F6C' : 'white',
+                color: dateFilter === f.id ? 'white' : '#4A5568',
+                border: `1px solid ${dateFilter === f.id ? '#0B4F6C' : '#E2E8F0'}`
+              }}>
 
-            {f.label}
-          </button>
-        )}
+              {f.label}
+            </button>
+          )}
       </div>
 
       {/* Cases List */}

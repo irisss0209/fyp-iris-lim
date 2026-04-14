@@ -10,11 +10,12 @@ import {
 } from 'lucide-react';
 import { MfaVerification } from './MfaVerification';
 
+import { UserSession, UserRole } from '../../App';
+
 type AuthStep = 'credentials' | 'phone' | 'mfa' | 'success';
-type UserRole = 'command' | 'police' | 'saferide';
 
 interface LoginPageProps {
-  onLoginSuccess: (role: UserRole) => void;
+  onLoginSuccess: (session: UserSession) => void;
   onNavigateSignup: () => void;
 }
 
@@ -31,7 +32,7 @@ const GoogleIcon = () => (
 
 export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) {
   const [step, setStep] = useState<AuthStep>('credentials');
-  const [resolvedUser, setResolvedUser] = useState<{ otp: string; role: UserRole; description: string } | null>(null);
+  const [resolvedUser, setResolvedUser] = useState<(UserSession & { otp: string }) | null>(null);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -41,7 +42,7 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
 
   useEffect(() => {
     if (step === 'success' && resolvedUser) {
-      const t = setTimeout(() => onLoginSuccess(resolvedUser.role), 1400);
+      const t = setTimeout(() => onLoginSuccess(resolvedUser), 1400);
       return () => clearTimeout(t);
     }
   }, [step, onLoginSuccess, resolvedUser]);
@@ -415,7 +416,7 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
           {/* ── STEP 2: MFA ── */}
           {step === 'mfa' && (
             <MfaVerification
-              email={resolvedUser?.role === 'command' || resolvedUser?.role === 'police' ? email : (email || phone || 'passenger')}
+              email={resolvedUser?.role === 'operator' || resolvedUser?.role === 'auxiliary' ? email : (email || phone || 'passenger')}
               phone={phone || undefined}
               onVerify={verifyOtp}
               onBack={() => {

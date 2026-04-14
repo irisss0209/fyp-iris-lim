@@ -7,11 +7,11 @@ namespace backend.Models
     public class LineStation
     {
         [Column("line_id")]
-        [MaxLength(20)]
+        [MaxLength(50)]
         public string LineId { get; set; } = null!;
 
         [Column("station_id")]
-        [MaxLength(20)]
+        [MaxLength(50)]
         public string StationId { get; set; } = null!;
 
         [Column("sequence_order")]

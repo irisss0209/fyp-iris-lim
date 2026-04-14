@@ -8,7 +8,7 @@ import {
   CpuIcon,
   UserIcon
 } from 'lucide-react';
-import type { NavPage } from './CommandCenterApp';
+import type { NavPage } from './OperatorInterface';
 
 interface DashboardProps {
   onNavigate?: (page: NavPage) => void;

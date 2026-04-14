@@ -8,7 +8,7 @@ namespace backend.Models
     {
         [Key]
         [Column("line_id")]
-        [MaxLength(20)]
+        [MaxLength(50)]
         public string LineId { get; set; } = null!;
 
         [Required]

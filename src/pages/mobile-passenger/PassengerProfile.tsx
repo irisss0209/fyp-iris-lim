@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MailIcon,
@@ -7,21 +7,35 @@ import {
   EyeIcon,
   EyeOffIcon,
   ChevronRightIcon,
-  ShieldIcon,
-  LogOutIcon,
 } from 'lucide-react';
 
-const ACCENT = '#0B4F6C';
+const DARKBLUE = '#0B4F6C';
 const RED = '#D34026';
 
 type ProfileSection = null | 'email' | 'phone' | 'password';
 
-export function PoliceProfile({ onLogout }: { onLogout: () => void }) {
+import { UserSession } from '../../App';
+
+export function Profile({ session, onLogout }: { session: UserSession, onLogout: () => void }) {
   const [openSection, setOpenSection] = useState<ProfileSection>(null);
-  const [email, setEmail] = useState('ahmad.razif@police.gov.my');
+
+  const [email, setEmail] = useState('');
   const [tempEmail, setTempEmail] = useState('');
-  const [phone, setPhone] = useState('12-345 6789');
+  const [phone, setPhone] = useState('');
   const [tempPhone, setTempPhone] = useState('');
+  
+  const [stats, setStats] = useState({ reports: 0, accuracy: 100 });
+
+  useEffect(() => {
+    fetch('http://localhost:5293/api/data/profile')
+      .then(res => res.json())
+      .then(data => {
+        setEmail(data.email);
+        setPhone(data.phone || '');
+        setStats({ reports: data.reports, accuracy: data.accuracy });
+      })
+      .catch(console.error);
+  }, []);
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
@@ -61,7 +75,7 @@ export function PoliceProfile({ onLogout }: { onLogout: () => void }) {
             className="w-8 h-8 rounded-lg flex items-center justify-center"
             style={{ backgroundColor: '#EBF4F8' }}
           >
-            <Icon size={15} style={{ color: ACCENT }} />
+            <Icon size={15} style={{ color: DARKBLUE }} />
           </div>
           <div className="text-left">
             <p className="text-sm font-semibold text-gray-800">{label}</p>
@@ -78,73 +92,26 @@ export function PoliceProfile({ onLogout }: { onLogout: () => void }) {
 
   return (
     <motion.div
-      key="police-profile"
+      key="profile"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.2 }}
       className="px-4 pt-5 pb-6 space-y-3"
     >
-      {/* Officer card */}
-      <div className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
-        {/* Blue gradient banner */}
-        <div
-          className="h-20 w-full"
-          style={{ background: `linear-gradient(135deg, ${ACCENT} 0%, #0D6E6E 100%)` }}
-        />
-        {/* Avatar overlapping banner */}
-        <div className="px-5 pb-5 -mt-8">
-          <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold border-4 border-white shadow-md mb-3"
-            style={{ backgroundColor: '#1D4ED8' }}
-          >
-            A
+      {/* Avatar card */}
+      <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col items-center text-center">
+        <p className="text-base font-bold text-gray-900">{session.userName || 'Passenger'}</p>
+        <p className="text-xs text-gray-400 mt-0.5">+60 {phone}</p>
+        <div className="flex gap-4 mt-4 w-full">
+          <div className="flex-1 bg-gray-50 rounded-2xl p-3 border border-gray-100 text-center">
+            <p className="text-xl font-bold text-gray-900">{stats.reports}</p>
+            <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mt-0.5">Reports</p>
           </div>
-          <p className="text-base font-bold text-gray-900">Cpl. Ahmad Razif</p>
-          <p className="text-xs text-gray-400 mt-0.5">APM-2024-0847 · KL Sentral Zone</p>
-
-          {/* Stats */}
-          <div className="flex gap-3 mt-4">
-            <div className="flex-1 bg-gray-50 rounded-2xl p-3 border border-gray-100 text-center">
-              <p className="text-xl font-bold" style={{ color: ACCENT }}>12</p>
-              <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mt-0.5">Alerts</p>
-            </div>
-            <div className="flex-1 bg-gray-50 rounded-2xl p-3 border border-gray-100 text-center">
-              <p className="text-xl font-bold text-green-600">9</p>
-              <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mt-0.5">Resolved</p>
-            </div>
-            <div className="flex-1 bg-gray-50 rounded-2xl p-3 border border-gray-100 text-center">
-              <p className="text-xl font-bold text-amber-500">4.2m</p>
-              <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mt-0.5">Avg Time</p>
-            </div>
+          <div className="flex-1 bg-gray-50 rounded-2xl p-3 border border-gray-100 text-center">
+            <p className="text-xl font-bold text-green-600">{stats.accuracy}%</p>
+            <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mt-0.5">Accuracy</p>
           </div>
-        </div>
-      </div>
-
-      {/* Shift info */}
-      <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#EBF4F8' }}>
-            <ShieldIcon size={14} style={{ color: ACCENT }} />
-          </div>
-          <span className="text-sm font-semibold text-gray-800">Current Shift</span>
-          <span className="ml-auto flex items-center gap-1 bg-green-50 text-green-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-            ON DUTY
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-2.5 text-sm">
-          {[
-            { label: 'Shift', value: '14:00 – 22:00' },
-            { label: 'Zone', value: 'KL Sentral' },
-            { label: 'Partner', value: 'Cpl. Siti' },
-            { label: 'Supervisor', value: 'DSP Hafizuddin' },
-          ].map(item => (
-            <div key={item.label}>
-              <p className="text-xs text-gray-400">{item.label}</p>
-              <p className="text-sm font-semibold text-gray-800">{item.value}</p>
-            </div>
-          ))}
         </div>
       </div>
 
@@ -176,7 +143,7 @@ export function PoliceProfile({ onLogout }: { onLogout: () => void }) {
                 }
                 disabled={!tempEmail}
                 className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50"
-                style={{ backgroundColor: ACCENT }}
+                style={{ backgroundColor: DARKBLUE }}
               >
                 {saved === 'email' ? '✓ Saved' : 'Update Email'}
               </button>
@@ -187,7 +154,7 @@ export function PoliceProfile({ onLogout }: { onLogout: () => void }) {
 
       {/* Phone */}
       <div className="space-y-2">
-        <SectionHeader id="phone" icon={PhoneIcon} label="Phone Number" value={`+60 ${phone}`} />
+        <SectionHeader id="phone" icon={PhoneIcon} label="Phone Number" value={phone ? `+60 ${phone}` : 'Add phone'} />
         <AnimatePresence>
           {openSection === 'phone' && (
             <motion.div
@@ -216,7 +183,7 @@ export function PoliceProfile({ onLogout }: { onLogout: () => void }) {
                 }
                 disabled={!tempPhone}
                 className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50"
-                style={{ backgroundColor: ACCENT }}
+                style={{ backgroundColor: DARKBLUE }}
               >
                 {saved === 'phone' ? 'Saved' : 'Update Phone'}
               </button>
@@ -277,7 +244,7 @@ export function PoliceProfile({ onLogout }: { onLogout: () => void }) {
                 }
                 disabled={!currentPw || !newPw || newPw !== confirmPw || newPw.length < 8}
                 className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50"
-                style={{ backgroundColor: ACCENT }}
+                style={{ backgroundColor: DARKBLUE }}
               >
                 {saved === 'password' ? 'Saved' : 'Update Password'}
               </button>
@@ -286,14 +253,15 @@ export function PoliceProfile({ onLogout }: { onLogout: () => void }) {
         </AnimatePresence>
       </div>
 
-      {/* Sign Out */}
+      {/* Sign out */}
+
       <button
         onClick={onLogout}
         className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold text-white shadow-lg active:scale-[0.98] transition-all"
         style={{ background: `linear-gradient(135deg, ${RED} 0%, #E05A3A 100%)` }}
       >
-        <LogOutIcon size={15} />
         Sign Out
+
       </button>
     </motion.div>
   );

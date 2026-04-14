@@ -18,6 +18,7 @@ namespace backend.Data
         public DbSet<Detection>   Detections   => Set<Detection>();
         public DbSet<UserReport>  UserReports  => Set<UserReport>();
         public DbSet<Incident>    Incidents    => Set<Incident>();
+        public DbSet<AuxiliaryShift> AuxiliaryShifts => Set<AuxiliaryShift>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -72,33 +73,18 @@ namespace backend.Data
                 .HasForeignKey<Incident>(i => i.ReportId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // ── PostgreSQL Enums ─────────────────────────────────────────────────
+            modelBuilder.HasPostgresEnum<UserRole>("user_role");
+            modelBuilder.HasPostgresEnum<AssetStatus>("asset_status");
+            modelBuilder.HasPostgresEnum<CoachType>("coach_type");
+            modelBuilder.HasPostgresEnum<CameraStatus>("camera_status");
+            modelBuilder.HasPostgresEnum<IncidentSource>("incident_source");
+            modelBuilder.HasPostgresEnum<IncidentStatus>("incident_status");
+
             // ── CHECK constraints (PostgreSQL) ───────────────────────────────────
-            modelBuilder.Entity<User>()
-                .ToTable(t => t.HasCheckConstraint("chk_user_role",
-                    "role IN ('Customer', 'Operator', 'Auxiliary')"));
-
-            modelBuilder.Entity<TrainAsset>()
-                .ToTable(t => t.HasCheckConstraint("chk_asset_status",
-                    "status IN ('Active', 'Inactive', 'Maintenance')"));
-
-            modelBuilder.Entity<TrainCoach>()
-                .ToTable(t => t.HasCheckConstraint("chk_coach_type",
-                    "coach_type IN ('Womens_Only', 'Mixed')"));
-
-            modelBuilder.Entity<Camera>()
-                .ToTable(t => t.HasCheckConstraint("chk_camera_status",
-                    "status IN ('Active', 'Inactive', 'Faulty')"));
-
             modelBuilder.Entity<Incident>()
-                .ToTable(t =>
-                {
-                    t.HasCheckConstraint("chk_incident_source",
-                        "source IN ('AI_DETECTION', 'USER_REPORT')");
-                    t.HasCheckConstraint("chk_incident_has_source",
-                        "detection_id IS NOT NULL OR report_id IS NOT NULL");
-                    t.HasCheckConstraint("chk_incident_status",
-                        "status IN ('Pending', 'Verified', 'En_Route', 'Escalated', 'Resolved', 'Dismissed')");
-                });
+                .ToTable(t => t.HasCheckConstraint("chk_incident_source",
+                    "detection_id IS NOT NULL OR report_id IS NOT NULL"));
         }
     }
 }

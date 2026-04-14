@@ -2,6 +2,10 @@ using backend.Data;
 using backend.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 
 namespace backend.Controllers
 {
@@ -10,10 +14,12 @@ namespace backend.Controllers
     public class AuthController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly IConfiguration _configuration;
 
-        public AuthController(AppDbContext context)
+        public AuthController(AppDbContext context, IConfiguration configuration)
         {
             _context = context;
+            _configuration = configuration;
         }
 
         public class LoginRequest
@@ -30,7 +36,6 @@ namespace backend.Controllers
                 return BadRequest(new { error = "Email is required." });
             }
 
-            // Find the user in the database
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
 
             if (user == null)
@@ -41,65 +46,55 @@ namespace backend.Controllers
             // Map Database roles to Frontend roles
             string frontendRole = user.Role switch
             {
-                "Operator" => "command",
-                "Auxiliary" => "police",
-                "Customer" => "saferide",
-                _ => "saferide" // Default fallback
+                UserRole.Operator  => "operator",
+                UserRole.Auxiliary => "auxiliary",
+                UserRole.Customer  => "passenger",
+                _                  => "passenger"
             };
 
-            // Return user details + mock OTP for the MFA step without breaking the UI flow
+            var token = GenerateJwtToken(user, frontendRole);
+
             return Ok(new
             {
-                email = user.Email,
-                role = frontendRole,
-                otp = "123456",
-                description = user.Role
+                userId      = user.UserId,
+                userName    = user.UserName,
+                employeeId  = user.EmployeeId,
+                email       = user.Email,
+                role        = frontendRole,
+                token       = token,
+                otp         = "123456", // Mock OTP for UI flow
+                description = user.Role.ToString()
             });
         }
 
-        [HttpPost("seed")]
-        public async Task<IActionResult> SeedDummyUsers()
+        private string GenerateJwtToken(User user, string frontendRole)
         {
-            if (await _context.Users.AnyAsync())
-            {
-                return Ok(new { message = "Database already contains users. Skipping seed." });
-            }
+            var jwtSettings = _configuration.GetSection("JwtSettings");
+            var secretKey   = jwtSettings["SecretKey"] ?? "a_very_long_and_secure_secret_key_for_testing_12345";
+            var issuer      = jwtSettings["Issuer"] ?? "railly.my";
+            var audience    = jwtSettings["Audience"] ?? "railly.my";
+            var expiryHours = int.Parse(jwtSettings["ExpiryHours"] ?? "8");
 
-            var dummyUsers = new List<User>
+            var key   = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var claims = new[]
             {
-                new User
-                {
-                    UserId = "USR-OP-001",
-                    UserName = "Technical Operator",
-                    Email = "operator@railly.my",
-                    CognitoSub = "mock-opt-cognito-id",
-                    Role = "Operator",
-                    CreatedAt = DateTime.UtcNow
-                },
-                new User
-                {
-                    UserId = "USR-PO-001",
-                    UserName = "Auxiliary Police",
-                    Email = "police@railly.my",
-                    CognitoSub = "mock-pol-cognito-id",
-                    Role = "Auxiliary",
-                    CreatedAt = DateTime.UtcNow
-                },
-                new User
-                {
-                    UserId = "USR-CU-001",
-                    UserName = "Public User",
-                    Email = "user@railly.my",
-                    CognitoSub = "mock-usr-cognito-id",
-                    Role = "Customer",
-                    CreatedAt = DateTime.UtcNow
-                }
+                new Claim(JwtRegisteredClaimNames.Sub,   user.UserId),
+                new Claim(JwtRegisteredClaimNames.Email, user.Email),
+                new Claim(ClaimTypes.Role,               frontendRole),
+                new Claim(JwtRegisteredClaimNames.Jti,   Guid.NewGuid().ToString())
             };
 
-            _context.Users.AddRange(dummyUsers);
-            await _context.SaveChangesAsync();
+            var tokenDescriptor = new JwtSecurityToken(
+                issuer:             issuer,
+                audience:           audience,
+                claims:             claims,
+                expires:            DateTime.UtcNow.AddHours(expiryHours),
+                signingCredentials: creds
+            );
 
-            return Ok(new { message = "Successfully seeded dummy users." });
+            return new JwtSecurityTokenHandler().WriteToken(tokenDescriptor);
         }
     }
 }

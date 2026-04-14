@@ -11,11 +11,12 @@ import {
 } from 'lucide-react';
 import { MfaVerification } from './MfaVerification';
 
+import { UserSession, UserRole } from '../../App';
+
 type SignupStep = 'details' | 'mfa' | 'success';
-type UserRole = 'command' | 'police' | 'saferide';
 
 interface SignupPageProps {
-  onSignupSuccess: (role: UserRole) => void;
+  onSignupSuccess: (session: UserSession) => void;
   onNavigateLogin: () => void;
 }
 
@@ -36,10 +37,17 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
   // Success → fire callback after animation
   useEffect(() => {
     if (step === 'success') {
-      const t = setTimeout(() => onSignupSuccess('saferide'), 1400);
+      const mockSession: UserSession = {
+        userId: 'USR-TEMP-' + Math.floor(Math.random() * 1000),
+        userName: name,
+        email: email,
+        role: 'passenger',
+        description: 'Passenger'
+      };
+      const t = setTimeout(() => onSignupSuccess(mockSession), 1400);
       return () => clearTimeout(t);
     }
-  }, [step, onSignupSuccess]);
+  }, [step, onSignupSuccess, name, email]);
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,7 +104,7 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
 
   const verifyOtp = async (code: string): Promise<boolean> => {
     await new Promise((r) => setTimeout(r, 800));
-    
+
     // Accept any correct-looking 6 digit for demo
     if (code === '111111' || code === '123456') {
       setStep('success');

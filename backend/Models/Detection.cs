@@ -12,7 +12,7 @@ namespace backend.Models
         public int DetectionId { get; set; }
 
         [Column("camera_id")]
-        [MaxLength(20)]
+        [MaxLength(50)]
         public string? CameraId { get; set; }
 
         [Column("confidence_score")]

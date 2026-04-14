@@ -16,7 +16,7 @@ const RED = '#D34026';
 
 type AlertStatus = 'pending' | 'dismissed' | 'resolved' | 'escalated';
 
-interface PoliceAlert {
+interface RecentAlerts {
   id: string;
   coach: string;
   door: string;
@@ -65,7 +65,7 @@ function PendingAlertCard({
   alert,
   onAction,
 }: {
-  alert: PoliceAlert;
+  alert: RecentAlerts;
   onAction: (id: string, action: 'resolved' | 'dismissed' | 'escalated') => void;
 }) {
   return (
@@ -179,7 +179,7 @@ function PendingAlertCard({
   );
 }
 
-function CompactAlertCard({ alert }: { alert: PoliceAlert }) {
+function CompactAlertCard({ alert }: { alert: RecentAlerts }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
       <div
@@ -202,12 +202,16 @@ function CompactAlertCard({ alert }: { alert: PoliceAlert }) {
   );
 }
 
-export function PoliceAlerts() {
-  const [alerts, setAlerts] = useState<PoliceAlert[]>([]);
+export function RecentAlerts({ assignedStationId }: { assignedStationId?: string }) {
+  const [alerts, setAlerts] = useState<RecentAlerts[]>([]);
   const [activeStatus, setActiveStatus] = useState<AlertStatus>('pending');
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/data/police-alerts')
+    const url = assignedStationId 
+      ? `http://localhost:5293/api/data/police-alerts?assignedStationId=${assignedStationId}`
+      : 'http://localhost:5293/api/data/police-alerts';
+
+    fetch(url)
       .then(res => res.json())
       .then(data => {
         setAlerts(data);
@@ -215,14 +219,14 @@ export function PoliceAlerts() {
       .catch(err => {
         console.error('Failed to fetch police alerts', err);
       });
-  }, []);
+  }, [assignedStationId]);
 
   const handleAction = async (id: string, action: 'resolved' | 'dismissed' | 'escalated') => {
     setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: action } : a));
-    
+
     // Update server
     try {
-      await fetch(`http://localhost:5000/api/data/police-alerts/${id}/status`, {
+      await fetch(`http://localhost:5293/api/data/police-alerts/${id}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: action })

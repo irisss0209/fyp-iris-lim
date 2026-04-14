@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { BellIcon, ClockIcon, UserIcon, ShieldIcon } from 'lucide-react';
-import { PoliceAlerts } from './PoliceAlerts';
-import { PoliceHistory } from './History';
-import { PoliceProfile } from './PoliceProfile';
+import { RecentAlerts } from './RecentAlerts';
+import { AlertsHistory } from './AlertsHistory';
+import { AuxiliaryProfile } from './AuxiliaryProfile';
+import { AuxiliaryShift } from './AuxiliaryShift';
+import { UserSession } from '../../App';
 
 type Tab = 'alerts' | 'history' | 'profile';
 
@@ -15,9 +17,15 @@ const TABS: { id: Tab; icon: React.ElementType; label: string }[] = [
   { id: 'profile', icon: UserIcon, label: 'Profile' },
 ];
 
-export function PoliceHub({ onLogout }: { onLogout: () => void }) {
+export interface AuxiliaryInterface {
+  session: UserSession;
+  onLogout: () => void;
+}
+
+export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterfaceProps) {
   const [activeTab, setActiveTab] = useState<Tab>('alerts');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [assignedStationId, setAssignedStationId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const t = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -71,11 +79,11 @@ export function PoliceHub({ onLogout }: { onLogout: () => void }) {
               className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
               style={{ backgroundColor: ACCENT }}
             >
-              A
+              {session.userName.charAt(0)}
             </div>
             <div>
-              <p className="text-sm font-bold text-gray-900">Cpl. Ahmad Razif</p>
-              <p className="text-xs text-gray-400">APM-2024-0847 · KL Sentral Zone</p>
+              <p className="text-sm font-bold text-gray-900">{session.userName}</p>
+              <p className="text-xs text-gray-400">{session.employeeId || 'APM-GENERAL'}</p>
             </div>
           </div>
           <div className="flex items-center gap-1.5 bg-green-50 border border-green-100 rounded-xl px-2.5 py-1">
@@ -85,12 +93,15 @@ export function PoliceHub({ onLogout }: { onLogout: () => void }) {
         </div>
       </div>
 
+      {/* ── Shift Banner ── */}
+      <AuxiliaryShift userId={session.userId} onStationDetected={(id) => setAssignedStationId(id)} />
+
       {/* ── Scrollable Content ── */}
       <div className="flex-1 overflow-y-auto pb-24">
         <AnimatePresence mode="wait">
-          {activeTab === 'alerts' && <PoliceAlerts key="alerts" />}
-          {activeTab === 'history' && <PoliceHistory key="history" />}
-          {activeTab === 'profile' && <PoliceProfile key="profile" onLogout={onLogout} />}
+          {activeTab === 'alerts' && <RecentAlerts key="alerts" assignedStationId={assignedStationId} />}
+          {activeTab === 'history' && <AlertsHistory key="history" />}
+          {activeTab === 'profile' && <AuxiliaryProfile key="profile" session={session} onLogout={onLogout} />}
         </AnimatePresence>
       </div>
 
@@ -102,9 +113,8 @@ export function PoliceHub({ onLogout }: { onLogout: () => void }) {
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-2xl transition-all duration-200 ${
-                active ? 'text-[#0B4F6C]' : 'text-gray-400 hover:text-gray-600'
-              }`}
+              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-2xl transition-all duration-200 ${active ? 'text-[#0B4F6C]' : 'text-gray-400 hover:text-gray-600'
+                }`}
             >
               <Icon size={24} style={{ color: active ? ACCENT : 'currentColor' }} />
               <span

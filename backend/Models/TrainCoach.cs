@@ -8,19 +8,18 @@ namespace backend.Models
     {
         [Key]
         [Column("coach_id")]
-        [MaxLength(20)]
+        [MaxLength(50)]
         public string CoachId { get; set; } = null!;
 
         [Required]
         [Column("train_id")]
-        [MaxLength(20)]
+        [MaxLength(50)]
         public string TrainId { get; set; } = null!;
 
         // 'Womens_Only' | 'Mixed'
         [Required]
         [Column("coach_type")]
-        [MaxLength(20)]
-        public string CoachType { get; set; } = "Womens_Only";
+        public CoachType CoachType { get; set; } = CoachType.Womens_Only;
 
         // Navigation
         [ForeignKey(nameof(TrainId))]

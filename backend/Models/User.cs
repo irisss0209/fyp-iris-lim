@@ -8,11 +8,11 @@ namespace backend.Models
     {
         [Key]
         [Column("user_id")]
-        [MaxLength(20)]
+        [MaxLength(50)]
         public string UserId { get; set; } = null!;
 
         [Column("employee_id")]
-        [MaxLength(20)]
+        [MaxLength(50)]
         public string? EmployeeId { get; set; }
 
         [Required]
@@ -33,8 +33,7 @@ namespace backend.Models
         // 'Customer' | 'Operator' | 'Auxiliary'
         [Required]
         [Column("role")]
-        [MaxLength(20)]
-        public string Role { get; set; } = null!;
+        public UserRole Role { get; set; }
 
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
