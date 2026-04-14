@@ -13,12 +13,13 @@ import { Reports } from './Reports';
 import { Settings } from './Settings';
 
 export type NavPage = 'dashboard' | 'live-alerts' | 'reports' | 'settings';
-
+import { UserSession } from '../../App';
 interface SidebarProps {
   activePage: NavPage;
   onNavigate: (page: NavPage) => void;
   onLogout?: () => void;
   alertCount?: number;
+  user?: UserSession | null;
 }
 
 const navItems = [
@@ -28,7 +29,7 @@ const navItems = [
   { id: 'settings' as NavPage, label: 'Settings', icon: SettingsIcon }
 ];
 
-function Sidebar({ activePage, onNavigate, onLogout, alertCount = 7 }: SidebarProps) {
+function Sidebar({ activePage, onNavigate, onLogout, alertCount = 7, user }: SidebarProps) {
   return (
     <aside
       className="flex flex-col h-full bg-white border-r border-gray-200"
@@ -92,8 +93,8 @@ function Sidebar({ activePage, onNavigate, onLogout, alertCount = 7 }: SidebarPr
             <UserCircleIcon size={22} className="text-gray-400" aria-hidden="true" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-gray-800 truncate">Operator Ahmad</div>
-            <div className="text-xs text-gray-400 truncate">Technical Operator</div>
+            <div className="text-sm font-semibold text-gray-800 truncate">{user?.userName || "Loading..."}</div>
+            <div className="text-xs text-gray-400 truncate">{user?.role || "Operator"}</div>
           </div>
           <button onClick={onLogout} className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Log out">
             <LogOutIcon size={16} aria-hidden="true" />
@@ -104,7 +105,14 @@ function Sidebar({ activePage, onNavigate, onLogout, alertCount = 7 }: SidebarPr
   );
 }
 
-export function OperatorInterface({ onLogout }: { onLogout?: () => void }) {
+
+export function OperatorInterface({
+  onLogout,
+  session
+}: {
+  onLogout?: () => void;
+  session: UserSession | null;
+}) {
   const [activePage, setActivePage] = useState<NavPage>('dashboard');
 
   const renderPage = () => {
@@ -130,6 +138,7 @@ export function OperatorInterface({ onLogout }: { onLogout?: () => void }) {
         onNavigate={(page) => setActivePage(page)}
         onLogout={onLogout}
         alertCount={7}
+        user={session}
       />
 
       {/* Main Content */}

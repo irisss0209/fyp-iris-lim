@@ -13,8 +13,6 @@ export interface PassengerInterface {
 
 type Tab = 'home' | 'report' | 'profile';
 
-const ACCENT = '#0B4F6C';
-
 const TABS: { id: Tab; icon: React.ElementType; label: string }[] = [
   { id: 'home', icon: BarChart2Icon, label: 'Trends' },
   { id: 'report', icon: AlertTriangleIcon, label: 'Report' },
@@ -70,14 +68,12 @@ export function PassengerInterface({ session, onLogout }: PassengerInterface) {
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-2xl transition-all duration-200 ${active ? 'text-[#0B4F6C]' : 'text-gray-400 hover:text-gray-600'
-                }`}
+              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-2xl transition-all duration-200 ${
+                active ? 'text-theme-passenger' : 'text-gray-400 hover:text-gray-600'
+              }`}
             >
-              <Icon size={24} style={{ color: active ? ACCENT : 'currentColor' }} />
-              <span
-                className="text-[10px] font-bold"
-                style={{ color: active ? ACCENT : 'currentColor' }}
-              >
+              <Icon size={24} />
+              <span className="text-[10px] font-bold">
                 {label}
               </span>
             </button>

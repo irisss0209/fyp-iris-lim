@@ -16,6 +16,9 @@ export default {
         "action-flag": "#D34026",
         "health-green": "#2D7A5D",
         "alert-badge": "#D34026",
+        "theme-passenger": "var(--theme-passenger)",
+        "theme-auxiliary": "var(--theme-auxiliary)",
+        "theme-operator": "var(--theme-operator)",
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],

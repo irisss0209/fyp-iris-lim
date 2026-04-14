@@ -23,7 +23,9 @@ namespace backend.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
-
+            modelBuilder.Entity<User>()
+                .Property(u => u.Role)
+                .HasColumnType("user_role");
             // ── Line_Station: composite primary key ──────────────────────────────
             modelBuilder.Entity<LineStation>()
                 .HasKey(ls => new { ls.LineId, ls.StationId });
@@ -72,14 +74,6 @@ namespace backend.Data
                 .WithOne(r => r.Incident)
                 .HasForeignKey<Incident>(i => i.ReportId)
                 .OnDelete(DeleteBehavior.Restrict);
-
-            // ── PostgreSQL Enums ─────────────────────────────────────────────────
-            modelBuilder.HasPostgresEnum<UserRole>("user_role");
-            modelBuilder.HasPostgresEnum<AssetStatus>("asset_status");
-            modelBuilder.HasPostgresEnum<CoachType>("coach_type");
-            modelBuilder.HasPostgresEnum<CameraStatus>("camera_status");
-            modelBuilder.HasPostgresEnum<IncidentSource>("incident_source");
-            modelBuilder.HasPostgresEnum<IncidentStatus>("incident_status");
 
             // ── CHECK constraints (PostgreSQL) ───────────────────────────────────
             modelBuilder.Entity<Incident>()

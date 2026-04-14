@@ -16,6 +16,11 @@
   --action-primary: #0B4F6C;
   --action-alert: #D34026;
   --status-safe: #2D7A5D;
+
+  /* Role-Based Themes */
+  --theme-passenger: #0B4F6C; /* Deep Blue Accent */
+  --theme-auxiliary: #2D7A5D; /* Health Green Accent */
+  --theme-operator: #0F766E;  /* Teal Accent */
 }
 
 * {

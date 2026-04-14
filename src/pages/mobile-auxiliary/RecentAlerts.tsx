@@ -207,26 +207,27 @@ export function RecentAlerts({ assignedStationId }: { assignedStationId?: string
   const [activeStatus, setActiveStatus] = useState<AlertStatus>('pending');
 
   useEffect(() => {
-    const url = assignedStationId 
-      ? `http://localhost:5293/api/data/police-alerts?assignedStationId=${assignedStationId}`
-      : 'http://localhost:5293/api/data/police-alerts';
+    // If no stationId (officer not on shift), return empty immediately
+    const url = assignedStationId
+      ? `http://localhost:5293/api/data/auxiliary/alerts?stationId=${assignedStationId}`
+      : null;
+
+    if (!url) {
+      setAlerts([]);
+      return;
+    }
 
     fetch(url)
       .then(res => res.json())
-      .then(data => {
-        setAlerts(data);
-      })
-      .catch(err => {
-        console.error('Failed to fetch police alerts', err);
-      });
+      .then(data => { setAlerts(data); })
+      .catch(err => { console.error('Failed to fetch alerts', err); });
   }, [assignedStationId]);
 
   const handleAction = async (id: string, action: 'resolved' | 'dismissed' | 'escalated') => {
+    // Optimistic update
     setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: action } : a));
-
-    // Update server
     try {
-      await fetch(`http://localhost:5293/api/data/police-alerts/${id}/status`, {
+      await fetch(`http://localhost:5293/api/data/auxiliary/alerts/${id}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: action })
@@ -313,7 +314,21 @@ export function RecentAlerts({ assignedStationId }: { assignedStationId?: string
       {/* Content */}
       <div className="px-4 space-y-3">
         <AnimatePresence mode="wait">
-          {filtered.length === 0 ? (
+          {!assignedStationId ? (
+            <motion.div
+              key="no-shift"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-col items-center justify-center py-16 text-center"
+            >
+              <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#F3F4F6' }}>
+                <BellIcon size={24} className="text-gray-400" />
+              </div>
+              <p className="text-sm font-semibold text-gray-600">No active shift</p>
+              <p className="text-xs text-gray-400 mt-1">Alerts will appear here once you are on duty at a station.</p>
+            </motion.div>
+          ) : filtered.length === 0 ? (
             <motion.div
               key="empty"
               initial={{ opacity: 0 }}

@@ -9,8 +9,6 @@ import { UserSession } from '../../App';
 
 type Tab = 'alerts' | 'history' | 'profile';
 
-const ACCENT = '#0B4F6C';
-
 const TABS: { id: Tab; icon: React.ElementType; label: string }[] = [
   { id: 'alerts', icon: BellIcon, label: 'Alerts' },
   { id: 'history', icon: ClockIcon, label: 'History' },
@@ -22,7 +20,7 @@ export interface AuxiliaryInterface {
   onLogout: () => void;
 }
 
-export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterfaceProps) {
+export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterface) {
   const [activeTab, setActiveTab] = useState<Tab>('alerts');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [assignedStationId, setAssignedStationId] = useState<string | undefined>(undefined);
@@ -71,13 +69,11 @@ export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterfaceProp
       {/* ── Officer info strip ── */}
       <div className="px-4 pb-3 flex-shrink-0" style={{ background: '#FAF9F5' }}>
         <div
-          className="rounded-2xl px-4 py-3 flex items-center justify-between"
-          style={{ backgroundColor: '#EBF4F8', border: '1px solid #D0E8F2' }}
+          className="rounded-2xl px-4 py-3 flex items-center justify-between border border-[#D0E8F2] bg-[#EBF4F8]"
         >
           <div className="flex items-center gap-3">
             <div
-              className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
-              style={{ backgroundColor: ACCENT }}
+              className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 bg-theme-auxiliary"
             >
               {session.userName.charAt(0)}
             </div>
@@ -100,7 +96,7 @@ export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterfaceProp
       <div className="flex-1 overflow-y-auto pb-24">
         <AnimatePresence mode="wait">
           {activeTab === 'alerts' && <RecentAlerts key="alerts" assignedStationId={assignedStationId} />}
-          {activeTab === 'history' && <AlertsHistory key="history" />}
+          {activeTab === 'history' && <AlertsHistory key="history" userId={session.userId} />}
           {activeTab === 'profile' && <AuxiliaryProfile key="profile" session={session} onLogout={onLogout} />}
         </AnimatePresence>
       </div>
@@ -113,14 +109,12 @@ export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterfaceProp
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-2xl transition-all duration-200 ${active ? 'text-[#0B4F6C]' : 'text-gray-400 hover:text-gray-600'
-                }`}
+              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-2xl transition-all duration-200 ${
+                active ? 'text-theme-auxiliary' : 'text-gray-400 hover:text-gray-600'
+              }`}
             >
-              <Icon size={24} style={{ color: active ? ACCENT : 'currentColor' }} />
-              <span
-                className="text-[10px] font-bold"
-                style={{ color: active ? ACCENT : 'currentColor' }}
-              >
+              <Icon size={24} />
+              <span className="text-[10px] font-bold">
                 {label}
               </span>
             </button>

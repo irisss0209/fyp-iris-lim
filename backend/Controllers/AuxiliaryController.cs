@@ -133,6 +133,137 @@ namespace backend.Controllers
 
             return Ok(stations);
         }
+
+        // ── Live alerts for a station (RecentAlerts tab) ───────────────────────
+        [HttpGet("auxiliary/alerts")]
+        public async Task<IActionResult> GetAlertsByStation([FromQuery] string? stationId)
+        {
+            if (string.IsNullOrWhiteSpace(stationId))
+                return Ok(new List<object>()); // No shift → no alerts
+
+            var allowedLineIds = await _context.LineStations
+                .Where(ls => ls.StationId == stationId)
+                .Select(ls => ls.LineId)
+                .ToListAsync();
+
+            if (!allowedLineIds.Any())
+                return Ok(new List<object>());
+
+            var incidents = await _context.Incidents
+                .Include(i => i.Detection)
+                    .ThenInclude(d => d!.Camera)
+                        .ThenInclude(c => c!.TrainCoach)
+                            .ThenInclude(tc => tc!.TrainAsset)
+                .Where(i =>
+                    i.Detection != null &&
+                    i.Detection.Camera != null &&
+                    i.Detection.Camera.TrainCoach != null &&
+                    i.Detection.Camera.TrainCoach.TrainAsset != null &&
+                    allowedLineIds.Contains(i.Detection.Camera.TrainCoach.TrainAsset.LineId))
+                .OrderByDescending(i => i.CreatedAt)
+                .Take(50)
+                .Select(i => new
+                {
+                    id = i.IncidentId.ToString(),
+                    coach = i.Detection != null ? i.Detection.Camera!.CoachId : "Unknown",
+                    door = i.Detection != null ? i.Detection.Camera!.CameraId : "Unknown",
+                    line = (string?)"—",
+                    station = stationId,
+                    platform = "—",
+                    time = i.CreatedAt.ToString("HH:mm"),
+                    elapsed = (int)(DateTime.UtcNow - i.CreatedAt).TotalMinutes,
+                    severity = "high",
+                    status = i.Status.ToString().ToLower(),
+                    type = i.Source == IncidentSource.AI_DETECTION
+                        ? "Male in Women-Only Coach"
+                        : "Passenger Report",
+                    snapshotUrl = i.Detection != null ? i.Detection.ImageUrl : null
+                })
+                .ToListAsync();
+
+            return Ok(incidents);
+        }
+
+        // ── Update incident status (acknowledge / dismiss / escalate) ──────────
+        [HttpPost("auxiliary/alerts/{id}/status")]
+        public async Task<IActionResult> UpdateAlertStatus(int id, [FromBody] UpdateStatusRequest req)
+        {
+            var incident = await _context.Incidents.FindAsync(id);
+            if (incident == null) return NotFound();
+
+            incident.Status = req.Status.ToLower() switch
+            {
+                "resolved"  => IncidentStatus.Resolved,
+                "escalated" => IncidentStatus.Escalated,
+                "dismissed" => IncidentStatus.Dismissed,
+                _           => incident.Status
+            };
+
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Status updated." });
+        }
+
+        // ── Case history for an officer (AlertsHistory tab) ────────────────────
+        [HttpGet("auxiliary/history")]
+        public async Task<IActionResult> GetHistoryByUser([FromQuery] string userId)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+                return BadRequest(new { error = "userId is required." });
+
+            var incidentsList = await _context.Incidents
+                .Include(i => i.Detection)
+                    .ThenInclude(d => d!.Camera)
+                        .ThenInclude(c => c!.TrainCoach)
+                            .ThenInclude(tc => tc!.TrainAsset)
+                .Include(i => i.UserReport)
+                .Where(i =>
+                    i.EnrouteBy == userId ||
+                    i.ResolvedBy == userId ||
+                    i.EscalatedBy == userId ||
+                    i.DismissedBy == userId)
+                .Where(i =>
+                    i.Status == IncidentStatus.Resolved ||
+                    i.Status == IncidentStatus.Escalated ||
+                    i.Status == IncidentStatus.Dismissed)
+                .OrderByDescending(i => i.CreatedAt)
+                .ToListAsync();
+
+            var lineStations = await _context.LineStations.Include(ls => ls.Station).ToListAsync();
+
+            var history = incidentsList.Select(i =>
+            {
+                string? lineId = null;
+                if (i.Source == IncidentSource.AI_DETECTION && i.Detection?.Camera?.TrainCoach?.TrainAsset != null)
+                {
+                    lineId = i.Detection.Camera.TrainCoach.TrainAsset.LineId;
+                }
+                
+                var stationName = lineStations.FirstOrDefault(ls => ls.LineId == lineId)?.Station?.StationName ?? "Unknown Station";
+
+                return new
+                {
+                    id = i.IncidentId.ToString(),
+                    caseId = $"INC-{i.IncidentId:D4}",
+                    station = stationName,
+                    line = "—",
+                    datetime = i.CreatedAt.ToString("dd MMM yyyy, HH:mm"),
+                    outcome = i.Status == IncidentStatus.Resolved  ? "Resolved"  :
+                              i.Status == IncidentStatus.Escalated ? "Escalated" : "No Action",
+                    duration = i.ResolvedAt.HasValue
+                        ? $"{(int)(i.ResolvedAt.Value - i.CreatedAt).TotalMinutes} min"
+                        : i.DismissedAt.HasValue
+                            ? $"{(int)(i.DismissedAt.Value - i.CreatedAt).TotalMinutes} min"
+                            : "—",
+                    coachId = i.Detection != null ? i.Detection.Camera!.CoachId : "—",
+                    description = i.Source == IncidentSource.AI_DETECTION
+                        ? "Male detected in women-only coach"
+                        : "Passenger-reported incident",
+                    notes = "Handled by officer."
+                };
+            }).ToList();
+
+            return Ok(history);
+        }
     }
 
     public class CreateShiftRequest
