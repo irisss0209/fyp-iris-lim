@@ -385,15 +385,11 @@ namespace backend.Controllers
                     .FirstOrDefault(ls => ls.LineId == lineId)
                     ?.Station?.StationName ?? "Unknown";
 
-                // Map status for operator view
+                // Pass status through exactly as stored (lowercase snake_case)
                 var mappedStatus = inc.Status.ToString().ToLower() switch
                 {
-                    "pending"              => "pending",
-                    "verified" or
-                    "escalated" or
-                    "en_route"             => "verified",
-                    "dismissed"            => "dismissed",
-                    var other              => other
+                    "en_route" => "en_route",
+                    var other  => other
                 };
 
                 return new
@@ -428,7 +424,7 @@ namespace backend.Controllers
             {
                 lines,
                 stationsByLine,
-                stats = new { pending, verified, escalated, enroute, resolved, dismissed },
+                stats = new { pending, verified, escalated, enRoute = enroute, resolved, dismissed },
                 alerts
             });
         }

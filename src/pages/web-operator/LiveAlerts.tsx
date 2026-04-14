@@ -15,7 +15,7 @@ import { JustificationModal } from '../../components/JustificationModal';
 
 const API = 'http://localhost:5293/api/data';
 
-type AlertStatus = 'all' | 'pending' | 'verified' | 'dismissed';
+type AlertStatus = 'all' | 'pending' | 'verified' | 'escalated' | 'en_route' | 'resolved' | 'dismissed';
 type AlertSource = 'all' | 'ai' | 'passenger';
 
 interface Alert {
@@ -26,7 +26,7 @@ interface Alert {
   station: string;
   time: string;
   elapsed: string;
-  status: 'pending' | 'verified' | 'dismissed';
+  status: 'pending' | 'verified' | 'escalated' | 'en_route' | 'resolved' | 'dismissed';
   confidence: number | null;
   deviceId: string | null;
   source: 'ai' | 'passenger';
@@ -45,12 +45,36 @@ function getLineColor(lineId: string, idx: number) {
   return LINE_COLORS[lineId];
 }
 
+// ── Stat box config (one entry per status) ──────────────────────────────────
+const STAT_CONFIGS: {
+  key: keyof StatsState;
+  label: string;
+  color: string;
+  bg: string;
+}[] = [
+  { key: 'pending',   label: 'Pending',   color: '#C2410C', bg: '#FFF7ED' },
+  { key: 'verified',  label: 'Verified',  color: '#2D7A5D', bg: '#F0FBF6' },
+  { key: 'escalated', label: 'Escalated', color: '#7B5EA7', bg: '#F5F0FF' },
+  { key: 'enRoute',   label: 'En Route',  color: '#0B4F6C', bg: '#EFF6FF' },
+  { key: 'resolved',  label: 'Resolved',  color: '#1D4ED8', bg: '#EBF8FF' },
+  { key: 'dismissed', label: 'Dismissed', color: '#4A5568', bg: '#F7FAFC' },
+];
+
+interface StatsState {
+  pending: number;
+  verified: number;
+  escalated: number;
+  enRoute: number;
+  resolved: number;
+  dismissed: number;
+}
+
 export function LiveAlerts() {
   // ── Data from DB ──────────────────────────────────────────────────────────────
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [lines, setLines] = useState<LineOption[]>([]);
   const [stationsByLine, setStationsByLine] = useState<StationsByLine[]>([]);
-  const [stats, setStats] = useState({ pending: 0, verified: 0, resolved: 0, dismissed: 0 });
+  const [stats, setStats] = useState<StatsState>({ pending: 0, verified: 0, escalated: 0, enRoute: 0, resolved: 0, dismissed: 0 });
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
@@ -73,7 +97,7 @@ export function LiveAlerts() {
       setAlerts(data.alerts ?? []);
       setLines(data.lines ?? []);
       setStationsByLine(data.stationsByLine ?? []);
-      setStats(data.stats ?? { pending: 0, verified: 0, resolved: 0, dismissed: 0 });
+      setStats(data.stats ?? { pending: 0, verified: 0, escalated: 0, enRoute: 0, resolved: 0, dismissed: 0 });
       // Keep or auto-select first alert
       setSelectedAlert(prev => {
         if (prev) {
@@ -119,9 +143,12 @@ export function LiveAlerts() {
   }), [alerts, activeFilter, sourceFilter, lineFilter, stationFilter]);
 
   const statusTabs: { id: AlertStatus; label: string }[] = [
-    { id: 'all', label: 'All' },
-    { id: 'pending', label: 'Pending' },
-    { id: 'verified', label: 'Verified & Escalated' },
+    { id: 'all',       label: 'All' },
+    { id: 'pending',   label: 'Pending' },
+    { id: 'verified',  label: 'Verified' },
+    { id: 'escalated', label: 'Escalated' },
+    { id: 'en_route',  label: 'En Route' },
+    { id: 'resolved',  label: 'Resolved' },
     { id: 'dismissed', label: 'Dismissed' },
   ];
 
@@ -188,17 +215,19 @@ export function LiveAlerts() {
           </button>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-4 gap-3 mt-4">
-          {[
-            { label: 'Pending', value: stats.pending, color: '#D34026', bg: '#FEF2F0' },
-            { label: 'Verified & Escalated', value: stats.verified, color: '#2D7A5D', bg: '#F0FBF6' },
-            { label: 'Resolved', value: stats.resolved, color: '#2B6CB0', bg: '#EBF8FF' },
-            { label: 'Dismissed', value: stats.dismissed, color: '#4A5568', bg: '#F7FAFC' },
-          ].map(s => (
-            <div key={s.label} className="rounded-lg px-4 py-3" style={{ backgroundColor: s.bg }}>
-              <div className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</div>
-              <div className="text-xs font-medium" style={{ color: s.color }}>{s.label}</div>
+        {/* ── Stats: 6 boxes in one row ── */}
+        <div className="grid grid-cols-6 gap-2 mt-4">
+          {STAT_CONFIGS.map(s => (
+            <div
+              key={s.key}
+              className="rounded-lg px-3 py-2.5 cursor-pointer transition-all duration-150 hover:opacity-90"
+              style={{ backgroundColor: s.bg }}
+              onClick={() => setActiveFilter(s.key === 'enRoute' ? 'en_route' : s.key as AlertStatus)}
+            >
+              <div className="text-xl font-bold" style={{ color: s.color }}>
+                {loading ? '—' : stats[s.key]}
+              </div>
+              <div className="text-xs font-medium mt-0.5" style={{ color: s.color }}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -300,8 +329,8 @@ export function LiveAlerts() {
                   key={alert.id}
                   onClick={() => { setSelectedAlert(alert); setNotes(''); }}
                   className={`bg-white rounded-xl shadow-sm border cursor-pointer transition-all duration-150 overflow-hidden ${selectedAlert?.id === alert.id
-                      ? 'ring-2 ring-[#0B4F6C] border-transparent'
-                      : 'border-gray-100 hover:border-gray-200'
+                    ? 'ring-2 ring-[#0B4F6C] border-transparent'
+                    : 'border-gray-100 hover:border-gray-200'
                     }`}
                 >
                   <div className="flex">
