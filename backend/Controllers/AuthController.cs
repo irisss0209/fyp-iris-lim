@@ -42,7 +42,10 @@ namespace backend.Controllers
             {
                 return Unauthorized(new { error = "Invalid email or password. Please try again." });
             }
-
+            if (user.Status != UserStatus.Active)
+            {
+                return Unauthorized(new { error = "Account is not active." });
+            }
             // Map Database roles to Frontend roles
             string frontendRole = user.Role switch
             {

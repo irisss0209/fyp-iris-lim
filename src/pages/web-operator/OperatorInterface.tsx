@@ -5,7 +5,9 @@ import {
   FileTextIcon,
   SettingsIcon,
   LogOutIcon,
-  UserCircleIcon
+  UserCircleIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
 } from 'lucide-react';
 import { Dashboard } from './Dashboard';
 import { LiveAlerts } from './LiveAlerts';
@@ -14,49 +16,61 @@ import { Settings } from './Settings';
 
 export type NavPage = 'dashboard' | 'live-alerts' | 'reports' | 'settings';
 import { UserSession } from '../../App';
+
 interface SidebarProps {
   activePage: NavPage;
   onNavigate: (page: NavPage) => void;
   onLogout?: () => void;
   alertCount?: number;
   user?: UserSession | null;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
 const navItems = [
   { id: 'dashboard' as NavPage, label: 'Dashboard', icon: LayoutDashboardIcon },
-  { id: 'live-alerts' as NavPage, label: 'Live Alerts', icon: BellIcon, badge: 7 },
+  { id: 'live-alerts' as NavPage, label: 'Live Alerts', icon: BellIcon, badge: true },
   { id: 'reports' as NavPage, label: 'Reports', icon: FileTextIcon },
-  { id: 'settings' as NavPage, label: 'Settings', icon: SettingsIcon }
+  { id: 'settings' as NavPage, label: 'Settings', icon: SettingsIcon },
 ];
 
-function Sidebar({ activePage, onNavigate, onLogout, alertCount = 7, user }: SidebarProps) {
+function Sidebar({ activePage, onNavigate, onLogout, alertCount = 0, user, collapsed, onToggleCollapse }: SidebarProps) {
   return (
     <aside
-      className="flex flex-col h-full bg-white border-r border-gray-200"
-      style={{ width: '260px', minWidth: '260px' }}
+      className="flex flex-col h-full bg-[#FAF9F5] border-r border-gray-200 transition-all duration-300"
+      style={{ width: collapsed ? '64px' : '260px', minWidth: collapsed ? '64px' : '260px' }}
     >
-      {/* Brand */}
-      <div className="px-5 py-5 border-b border-gray-100">
-        <div className="flex items-center gap-3">
-          <div
-            className="w-12 h-12 rounded-xl flex-shrink-0"
-            style={{
-              backgroundImage: 'url(/Railly_logo.png)',
-              backgroundSize: '100%',
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat',
-            }}
-            aria-label="Railly"
-          />
-          <div>
-            <div className="text-gray-900 font-bold text-base leading-tight">Railly</div>
-            <div className="text-gray-400 text-xs mt-0.5">Command Center</div>
+      {/* Brand + collapse button */}
+      <div className="flex items-center border-b border-gray-100 px-3 py-4" style={{ minHeight: '72px' }}>
+        {!collapsed && (
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div
+              className="w-10 h-10 rounded-xl flex-shrink-0"
+              style={{
+                backgroundImage: 'url(/Railly_logo.png)',
+                backgroundSize: '100%',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+              }}
+              aria-label="Railly"
+            />
+            <div>
+              <div className="text-gray-900 font-bold text-base leading-tight">Railly</div>
+              <div className="text-gray-400 text-xs mt-0.5">Command Center</div>
+            </div>
           </div>
-        </div>
+        )}
+        <button
+          onClick={onToggleCollapse}
+          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors flex-shrink-0 ml-auto"
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {collapsed ? <PanelLeftOpenIcon size={18} /> : <PanelLeftCloseIcon size={18} />}
+        </button>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5" role="navigation" aria-label="Main navigation">
+      <nav className="flex-1 px-2 py-3 space-y-0.5" role="navigation" aria-label="Main navigation">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activePage === item.id;
@@ -64,9 +78,9 @@ function Sidebar({ activePage, onNavigate, onLogout, alertCount = 7, user }: Sid
             <button
               key={item.id}
               onClick={() => onNavigate(item.id)}
-              className={`
-                w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-                transition-colors duration-150 relative group
+              title={collapsed ? item.label : undefined}
+              className={`w-full flex items-center rounded-lg text-sm font-medium transition-colors duration-150 relative group
+                ${collapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2.5'}
                 ${isActive ? 'bg-teal-50 text-teal-700' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}
               `}
               aria-current={isActive ? 'page' : undefined}
@@ -74,12 +88,24 @@ function Sidebar({ activePage, onNavigate, onLogout, alertCount = 7, user }: Sid
               {isActive && (
                 <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full bg-teal-600" aria-hidden="true" />
               )}
-              <Icon className={`w-4.5 h-4.5 flex-shrink-0 ${isActive ? 'text-teal-600' : 'text-gray-400 group-hover:text-gray-500'}`} size={18} aria-hidden="true" />
-              <span className="flex-1 text-left">{item.label}</span>
-              {item.badge !== undefined && (
-                <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full">
-                  {item.id === 'live-alerts' ? alertCount : item.badge}
-                </span>
+              <div className="relative flex-shrink-0">
+                <Icon size={18} className={isActive ? 'text-teal-600' : 'text-gray-400 group-hover:text-gray-500'} aria-hidden="true" />
+                {/* Badge on icon when collapsed */}
+                {item.badge && alertCount > 0 && collapsed && (
+                  <span className="absolute -top-1.5 -right-1.5 w-4 h-4 text-[10px] font-bold text-white bg-red-500 rounded-full flex items-center justify-center">
+                    {alertCount}
+                  </span>
+                )}
+              </div>
+              {!collapsed && (
+                <>
+                  <span className="flex-1 text-left">{item.label}</span>
+                  {item.badge && alertCount > 0 && (
+                    <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full">
+                      {alertCount}
+                    </span>
+                  )}
+                </>
               )}
             </button>
           );
@@ -87,24 +113,32 @@ function Sidebar({ activePage, onNavigate, onLogout, alertCount = 7, user }: Sid
       </nav>
 
       {/* User section */}
-      <div className="px-4 py-4 border-t border-gray-100">
-        <div className="flex items-center gap-3">
+      <div className="px-2 pb-3 border-t border-gray-100 pt-3">
+        <div className={`flex items-center gap-3 ${collapsed ? 'flex-col' : ''}`}>
           <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
             <UserCircleIcon size={22} className="text-gray-400" aria-hidden="true" />
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-gray-800 truncate">{user?.userName || "Loading..."}</div>
-            <div className="text-xs text-gray-400 truncate">{user?.role || "Operator"}</div>
-          </div>
-          <button onClick={onLogout} className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Log out">
-            <LogOutIcon size={16} aria-hidden="true" />
-          </button>
+          {!collapsed && (
+            <>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-gray-800 truncate">{user?.userName || 'Loading...'}</div>
+                <div className="text-xs text-gray-400 truncate capitalize">{user?.role || 'Operator'}</div>
+              </div>
+              <button onClick={onLogout} className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Log out">
+                <LogOutIcon size={16} aria-hidden="true" />
+              </button>
+            </>
+          )}
+          {collapsed && (
+            <button onClick={onLogout} className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Log out">
+              <LogOutIcon size={14} />
+            </button>
+          )}
         </div>
       </div>
     </aside>
   );
 }
-
 
 export function OperatorInterface({
   onLogout,
@@ -114,34 +148,29 @@ export function OperatorInterface({
   session: UserSession | null;
 }) {
   const [activePage, setActivePage] = useState<NavPage>('dashboard');
+  const [collapsed, setCollapsed] = useState(false);
 
   const renderPage = () => {
     switch (activePage) {
-      case 'dashboard':
-        return <Dashboard onNavigate={setActivePage} />;
-      case 'live-alerts':
-        return <LiveAlerts />;
-      case 'reports':
-        return <Reports />;
-      case 'settings':
-        return <Settings />;
-      default:
-        return <Dashboard />;
+      case 'dashboard': return <Dashboard onNavigate={setActivePage} />;
+      case 'live-alerts': return <LiveAlerts />;
+      case 'reports': return <Reports />;
+      case 'settings': return <Settings />;
+      default: return <Dashboard />;
     }
   };
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#FAF9F5]">
-      {/* Sidebar */}
       <Sidebar
         activePage={activePage}
-        onNavigate={(page) => setActivePage(page)}
+        onNavigate={setActivePage}
         onLogout={onLogout}
-        alertCount={7}
+        alertCount={0}
         user={session}
+        collapsed={collapsed}
+        onToggleCollapse={() => setCollapsed(c => !c)}
       />
-
-      {/* Main Content */}
       <main className="flex-1 overflow-y-auto min-w-0" role="main">
         {renderPage()}
       </main>

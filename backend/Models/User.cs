@@ -35,9 +35,12 @@ namespace backend.Models
         [Column("role")]
         public UserRole Role { get; set; }
 
+        [Column("status")]
+        public UserStatus Status { get; set; } = UserStatus.Active;
+
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
+        
         // Navigation
         public ICollection<UserReport> UserReports { get; set; } = [];
     }

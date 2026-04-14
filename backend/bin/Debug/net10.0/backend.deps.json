@@ -8,6 +8,7 @@
     ".NETCoreApp,Version=v10.0": {
       "backend/1.0.0": {
         "dependencies": {
+          "EPPlus": "7.5.2",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "10.0.5",
           "Microsoft.AspNetCore.OpenApi": "10.0.5",
           "Microsoft.EntityFrameworkCore.Design": "10.0.5",
@@ -15,6 +16,38 @@
         },
         "runtime": {
           "backend.dll": {}
+        }
+      },
+      "EPPlus/7.5.2": {
+        "dependencies": {
+          "EPPlus.System.Drawing": "7.5.0",
+          "Microsoft.IO.RecyclableMemoryStream": "3.0.1"
+        },
+        "runtime": {
+          "lib/net8.0/EPPlus.dll": {
+            "assemblyVersion": "7.5.2.0",
+            "fileVersion": "7.5.2.0"
+          }
+        }
+      },
+      "EPPlus.Interfaces/7.5.0": {
+        "runtime": {
+          "lib/net8.0/EPPlus.Interfaces.dll": {
+            "assemblyVersion": "7.5.0.0",
+            "fileVersion": "7.5.0.0"
+          }
+        }
+      },
+      "EPPlus.System.Drawing/7.5.0": {
+        "dependencies": {
+          "EPPlus.Interfaces": "7.5.0",
+          "System.Drawing.Common": "8.0.4"
+        },
+        "runtime": {
+          "lib/net8.0/EPPlus.System.Drawing.dll": {
+            "assemblyVersion": "7.5.0.0",
+            "fileVersion": "7.5.0.0"
+          }
         }
       },
       "Humanizer.Core/2.14.1": {
@@ -448,6 +481,14 @@
           }
         }
       },
+      "Microsoft.IO.RecyclableMemoryStream/3.0.1": {
+        "runtime": {
+          "lib/net6.0/Microsoft.IO.RecyclableMemoryStream.dll": {
+            "assemblyVersion": "3.0.1.0",
+            "fileVersion": "3.0.1.0"
+          }
+        }
+      },
       "Microsoft.OpenApi/2.0.0": {
         "runtime": {
           "lib/net8.0/Microsoft.OpenApi.dll": {
@@ -461,6 +502,22 @@
           "lib/net8.0/Microsoft.VisualStudio.SolutionPersistence.dll": {
             "assemblyVersion": "1.0.0.0",
             "fileVersion": "1.0.52.6595"
+          }
+        }
+      },
+      "Microsoft.Win32.SystemEvents/8.0.0": {
+        "runtime": {
+          "lib/net8.0/Microsoft.Win32.SystemEvents.dll": {
+            "assemblyVersion": "8.0.0.0",
+            "fileVersion": "8.0.23.53103"
+          }
+        },
+        "runtimeTargets": {
+          "runtimes/win/lib/net8.0/Microsoft.Win32.SystemEvents.dll": {
+            "rid": "win",
+            "assetType": "runtime",
+            "assemblyVersion": "8.0.0.0",
+            "fileVersion": "8.0.23.53103"
           }
         }
       },
@@ -572,6 +629,17 @@
           }
         }
       },
+      "System.Drawing.Common/8.0.4": {
+        "dependencies": {
+          "Microsoft.Win32.SystemEvents": "8.0.0"
+        },
+        "runtime": {
+          "lib/net8.0/System.Drawing.Common.dll": {
+            "assemblyVersion": "8.0.0.0",
+            "fileVersion": "8.0.424.16911"
+          }
+        }
+      },
       "System.IdentityModel.Tokens.Jwt/8.0.1": {
         "dependencies": {
           "Microsoft.IdentityModel.JsonWebTokens": "8.0.1",
@@ -591,6 +659,27 @@
       "type": "project",
       "serviceable": false,
       "sha512": ""
+    },
+    "EPPlus/7.5.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-qHJurPvgWoheHyyam53NV8d2CiOO2q88Rg/Lk0wSYwi/aoGDtzYihTMCHeTwGM9zHZnnI3aVLu482SODN+HB4g==",
+      "path": "epplus/7.5.2",
+      "hashPath": "epplus.7.5.2.nupkg.sha512"
+    },
+    "EPPlus.Interfaces/7.5.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-mGLKgdIKkXRYIu+HIGmZUngVAAlPzIQgI/KqG10m6P5P2112l6p/5dDa35UHu4GV4Qevw0Pq9PxAymrrrl4tzA==",
+      "path": "epplus.interfaces/7.5.0",
+      "hashPath": "epplus.interfaces.7.5.0.nupkg.sha512"
+    },
+    "EPPlus.System.Drawing/7.5.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-cgwstM12foFisisURUyxwJOWHMD/rZxPSyBXFsCOFayaKq0oKlOs1mCTueKNNIlpPDG1no9vcaQiJgZXFM4KPA==",
+      "path": "epplus.system.drawing/7.5.0",
+      "hashPath": "epplus.system.drawing.7.5.0.nupkg.sha512"
     },
     "Humanizer.Core/2.14.1": {
       "type": "package",
@@ -732,6 +821,13 @@
       "path": "microsoft.identitymodel.tokens/8.0.1",
       "hashPath": "microsoft.identitymodel.tokens.8.0.1.nupkg.sha512"
     },
+    "Microsoft.IO.RecyclableMemoryStream/3.0.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-s/s20YTVY9r9TPfTrN5g8zPF1YhwxyqO6PxUkrYTGI2B+OGPe9AdajWZrLhFqXIvqIW23fnUE4+ztrUWNU1+9g==",
+      "path": "microsoft.io.recyclablememorystream/3.0.1",
+      "hashPath": "microsoft.io.recyclablememorystream.3.0.1.nupkg.sha512"
+    },
     "Microsoft.OpenApi/2.0.0": {
       "type": "package",
       "serviceable": true,
@@ -745,6 +841,13 @@
       "sha512": "sha512-oNv2JtYXhpdJrX63nibx1JT3uCESOBQ1LAk7Dtz/sr0+laW0KRM6eKp4CZ3MHDR2siIkKsY8MmUkeP5DKkQQ5w==",
       "path": "microsoft.visualstudio.solutionpersistence/1.0.52",
       "hashPath": "microsoft.visualstudio.solutionpersistence.1.0.52.nupkg.sha512"
+    },
+    "Microsoft.Win32.SystemEvents/8.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-9opKRyOKMCi2xJ7Bj7kxtZ1r9vbzosMvRrdEhVhDz8j8MoBGgB+WmC94yH839NPH+BclAjtQ/pyagvi/8gDLkw==",
+      "path": "microsoft.win32.systemevents/8.0.0",
+      "hashPath": "microsoft.win32.systemevents.8.0.0.nupkg.sha512"
     },
     "Mono.TextTemplating/3.0.0": {
       "type": "package",
@@ -822,6 +925,13 @@
       "sha512": "sha512-aRZlojCCGEHDKqh43jaDgaVpYETsgd7Nx4g1zwLKMtv4iTo0627715ajEFNpEEBTgLmvZuv8K0EVxc3sM4NWJA==",
       "path": "system.composition.typedparts/9.0.0",
       "hashPath": "system.composition.typedparts.9.0.0.nupkg.sha512"
+    },
+    "System.Drawing.Common/8.0.4": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-3G4xpa8mUYGzEF0HlswlBArAFywHJIzsZoB5hU4yMlnYHaabj/lg019BwbyyYBxj0aoM7Cz+jdlgUemeno9LOQ==",
+      "path": "system.drawing.common/8.0.4",
+      "hashPath": "system.drawing.common.8.0.4.nupkg.sha512"
     },
     "System.IdentityModel.Tokens.Jwt/8.0.1": {
       "type": "package",

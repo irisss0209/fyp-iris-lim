@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { OperatorInterface } from './pages/web-operator/OperatorInterface';
 import { PassengerInterface } from './pages/mobile-passenger/PassengerInterface';
 import { AuxiliaryInterface } from './pages/mobile-auxiliary/AuxiliaryInterface';
@@ -21,8 +21,23 @@ export interface UserSession {
 type AuthView = 'login' | 'signup';
 
 export function App() {
-  const [session, setSession] = useState<UserSession | null>(null);
+  const [session, setSession] = useState<UserSession | null>(() => {
+    const saved = localStorage.getItem('user_session');
+    try {
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [authView, setAuthView] = useState<AuthView>('login');
+
+  useEffect(() => {
+    if (session) {
+      localStorage.setItem('user_session', JSON.stringify(session));
+    } else {
+      localStorage.removeItem('user_session');
+    }
+  }, [session]);
 
   const handleLogout = () => {
     setSession(null);

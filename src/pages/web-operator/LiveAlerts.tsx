@@ -52,13 +52,13 @@ const STAT_CONFIGS: {
   color: string;
   bg: string;
 }[] = [
-  { key: 'pending',   label: 'Pending',   color: '#C2410C', bg: '#FFF7ED' },
-  { key: 'verified',  label: 'Verified',  color: '#2D7A5D', bg: '#F0FBF6' },
-  { key: 'escalated', label: 'Escalated', color: '#7B5EA7', bg: '#F5F0FF' },
-  { key: 'enRoute',   label: 'En Route',  color: '#0B4F6C', bg: '#EFF6FF' },
-  { key: 'resolved',  label: 'Resolved',  color: '#1D4ED8', bg: '#EBF8FF' },
-  { key: 'dismissed', label: 'Dismissed', color: '#4A5568', bg: '#F7FAFC' },
-];
+    { key: 'pending', label: 'Pending', color: '#C2410C', bg: '#FFF7ED' },
+    { key: 'verified', label: 'Verified', color: '#2D7A5D', bg: '#F0FBF6' },
+    { key: 'escalated', label: 'Escalated', color: '#7B5EA7', bg: '#F5F0FF' },
+    { key: 'enRoute', label: 'En Route', color: '#0B4F6C', bg: '#EFF6FF' },
+    { key: 'resolved', label: 'Resolved', color: '#1D4ED8', bg: '#EBF8FF' },
+    { key: 'dismissed', label: 'Dismissed', color: '#4A5568', bg: '#F7FAFC' },
+  ];
 
 interface StatsState {
   pending: number;
@@ -143,12 +143,12 @@ export function LiveAlerts() {
   }), [alerts, activeFilter, sourceFilter, lineFilter, stationFilter]);
 
   const statusTabs: { id: AlertStatus; label: string }[] = [
-    { id: 'all',       label: 'All' },
-    { id: 'pending',   label: 'Pending' },
-    { id: 'verified',  label: 'Verified' },
+    { id: 'all', label: 'All' },
+    { id: 'pending', label: 'Pending' },
+    { id: 'verified', label: 'Verified' },
     { id: 'escalated', label: 'Escalated' },
-    { id: 'en_route',  label: 'En Route' },
-    { id: 'resolved',  label: 'Resolved' },
+    { id: 'en_route', label: 'En Route' },
+    { id: 'resolved', label: 'Resolved' },
     { id: 'dismissed', label: 'Dismissed' },
   ];
 
@@ -192,7 +192,7 @@ export function LiveAlerts() {
     <div className="flex flex-col h-full" style={{ backgroundColor: '#FAF9F5' }}>
 
       {/* ── Header ── */}
-      <div className="px-6 pt-6 pb-4 bg-white border-b border-gray-100">
+      <div className="px-6 pt-6 pb-4 bg-[#FAF9F5] border-b border-gray-100">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold" style={{ color: '#1A202C' }}>Live Alerts</h1>

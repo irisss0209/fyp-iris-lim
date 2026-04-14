@@ -129,3 +129,10 @@ C:\Users\iriss\Downloads\fyp-tp076823\backend\obj\Debug\net10.0\refint\backend.d
 C:\Users\iriss\Downloads\fyp-tp076823\backend\obj\Debug\net10.0\backend.pdb
 C:\Users\iriss\Downloads\fyp-tp076823\backend\obj\Debug\net10.0\backend.genruntimeconfig.cache
 C:\Users\iriss\Downloads\fyp-tp076823\backend\obj\Debug\net10.0\ref\backend.dll
+C:\Users\iriss\Downloads\fyp-tp076823\backend\bin\Debug\net10.0\EPPlus.dll
+C:\Users\iriss\Downloads\fyp-tp076823\backend\bin\Debug\net10.0\EPPlus.Interfaces.dll
+C:\Users\iriss\Downloads\fyp-tp076823\backend\bin\Debug\net10.0\EPPlus.System.Drawing.dll
+C:\Users\iriss\Downloads\fyp-tp076823\backend\bin\Debug\net10.0\Microsoft.IO.RecyclableMemoryStream.dll
+C:\Users\iriss\Downloads\fyp-tp076823\backend\bin\Debug\net10.0\Microsoft.Win32.SystemEvents.dll
+C:\Users\iriss\Downloads\fyp-tp076823\backend\bin\Debug\net10.0\System.Drawing.Common.dll
+C:\Users\iriss\Downloads\fyp-tp076823\backend\bin\Debug\net10.0\runtimes\win\lib\net8.0\Microsoft.Win32.SystemEvents.dll

@@ -21,6 +21,7 @@ var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
 // [PgName] attributes on each enum value tell Npgsql the exact DB string to use
 dataSourceBuilder.MapEnum<UserRole>("user_role");
 dataSourceBuilder.MapEnum<AssetStatus>("asset_status");
+dataSourceBuilder.MapEnum<UserStatus>("user_status");
 dataSourceBuilder.MapEnum<CoachType>("coach_type");
 dataSourceBuilder.MapEnum<CameraStatus>("camera_status");
 dataSourceBuilder.MapEnum<IncidentSource>("incident_source");
@@ -32,6 +33,7 @@ var dataSource = dataSourceBuilder.Build();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(dataSource, o =>
     {
+        o.MapEnum<UserStatus>("user_status");
         o.MapEnum<UserRole>("user_role");
         o.MapEnum<AssetStatus>("asset_status");
         o.MapEnum<CoachType>("coach_type");

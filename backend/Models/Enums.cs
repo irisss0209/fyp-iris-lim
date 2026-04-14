@@ -9,6 +9,12 @@ namespace backend.Models
         [PgName("Auxiliary")] Auxiliary
     }
 
+    public enum UserStatus
+    {
+        [PgName("Active")]    Active,
+        [PgName("Suspended")]  Suspended,
+        [PgName("Archived")] Archived
+    }
     public enum AssetStatus
     {
         [PgName("Active")]      Active,

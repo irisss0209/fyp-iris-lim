@@ -273,4 +273,8 @@ namespace backend.Controllers
         public DateTime ShiftStart { get; set; }
         public DateTime ShiftEnd { get; set; }
     }
+    public class UpdateStatusRequest
+{
+    public string Status { get; set; } = null!;
+}
 }

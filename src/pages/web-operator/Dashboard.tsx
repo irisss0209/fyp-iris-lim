@@ -97,7 +97,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     const fmtShort = (d: Date) =>
       d.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' });
 
-    const sevenAgo = new Date(now);  sevenAgo.setDate(now.getDate() - 6);
+    const sevenAgo = new Date(now); sevenAgo.setDate(now.getDate() - 6);
     const thirtyAgo = new Date(now); thirtyAgo.setDate(now.getDate() - 29);
 
     switch (selectedRange) {
@@ -140,14 +140,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
           <div className="flex items-center gap-2">
-            <button
-              onClick={fetchDashboard}
-              disabled={loading}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 disabled:opacity-40 transition-colors"
-            >
-              <RefreshCwIcon size={11} className={loading ? 'animate-spin' : ''} />
-              Refresh
-            </button>
             <CalendarIcon size={13} className="text-gray-400" aria-hidden="true" />
             <span className="text-xs text-gray-400 font-medium">Filter by date</span>
           </div>
@@ -157,11 +149,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               <button
                 key={range}
                 onClick={() => setSelectedRange(range)}
-                className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors duration-150 ${
-                  selectedRange === range
-                    ? 'bg-[#0B4F6C] text-white border-[#0B4F6C]'
-                    : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
-                }`}
+                className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors duration-150 ${selectedRange === range
+                  ? 'bg-[#0B4F6C] text-white border-[#0B4F6C]'
+                  : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                  }`}
                 aria-pressed={selectedRange === range}
               >
                 {RANGE_LABELS[range]}
@@ -299,8 +290,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     className="w-1.5 h-14 rounded-full flex-shrink-0"
                     style={{
                       backgroundColor:
-                        alert.status === 'pending'  ? '#f87171' :
-                        alert.status === 'verified' ? '#4ade80' : '#d1d5db'
+                        alert.status === 'pending' ? '#f87171' :
+                          alert.status === 'verified' ? '#4ade80' : '#d1d5db'
                     }}
                   />
 
@@ -343,11 +334,11 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                       className="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-extrabold"
                       style={{
                         backgroundColor:
-                          alert.status === 'pending'  ? '#FFF7ED' :
-                          alert.status === 'verified' ? '#F0FDF4' : '#F9FAFB',
+                          alert.status === 'pending' ? '#FFF7ED' :
+                            alert.status === 'verified' ? '#F0FDF4' : '#F9FAFB',
                         color:
-                          alert.status === 'pending'  ? '#C2410C' :
-                          alert.status === 'verified' ? '#15803D' : '#6B7280'
+                          alert.status === 'pending' ? '#C2410C' :
+                            alert.status === 'verified' ? '#15803D' : '#6B7280'
                       }}
                     >
                       {alert.status.charAt(0).toUpperCase() + alert.status.slice(1)}

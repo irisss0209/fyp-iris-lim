@@ -2,6 +2,7 @@ using backend.Data;
 using backend.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 
 namespace backend.Controllers
 {
@@ -437,10 +438,183 @@ namespace backend.Controllers
             if (ts.TotalHours < 24) return $"{(int)ts.TotalHours}h ago";
             return $"{(int)ts.TotalDays}d ago";
         }
+
+        // ── User Management ───────────────────────────────────────────────────
+
+        [HttpGet("operator/users")]
+        public async Task<IActionResult> GetAllUsers()
+        {
+            var users = await _context.Users
+                .OrderBy(u => u.UserName)
+                .Select(u => new
+                {
+                    userId    = u.UserId,
+                    userName  = u.UserName,
+                    email     = u.Email,
+                    role      = u.Role.ToString(),
+                    status    = u.Status.ToString(),
+                    createdAt = u.CreatedAt.ToString("yyyy-MM-dd")
+                })
+                .ToListAsync();
+
+            return Ok(users);
+        }
+
+        [HttpPatch("operator/users/{userId}/status")]
+        public async Task<IActionResult> UpdateUserStatus(string userId, [FromBody] PatchUserStatusRequest req)
+        {
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null) return NotFound(new { error = "User not found." });
+
+            if (user.Status == UserStatus.Archived)
+                return BadRequest(new { error = "Archived users cannot be modified." });
+
+            var newStatus = req.Status?.Trim() switch
+            {
+                "Suspended" => (UserStatus?)UserStatus.Suspended,
+                "Archived"  => (UserStatus?)UserStatus.Archived,
+                "Active"    => (UserStatus?)UserStatus.Active,
+                _           => null
+            };
+
+            if (newStatus == null)
+                return BadRequest(new { error = "Invalid status. Allowed: Active, Suspended, Archived." });
+
+            user.Status = newStatus.Value;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { userId = user.UserId, status = user.Status.ToString() });
+        }
+
+        // ── Shifts with line info ───────────────────────────────────────────────────
+
+        [HttpGet("operator/shifts")]
+        public async Task<IActionResult> GetOperatorShifts()
+        {
+            var lineStations = await _context.LineStations
+                .Include(ls => ls.TrainLine)
+                .Include(ls => ls.Station)
+                .ToListAsync();
+
+            var shifts = await _context.AuxiliaryShifts
+                .Include(s => s.User)
+                .Include(s => s.Station)
+                .OrderByDescending(s => s.ShiftStart)
+                .ToListAsync();
+
+            var result = shifts.Select(s =>
+            {
+                var lineName = lineStations
+                    .FirstOrDefault(ls => ls.StationId == s.StationId)
+                    ?.TrainLine?.LineName ?? "—";
+
+                return new
+                {
+                    shiftId     = s.ShiftId,
+                    userId      = s.UserId,
+                    userName    = s.User.UserName,
+                    stationId   = s.StationId,
+                    stationName = s.Station.StationName,
+                    lineName,
+                    shiftStart  = s.ShiftStart.ToString("o"),
+                    shiftEnd    = s.ShiftEnd.ToString("o")
+                };
+            }).ToList();
+
+            return Ok(result);
+        }
+
+        // ── Excel bulk import ───────────────────────────────────────────────────────
+
+        [HttpPost("operator/shifts/import")]
+public async Task<IActionResult> ImportShifts([FromForm] IFormFile file)
+{
+    if (file == null || file.Length == 0)
+        return BadRequest(new { error = "No file uploaded." });
+
+    var inserted = 0;
+    var errors = new List<string>();
+
+    using var stream = file.OpenReadStream();
+    using var reader = new StreamReader(stream);
+
+    var rows = new List<string[]>();
+
+    while (!reader.EndOfStream)
+    {
+        var line = await reader.ReadLineAsync();
+        if (string.IsNullOrWhiteSpace(line)) continue;
+        rows.Add(line.Split(','));
     }
+
+    for (int i = 1; i < rows.Count; i++) // skip header
+    {
+        var cols = rows[i];
+
+        if (cols.Length < 4)
+        {
+            errors.Add($"Row {i + 1}: Missing columns.");
+            continue;
+        }
+
+        var userId = cols[0].Trim();
+        var stationId = cols[1].Trim();
+        var startText = cols[2].Trim();
+        var endText = cols[3].Trim();
+
+        if (!DateTime.TryParse(startText, out var shiftStart) ||
+            !DateTime.TryParse(endText, out var shiftEnd))
+        {
+            errors.Add($"Row {i + 1}: Invalid date format.");
+            continue;
+        }
+
+        if (shiftEnd <= shiftStart)
+        {
+            errors.Add($"Row {i + 1}: shift_end must be after shift_start.");
+            continue;
+        }
+
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null || user.Role != UserRole.Auxiliary)
+        {
+            errors.Add($"Row {i + 1}: '{userId}' is not a valid Auxiliary user.");
+            continue;
+        }
+
+        var station = await _context.Stations.FindAsync(stationId);
+        if (station == null)
+        {
+            errors.Add($"Row {i + 1}: station '{stationId}' not found.");
+            continue;
+        }
+
+        _context.AuxiliaryShifts.Add(new AuxiliaryShift
+        {
+            UserId = userId,
+            StationId = stationId,
+            ShiftStart = DateTime.SpecifyKind(shiftStart, DateTimeKind.Utc),
+            ShiftEnd = DateTime.SpecifyKind(shiftEnd, DateTimeKind.Utc),
+            CreatedAt = DateTime.UtcNow
+        });
+
+        inserted++;
+    }
+
+    if (inserted > 0)
+        await _context.SaveChangesAsync();
+
+    return Ok(new { inserted, errors });
+}
 
     public class UpdateStatusRequest
     {
         public string Status { get; set; } = null!;
     }
+
+    public class PatchUserStatusRequest
+    {
+        public string Status { get; set; } = null!;
+    }
+}
 }
