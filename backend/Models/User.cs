@@ -30,7 +30,6 @@ namespace backend.Models
         [MaxLength(255)]
         public string CognitoSub { get; set; } = null!;
 
-        // 'Customer' | 'Operator' | 'Auxiliary'
         [Required]
         [Column("role")]
         public UserRole Role { get; set; }

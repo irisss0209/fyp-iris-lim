@@ -6,13 +6,14 @@ import { LoginPage } from './pages/auth/LoginPage';
 import { SignupPage } from './pages/auth/SignupPage';
 import { UpdatePrompt } from './components/UpdatePrompt';
 
-export type UserRole = 'operator' | 'passenger' | 'auxiliary' | 'command';
+export type UserRole = 'operator' | 'passenger' | 'auxiliary';
 
 export interface UserSession {
   userId: string;
   userName: string;
   email?: string;
   role: UserRole;
+  token?: string;
   employeeId?: string;
   otp?: string;
   description?: string;
@@ -44,7 +45,6 @@ export function App() {
     setAuthView('login');
   };
 
-  // 🔐 Not logged in → show auth pages
   if (!session) {
     return (
       <>
@@ -70,7 +70,6 @@ export function App() {
   // ✅ Logged in → route based on role
   switch (session.role) {
     case 'operator':
-    case 'command':
       return (
         <div className="min-h-screen w-full" style={{ backgroundColor: '#FAF9F5' }}>
           <OperatorInterface session={session} onLogout={handleLogout} />

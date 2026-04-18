@@ -7,11 +7,10 @@ import {
   CheckCircleIcon,
   LockIcon,
   MailIcon,
-  UserIcon,
 } from 'lucide-react';
 import { MfaVerification } from './MfaVerification';
 
-import { UserSession, UserRole } from '../../App';
+import { UserSession } from '../../App';
 
 type SignupStep = 'details' | 'mfa' | 'success';
 

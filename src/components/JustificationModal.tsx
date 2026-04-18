@@ -3,27 +3,34 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   XIcon,
-  MessageSquareIcon } from
-'lucide-react';
+  MessageSquareIcon,
+  ChevronRightIcon
+} from 'lucide-react';
 interface JustificationModalProps {
   isOpen: boolean;
-  actionType: 'verify' | 'dismiss';
+  actionType: 'verify' | 'dismiss' | 'escalate';
   alertId: string;
   alertCoach: string;
   onConfirm: (comment: string) => void;
   onCancel: () => void;
 }
 const QUICK_REASONS_VERIFY = [
-'Confirmed via CCTV footage',
-'Officer on-site verified',
-'Multiple camera angles confirmed',
-'Passenger report corroborated'];
+  'Confirmed via CCTV footage',
+  'Officer on-site verified',
+  'Multiple camera angles confirmed',
+  'Passenger report corroborated'];
 
 const QUICK_REASONS_DISMISS = [
-'False positive — no violation',
-'AI misclassification',
-'Maintenance staff, not passenger',
-'Duplicate alert'];
+  'False positive — no violation',
+  'AI misclassification',
+  'Maintenance staff, not passenger',
+  'Duplicate alert'];
+
+const QUICK_REASONS_ESCALATE = [
+  'Violation confirmed, dispatch auxiliary',
+  'Repeated offender on this line',
+  'Passenger safety concern',
+  'Multiple violations detected'];
 
 export function JustificationModal({
   isOpen,
@@ -37,8 +44,9 @@ export function JustificationModal({
   const [error, setError] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isVerify = actionType === 'verify';
-  const accentColor = isVerify ? '#0D6E6E' : '#DC2626';
-  const quickReasons = isVerify ? QUICK_REASONS_VERIFY : QUICK_REASONS_DISMISS;
+  const isEscalate = actionType === 'escalate';
+  const accentColor = isVerify ? '#0D6E6E' : isEscalate ? '#7B5EA7' : '#DC2626';
+  const quickReasons = isVerify ? QUICK_REASONS_VERIFY : isEscalate ? QUICK_REASONS_ESCALATE : QUICK_REASONS_DISMISS;
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -107,25 +115,23 @@ export function JustificationModal({
             <div
               className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{
-                backgroundColor: isVerify ? '#F0FDFA' : '#FEF2F2'
+                backgroundColor: isVerify ? '#F0FDFA' : isEscalate ? '#F5F0FF' : '#FEF2F2'
               }}>
 
               {isVerify ?
-              <CheckCircleIcon
-                size={18}
-                style={{
-                  color: accentColor
-                }}
-                aria-hidden="true" /> :
-
-
-              <XCircleIcon
-                size={18}
-                style={{
-                  color: accentColor
-                }}
-                aria-hidden="true" />
-
+                <CheckCircleIcon
+                  size={18}
+                  style={{ color: accentColor }}
+                  aria-hidden="true" /> :
+                isEscalate ?
+                <ChevronRightIcon
+                  size={18}
+                  style={{ color: accentColor }}
+                  aria-hidden="true" /> :
+                <XCircleIcon
+                  size={18}
+                  style={{ color: accentColor }}
+                  aria-hidden="true" />
               }
             </div>
             <div>
@@ -133,7 +139,7 @@ export function JustificationModal({
                 id="modal-title"
                 className="text-base font-bold text-gray-900 leading-tight">
 
-                {isVerify ? 'Verify Alert' : 'Dismiss Alert'}
+                {isVerify ? 'Verify Alert' : isEscalate ? 'Escalate Alert' : 'Dismiss Alert'}
               </h2>
               <p className="text-xs text-gray-400 mt-0.5">
                 {alertCoach} · {alertId}
@@ -158,21 +164,21 @@ export function JustificationModal({
             </p>
             <div className="flex flex-wrap gap-1.5">
               {quickReasons.map((reason) =>
-              <button
-                key={reason}
-                onClick={() => handleQuickReason(reason)}
-                className={`
+                <button
+                  key={reason}
+                  onClick={() => handleQuickReason(reason)}
+                  className={`
                     text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors
                     ${comment === reason ? 'border-transparent text-white' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-gray-300'}
                   `}
-                style={
-                comment === reason ?
-                {
-                  backgroundColor: accentColor,
-                  borderColor: accentColor
-                } :
-                {}
-                }>
+                  style={
+                    comment === reason ?
+                      {
+                        backgroundColor: accentColor,
+                        borderColor: accentColor
+                      } :
+                      {}
+                  }>
 
                   {reason}
                 </button>
@@ -201,9 +207,11 @@ export function JustificationModal({
                 if (e.target.value.trim()) setError(false);
               }}
               placeholder={
-              isVerify ?
-              'Describe why this alert is being verified...' :
-              'Describe why this alert is being dismissed...'
+                isVerify ?
+                  'Describe why this alert is being verified...' :
+                  isEscalate ?
+                  'Describe why this alert needs escalation...' :
+                  'Describe why this alert is being dismissed...'
               }
               rows={3}
               className={`
@@ -213,21 +221,21 @@ export function JustificationModal({
                 ${error ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-teal-100'}
               `}
               style={
-              error ?
-              {} :
-              {
-                '--tw-ring-color': `${accentColor}33`
-              } as React.CSSProperties
+                error ?
+                  {} :
+                  {
+                    '--tw-ring-color': `${accentColor}33`
+                  } as React.CSSProperties
               }
               aria-required="true"
               aria-invalid={error}
               aria-describedby={error ? 'comment-error' : undefined} />
 
             {error &&
-            <p
-              id="comment-error"
-              className="text-xs text-red-500 mt-1.5 flex items-center gap-1"
-              role="alert">
+              <p
+                id="comment-error"
+                className="text-xs text-red-500 mt-1.5 flex items-center gap-1"
+                role="alert">
 
                 <span aria-hidden="true">⚠</span>A justification comment is
                 required before proceeding.
@@ -250,7 +258,7 @@ export function JustificationModal({
                 backgroundColor: accentColor
               }}>
 
-              {isVerify ? 'Confirm Verify' : 'Confirm Dismiss'}
+              {isVerify ? 'Confirm Verify' : isEscalate ? 'Confirm Escalate' : 'Confirm Dismiss'}
             </button>
           </div>
         </div>

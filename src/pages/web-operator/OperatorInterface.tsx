@@ -7,15 +7,25 @@ import {
   LogOutIcon,
   UserCircleIcon,
   PanelLeftCloseIcon,
+  UsersIcon,
+  CalendarIcon,
   PanelLeftOpenIcon,
 } from 'lucide-react';
 import { Dashboard } from './Dashboard';
 import { LiveAlerts } from './LiveAlerts';
 import { Reports } from './Reports';
 import { Settings } from './Settings';
-
-export type NavPage = 'dashboard' | 'live-alerts' | 'reports' | 'settings';
+import { UserManagement } from './UserManagement';
+import { ShiftManagementPanel } from './ShiftManagement';
 import { UserSession } from '../../App';
+
+export type NavPage =
+  | 'dashboard'
+  | 'live-alerts'
+  | 'reports'
+  | 'users'
+  | 'shifts'
+  | 'settings';
 
 interface SidebarProps {
   activePage: NavPage;
@@ -31,7 +41,10 @@ const navItems = [
   { id: 'dashboard' as NavPage, label: 'Dashboard', icon: LayoutDashboardIcon },
   { id: 'live-alerts' as NavPage, label: 'Live Alerts', icon: BellIcon, badge: true },
   { id: 'reports' as NavPage, label: 'Reports', icon: FileTextIcon },
-  { id: 'settings' as NavPage, label: 'Settings', icon: SettingsIcon },
+
+  { id: 'users' as NavPage, label: 'User Management', icon: UsersIcon },
+  { id: 'shifts' as NavPage, label: 'Shift Management', icon: CalendarIcon },
+  { id: 'settings' as NavPage, label: 'Settings', icon: SettingsIcon }
 ];
 
 function Sidebar({ activePage, onNavigate, onLogout, alertCount = 0, user, collapsed, onToggleCollapse }: SidebarProps) {
@@ -155,6 +168,8 @@ export function OperatorInterface({
       case 'dashboard': return <Dashboard onNavigate={setActivePage} />;
       case 'live-alerts': return <LiveAlerts />;
       case 'reports': return <Reports />;
+      case 'users': return <UserManagement />;
+      case 'shifts': return <ShiftManagementPanel />;
       case 'settings': return <Settings />;
       default: return <Dashboard />;
     }

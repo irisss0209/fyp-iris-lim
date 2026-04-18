@@ -51,7 +51,7 @@ namespace backend.Controllers
             {
                 UserRole.Operator  => "operator",
                 UserRole.Auxiliary => "auxiliary",
-                UserRole.Customer  => "passenger",
+                UserRole.Passenger  => "passenger",
                 _                  => "passenger"
             };
 
@@ -86,6 +86,7 @@ namespace backend.Controllers
                 new Claim(JwtRegisteredClaimNames.Sub,   user.UserId),
                 new Claim(JwtRegisteredClaimNames.Email, user.Email),
                 new Claim(ClaimTypes.Role,               frontendRole),
+                new Claim("username", user.UserName),
                 new Claim(JwtRegisteredClaimNames.Jti,   Guid.NewGuid().ToString())
             };
 

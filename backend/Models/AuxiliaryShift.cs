@@ -22,17 +22,20 @@ namespace backend.Models
         public string StationId { get; set; } = null!;
 
         [Required]
-        [Column("shift_start")]
-        public DateTime ShiftStart { get; set; }
+        [Column("shift_date")]
+        public DateTime ShiftDate { get; set; }
 
         [Required]
-        [Column("shift_end")]
-        public DateTime ShiftEnd { get; set; }
+        [Column("start_time")]
+        public TimeSpan StartTime { get; set; }
+
+        [Required]
+        [Column("end_time")]
+        public TimeSpan EndTime { get; set; }
 
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        // Navigation
         [ForeignKey("UserId")]
         public User User { get; set; } = null!;
 

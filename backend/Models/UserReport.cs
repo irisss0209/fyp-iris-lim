@@ -20,11 +20,6 @@ namespace backend.Models
         [MaxLength(50)]
         public string? CoachId { get; set; }
 
-        [Required]
-        [Column("violation_type")]
-        [MaxLength(100)]
-        public string ViolationType { get; set; } = null!;
-
         [Column("description")]
         public string? Description { get; set; }
 

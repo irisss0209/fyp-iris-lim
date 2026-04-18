@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { MfaVerification } from './MfaVerification';
 
-import { UserSession, UserRole } from '../../App';
+import { UserSession } from '../../App';
 
 type AuthStep = 'credentials' | 'phone' | 'mfa' | 'success';
 

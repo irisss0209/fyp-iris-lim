@@ -1,27 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
-  PlusIcon,
-  ClockIcon,
-  MapPinIcon,
-  UserIcon,
-  CalendarIcon,
-  CheckCircleIcon,
-  Trash2Icon,
-  LoaderIcon,
+  CalendarIcon, CheckCircleIcon, Loader2Icon,
+  DownloadIcon, UploadIcon, XCircleIcon, SearchIcon, XIcon
 } from 'lucide-react';
 
 const ACCENT = '#0B4F6C';
 const API = 'http://localhost:5293/api/data';
-
-interface AuxUser {
-  userId: string;
-  userName: string;
-}
-
-interface Station {
-  stationId: string;
-  stationName: string;
-}
 
 interface ShiftRow {
   shiftId: number;
@@ -29,259 +13,387 @@ interface ShiftRow {
   userName: string;
   stationId: string;
   stationName: string;
-  shiftStart: string;
-  shiftEnd: string;
+  lineName?: string;
+  shiftDate: string;
+  startTime: string;
+  endTime: string;
 }
 
-export function ShiftManagement() {
+function getShiftStatus(shift: ShiftRow): 'upcoming' | 'in_progress' | 'completed' {
+  const now = new Date();
+  const shiftStart = new Date(`${shift.shiftDate}T${shift.startTime}`);
+  const shiftEnd = new Date(`${shift.shiftDate}T${shift.endTime}`);
+  if (now < shiftStart) return 'upcoming';
+  if (now >= shiftStart && now <= shiftEnd) return 'in_progress';
+  return 'completed';
+}
+
+function ShiftTypeBadge({ startTime }: { startTime: string }) {
+  const hour = parseInt(startTime.split(':')[0], 10);
+  const isMorning = hour >= 6 && hour < 15;
+  return (
+    <span
+      className="text-xs px-2.5 py-1 rounded-full font-medium"
+      style={{
+        backgroundColor: isMorning ? '#FEF9C3' : '#EDE9FE',
+        color: isMorning ? '#fcb769ff' : '#5B21B6',
+      }}
+    >
+      {isMorning ? 'Morning' : 'Afternoon'}
+    </span>
+  );
+}
+
+function ShiftStatusBadge({ shift }: { shift: ShiftRow }) {
+  const status = getShiftStatus(shift);
+  const styles = {
+    in_progress: { bg: '#DCFCE7', color: '#15803D', label: 'In Progress' },
+    upcoming: { bg: '#EFF6FF', color: '#1D4ED8', label: 'Upcoming' },
+    completed: { bg: '#F3F4F6', color: '#6B7280', label: 'Completed' },
+  }[status];
+  return (
+    <span
+      className="text-xs px-2.5 py-1 rounded-full font-medium"
+      style={{ backgroundColor: styles.bg, color: styles.color }}
+    >
+      {styles.label}
+    </span>
+  );
+}
+
+export function ShiftManagementPanel() {
   const [shifts, setShifts] = useState<ShiftRow[]>([]);
-  const [auxUsers, setAuxUsers] = useState<AuxUser[]>([]);
-  const [stations, setStations] = useState<Station[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Form state
-  const [formUserId, setFormUserId] = useState('');
-  const [formStationId, setFormStationId] = useState('');
-  const [formDate, setFormDate] = useState('');
-  const [formStartTime, setFormStartTime] = useState('08:00');
-  const [formEndTime, setFormEndTime] = useState('16:00');
+  // ── filter state ──
+  const [search, setSearch] = useState('');
+  const [filterLine, setFilterLine] = useState('');
+  const [filterStation, setFilterStation] = useState('');
+  const [filterShift, setFilterShift] = useState<'all' | 'morning' | 'afternoon'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'upcoming' | 'in_progress' | 'completed'>('all');
 
-  const fetchAll = () => {
+  const showToast = (msg: string, ok = true) => {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  const fetchShifts = () => {
     setLoading(true);
-    Promise.all([
-      fetch(`${API}/auxiliary/shifts`).then(r => r.json()),
-      fetch(`${API}/auxiliary/users`).then(r => r.json()),
-      fetch(`${API}/auxiliary/stations`).then(r => r.json()),
-    ])
-      .then(([shiftsData, usersData, stationsData]) => {
-        setShifts(shiftsData);
-        setAuxUsers(usersData);
-        setStations(stationsData);
-      })
-      .catch(err => console.error('Failed to fetch shift data', err))
+    const session = JSON.parse(localStorage.getItem('session') || '{}');
+    fetch(`${API}/operator/shifts`, {
+      headers: { Authorization: `Bearer ${session.token}` },
+    })
+      .then(r => r.json())
+      .then(setShifts)
+      .catch(() => showToast('Failed to load shifts', false))
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => { fetchShifts(); }, []);
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
+  // ── derived filter options ──
+  const uniqueLines = [...new Set(shifts.map(s => s.lineName).filter(Boolean))] as string[];
+  const uniqueStations = [...new Set(
+    shifts
+      .filter(s => !filterLine || s.lineName === filterLine)
+      .map(s => s.stationName)
+  )];
+
+  // ── filtering logic ──
+  const filtered = shifts.filter(s => {
+    const q = search.toLowerCase();
+    const displayDate = new Date(s.shiftDate).toLocaleDateString('en-MY', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }).toLowerCase()
+    const matchesSearch =
+      !q ||
+      s.userName.toLowerCase().includes(q) ||
+      s.stationName.toLowerCase().includes(q) ||
+      s.shiftDate.toLowerCase().includes(q) ||
+      displayDate.includes(q) ||
+      s.startTime.toLowerCase().includes(q) ||
+      s.endTime.toLowerCase().includes(q) ||
+      (s.lineName ?? '').toLowerCase().includes(q);
+
+    const matchesLine = !filterLine || s.lineName === filterLine;
+    const matchesStation = !filterStation || s.stationName === filterStation;
+
+    const hour = parseInt(s.startTime.split(':')[0], 10);
+    const isMorning = hour >= 6 && hour < 15;
+    const matchesShift =
+      filterShift === 'all' ||
+      (filterShift === 'morning' && isMorning) ||
+      (filterShift === 'afternoon' && !isMorning);
+
+    const matchesStatus =
+      filterStatus === 'all' ||
+      getShiftStatus(s) === filterStatus;
+
+    return matchesSearch && matchesLine && matchesStation && matchesShift && matchesStatus;
+  });
+
+  const hasActiveFilters =
+    !!search || !!filterLine || !!filterStation ||
+    filterShift !== 'all' || filterStatus !== 'all';
+
+
+
+  const handleLineChange = (line: string) => {
+    setFilterLine(line);
+    setFilterStation('');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formUserId || !formStationId || !formDate || !formStartTime || !formEndTime) return;
+  // ── download template ──
+  const downloadTemplate = () => {
+    const rows = [
+      ['user_id', 'station_id', 'shift_date', 'start_time', 'end_time'],
+      ['# Fill in your data below. Delete this row before uploading.', '', '', '', ''],
+      ['AUX001', 'STN001', '2026-05-01', '06:00', '15:00'],
+    ];
+    const csv = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'shift_import_template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
-    setSubmitting(true);
+  // ── upload ──
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setUploading(true);
+
+    const form = new FormData();
+    form.append('file', file);
+
     try {
-      const res = await fetch(`${API}/auxiliary/shifts`, {
+      const session = JSON.parse(localStorage.getItem('session') || '{}');
+      const res = await fetch(`${API}/operator/shifts/import`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: formUserId,
-          stationId: formStationId,
-          shiftStart: `${formDate}T${formStartTime}:00`,
-          shiftEnd: `${formDate}T${formEndTime}:00`,
-        }),
+        headers: { Authorization: `Bearer ${session.token}` },
+        body: form,
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        showToast(err.error || 'Failed to create shift');
-        return;
-      }
+      if (!res.ok) { showToast('Upload failed', false); return; }
 
-      showToast('Shift assigned successfully');
-      setShowForm(false);
-      setFormUserId('');
-      setFormStationId('');
-      setFormDate('');
-      setFormStartTime('08:00');
-      setFormEndTime('16:00');
-      fetchAll();
+      const data = await res.json();
+      const errSummary = data.errors?.length ? ` (${data.errors.length} skipped)` : '';
+      showToast(`✓ Imported ${data.inserted} shift${data.inserted !== 1 ? 's' : ''}${errSummary}`);
+      if (data.inserted > 0) fetchShifts();
     } catch {
-      showToast('Server error. Is the backend running?');
+      showToast('Server error during upload', false);
     } finally {
-      setSubmitting(false);
+      setUploading(false);
     }
   };
-
-  const handleDelete = async (shiftId: number) => {
-    try {
-      await fetch(`${API}/auxiliary/shifts/${shiftId}`, { method: 'DELETE' });
-      setShifts(prev => prev.filter(s => s.shiftId !== shiftId));
-      showToast('Shift removed');
-    } catch {
-      showToast('Failed to delete shift');
-    }
-  };
-
-  const todayStr = new Date().toISOString().split('T')[0];
 
   return (
-    <div className="p-6" style={{ backgroundColor: '#FAF9F5', minHeight: '100%' }}>
+    <div className="p-8 min-h-full" style={{ backgroundColor: '#FAF9F5' }}>
+
       {/* Toast */}
       {toast && (
         <div
           className="fixed top-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white"
-          style={{ backgroundColor: ACCENT }}
+          style={{ backgroundColor: toast.ok ? ACCENT : '#DC2626' }}
         >
-          <CheckCircleIcon size={16} />
-          {toast}
+          {toast.ok ? <CheckCircleIcon size={16} /> : <XCircleIcon size={16} />}
+          {toast.msg}
         </div>
       )}
 
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: '#1A202C' }}>Shift Management</h1>
-          <p className="text-sm mt-0.5" style={{ color: '#4A5568' }}>Assign and manage auxiliary police shifts</p>
+          <h1 className="text-[28px] font-bold text-gray-900 leading-tight">Shift Management</h1>
+          <p className="text-xs text-gray-400 mt-0.5">
+            View and bulk-import auxiliary police shifts
+          </p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
-          style={{ backgroundColor: ACCENT }}
-        >
-          <PlusIcon size={16} />
-          Assign Shift
-        </button>
+
+        {/* Buttons — right side */}
+        <div className="flex flex-col items-end gap-1.5">
+          <div className="flex gap-2">
+            <button
+              onClick={downloadTemplate}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              <DownloadIcon size={14} />
+              Download Template
+            </button>
+            <button
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-60"
+              style={{ backgroundColor: ACCENT }}
+            >
+              {uploading
+                ? <Loader2Icon size={14} className="animate-spin" />
+                : <UploadIcon size={14} />}
+              {uploading ? 'Importing…' : 'Upload Shifts'}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+          </div>
+          <p className="text-xs text-gray-400">
+            Import format:{' '}
+            <code className="text-gray-500">user_id</code>,{' '}
+            <code className="text-gray-500">station_id</code>,{' '}
+            <code className="text-gray-500">shift_date</code>,{' '}
+            <code className="text-gray-500">start_time</code>,{' '}
+            <code className="text-gray-500">end_time</code>
+          </p>
+        </div>
       </div>
 
-      {/* Create shift form */}
-      {showForm && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-6">
-          <h3 className="text-sm font-bold mb-4" style={{ color: '#1A202C' }}>New Shift Assignment</h3>
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
-            {/* Officer */}
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: '#4A5568' }}>
-                <UserIcon size={12} className="inline mr-1" />Officer
-              </label>
-              <select
-                value={formUserId}
-                onChange={e => setFormUserId(e.target.value)}
-                required
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/30 focus:border-[#0B4F6C]"
-                style={{ color: '#1A202C' }}
-              >
-                <option value="">Select officer</option>
-                {auxUsers.map(u => (
-                  <option key={u.userId} value={u.userId}>{u.userName}</option>
-                ))}
-              </select>
-            </div>
+      {/* ── Search + Filters ── */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-4">
+        <div className="flex items-end gap-3">
 
-            {/* Station */}
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: '#4A5568' }}>
-                <MapPinIcon size={12} className="inline mr-1" />Station
-              </label>
-              <select
-                value={formStationId}
-                onChange={e => setFormStationId(e.target.value)}
-                required
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/30 focus:border-[#0B4F6C]"
-                style={{ color: '#1A202C' }}
-              >
-                <option value="">Select station</option>
-                {stations.map(s => (
-                  <option key={s.stationId} value={s.stationId}>{s.stationName}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Date */}
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: '#4A5568' }}>
-                <CalendarIcon size={12} className="inline mr-1" />Date
-              </label>
-              <input
-                type="date"
-                value={formDate}
-                onChange={e => setFormDate(e.target.value)}
-                min={todayStr}
-                required
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/30 focus:border-[#0B4F6C]"
-                style={{ color: '#1A202C' }}
+          {/* Search */}
+          <div className="flex flex-col gap-1 flex-[1.3]">
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+              Search
+            </label>
+            <div className="relative">
+              <SearchIcon
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
               />
+              <input
+                type="text"
+                placeholder="Search by officer or station name"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 bg-white text-gray-700"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <XIcon size={14} />
+                </button>
+              )}
             </div>
-
-            {/* Time range */}
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: '#4A5568' }}>
-                <ClockIcon size={12} className="inline mr-1" />Time
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="time"
-                  value={formStartTime}
-                  onChange={e => setFormStartTime(e.target.value)}
-                  required
-                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/30"
-                  style={{ color: '#1A202C' }}
-                />
-                <span className="text-xs text-gray-400 font-medium">to</span>
-                <input
-                  type="time"
-                  value={formEndTime}
-                  onChange={e => setFormEndTime(e.target.value)}
-                  required
-                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/30"
-                  style={{ color: '#1A202C' }}
-                />
-              </div>
-            </div>
-
-            {/* Submit */}
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
-                style={{ backgroundColor: ACCENT }}
-              >
-                {submitting ? <LoaderIcon size={14} className="animate-spin" /> : <PlusIcon size={14} />}
-                {submitting ? 'Saving…' : 'Assign'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowForm(false)}
-                className="px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-600 bg-gray-100 border border-gray-200 transition-all"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Shifts table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <LoaderIcon size={24} className="animate-spin text-gray-300" />
           </div>
-        ) : shifts.length === 0 ? (
+
+          {/* Line */}
+          <div className="flex flex-col gap-1 flex-1">
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+              Line
+            </label>
+            <select
+              value={filterLine}
+              onChange={e => handleLineChange(e.target.value)}
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 bg-white text-gray-700"
+            >
+              <option value="">All Lines</option>
+              {uniqueLines.map(l => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Station */}
+          <div className="flex flex-col gap-1 flex-1">
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+              Station
+            </label>
+            <select
+              value={filterStation}
+              onChange={e => setFilterStation(e.target.value)}
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 bg-white text-gray-700"
+            >
+              <option value="">All Stations</option>
+              {uniqueStations.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Shift type */}
+          <div className="flex flex-col gap-1 flex-1">
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+              Shift
+            </label>
+            <select
+              value={filterShift}
+              onChange={e => setFilterShift(e.target.value as 'all' | 'morning' | 'afternoon')}
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 bg-white text-gray-700"
+            >
+              <option value="all">All Shifts</option>
+              <option value="morning">Morning</option>
+              <option value="afternoon">Afternoon</option>
+            </select>
+          </div>
+
+          {/* Status */}
+          <div className="flex flex-col gap-1 flex-1">
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+              Status
+            </label>
+            <select
+              value={filterStatus}
+              onChange={e => setFilterStatus(e.target.value as 'all' | 'upcoming' | 'in_progress' | 'completed')}
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 bg-white text-gray-700"
+            >
+              <option value="all">All</option>
+              <option value="upcoming">Upcoming</option>
+              <option value="in_progress">In Progress</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+
+
+
+        </div>
+
+        {/* Result count */}
+        <p className="text-xs text-gray-400 mt-3 text-right">
+          Showing{' '}
+          <span className="font-semibold text-gray-700">{filtered.length}</span>
+          {' '}of{' '}
+          <span className="font-semibold text-gray-700">{shifts.length}</span>
+          {' '}shifts
+        </p>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
+        {loading ? (
+          <div className="flex justify-center items-center py-16">
+            <Loader2Icon size={24} className="animate-spin text-gray-300" />
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#EBF4F8' }}>
-              <CalendarIcon size={24} style={{ color: ACCENT }} />
-            </div>
-            <p className="text-sm font-semibold text-gray-700">No shifts assigned yet</p>
-            <p className="text-xs text-gray-400 mt-1">Click "Assign Shift" to get started</p>
+            <CalendarIcon size={32} className="mb-2 text-gray-200" />
+            <p className="text-sm font-semibold text-gray-500">
+              {hasActiveFilters ? 'No shifts match your filters' : 'No shifts found'}
+            </p>
+
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100">
-                {['Officer', 'Station', 'Date', 'Shift Time', 'Actions'].map(h => (
+              <tr className="border-b border-gray-100 bg-gray-50/50">
+                {['Officer', 'Line', 'Station', 'Date', 'Shift Type', 'Hours', 'Status'].map(h => (
                   <th
                     key={h}
-                    className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide"
-                    style={{ color: '#4A5568' }}
+                    className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
                   >
                     {h}
                   </th>
@@ -289,47 +401,48 @@ export function ShiftManagement() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {shifts.map(shift => (
-                <tr key={shift.shiftId} className="hover:bg-gray-50 transition-colors">
+              {filtered.map(s => (
+                <tr key={s.shiftId} className="hover:bg-gray-50 transition-colors">
+
+                  {/* Officer */}
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                        style={{ backgroundColor: ACCENT }}
-                      >
-                        {shift.userName.charAt(0)}
-                      </div>
+                    <div className="flex items-center gap-2.5">
+
                       <div>
-                        <div className="text-sm font-medium" style={{ color: '#1A202C' }}>{shift.userName}</div>
-                        <div className="text-[10px] text-gray-400 font-mono">{shift.userId}</div>
+                        <div className="font-medium text-gray-900">{s.userName}</div>
+                        <div className="text-[10px] text-gray-400 font-mono">{s.userId}</div>
                       </div>
                     </div>
                   </td>
+
+                  {/* Line */}
+                  <td className="px-4 py-3 text-gray-600 text-sm">{s.lineName || '—'}</td>
+
+                  {/* Station */}
+                  <td className="px-4 py-3 text-gray-700 text-sm">{s.stationName}</td>
+
+                  {/* Date */}
+                  <td className="px-4 py-3 text-gray-600 text-sm">
+                    {new Date(s.shiftDate).toLocaleDateString('en-MY', {
+                      day: '2-digit', month: 'short', year: 'numeric',
+                    })}
+                  </td>
+
+                  {/* Shift type */}
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-1.5">
-                      <MapPinIcon size={12} style={{ color: ACCENT }} />
-                      <span className="text-sm" style={{ color: '#1A202C' }}>{shift.stationName}</span>
-                    </div>
+                    <ShiftTypeBadge startTime={s.startTime} />
                   </td>
-                  <td className="px-4 py-3 text-sm" style={{ color: '#4A5568' }}>
-                    {new Date(shift.shiftStart).toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' })}
+
+                  {/* Hours */}
+                  <td className="px-4 py-3 font-mono text-xs text-gray-500">
+                    {s.startTime} – {s.endTime}
                   </td>
+
+                  {/* Status */}
                   <td className="px-4 py-3">
-                    <span className="text-sm font-mono" style={{ color: '#1A202C' }}>
-                      {new Date(shift.shiftStart).toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit', hour12: false })}
-                      {' – '}
-                      {new Date(shift.shiftEnd).toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit', hour12: false })}
-                    </span>
+                    <ShiftStatusBadge shift={s} />
                   </td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => handleDelete(shift.shiftId)}
-                      className="flex items-center gap-1 text-xs font-medium text-red-500 hover:text-red-700 hover:underline transition-colors"
-                    >
-                      <Trash2Icon size={12} />
-                      Remove
-                    </button>
-                  </td>
+
                 </tr>
               ))}
             </tbody>

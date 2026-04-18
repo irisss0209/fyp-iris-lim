@@ -1,7 +1,10 @@
 using backend.Data;
 using backend.Models;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Npgsql;
+using System.Text;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -42,6 +45,29 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         o.MapEnum<IncidentStatus>("incident_status");
     }));
 
+// JWT Authentication
+var jwtSettings   = builder.Configuration.GetSection("JwtSettings");
+var secretKey     = jwtSettings["SecretKey"]  ?? "a_very_long_and_secure_secret_key_for_testing_12345";
+var issuer        = jwtSettings["Issuer"]     ?? "railly.my";
+var audience      = jwtSettings["Audience"]   ?? "railly.my";
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer           = true,
+            ValidateAudience         = true,
+            ValidateLifetime         = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer              = issuer,
+            ValidAudience            = audience,
+            IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
+        };
+    });
+
+builder.Services.AddAuthorization();
+
 // CORS
 var allowedOrigins = builder.Configuration
     .GetSection("AllowedOrigins")
@@ -65,5 +91,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("AllowFrontend");
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 app.Run();

@@ -4,7 +4,7 @@ namespace backend.Models
 {
     public enum UserRole
     {
-        [PgName("Customer")]  Customer,
+        [PgName("Passenger")]  Passenger,
         [PgName("Operator")]  Operator,
         [PgName("Auxiliary")] Auxiliary
     }

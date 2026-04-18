@@ -59,6 +59,15 @@ function getLineColor(lineId: string) {
   return lineColorCache[lineId];
 }
 
+const STATUS_THEME: Record<string, { color: string, bg: string }> = {
+  pending: { color: '#C2410C', bg: '#FFF7ED' },
+  verified: { color: '#2D7A5D', bg: '#F0FBF6' },
+  escalated: { color: '#7B5EA7', bg: '#F5F0FF' },
+  en_route: { color: '#0B4F6C', bg: '#EFF6FF' },
+  resolved: { color: '#1D4ED8', bg: '#EBF8FF' },
+  dismissed: { color: '#4A5568', bg: '#F7FAFC' }
+}
+
 export function Dashboard({ onNavigate }: DashboardProps) {
   const [selectedRange, setSelectedRange] = useState<DateRange>('today');
   const [customFrom, setCustomFrom] = useState('');
@@ -281,68 +290,63 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <p className="text-xs text-gray-300 mt-1">Incidents will appear here once detected</p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-50">
-            {alerts.map((alert) => {
+          <div className="space-y-3">
+            {alerts.slice(0, 5).map((alert) => {
               const lineColor = getLineColor(alert.lineId);
               return (
-                <div key={alert.id} className="flex items-center gap-4 py-5">
-                  <div
-                    className="w-1.5 h-14 rounded-full flex-shrink-0"
-                    style={{
-                      backgroundColor:
-                        alert.status === 'pending' ? '#f87171' :
-                          alert.status === 'verified' ? '#4ade80' : '#d1d5db'
-                    }}
-                  />
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-4 mb-2 flex-wrap">
-                      <span className="text-lg font-bold text-gray-800">{alert.coachId}</span>
-                      <span
-                        className="text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider"
-                        style={{ backgroundColor: lineColor + '28', color: lineColor }}
-                      >
-                        {alert.line}
-                      </span>
-                      <span className="text-sm px-3 py-1 rounded-full bg-gray-50 font-semibold text-gray-500 border border-gray-100">
-                        {alert.station}
-                      </span>
+                <div
+                  key={alert.id}
+                  className="bg-white rounded-xl border border-gray-100 overflow-hidden"
+                >
+                  <div className="flex">
+                    <div
+                      className="w-1 flex-shrink-0"
+                      style={{ backgroundColor: STATUS_THEME[alert.status]?.color || '#d1d5db' }}
+                    />
+                    <div className="flex-1 p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-sm text-gray-900">{alert.coachId}</span>
+                            <span
+                              className="text-xs px-2 py-0.5 rounded-full font-medium"
+                              style={{ backgroundColor: lineColor + '18', color: lineColor }}
+                            >
+                              {alert.line}
+                            </span>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                              {alert.station}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 mt-2 flex-wrap">
+                            <span className="text-xs text-gray-500">
+                              <ClockIcon className="w-3 h-3 inline mr-1" />
+                              {alert.time}
+                            </span>
+                            {alert.source === 'ai' ? (
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#FEF2F0] text-[#D34026]">
+                                AI detected{alert.confidence !== null ? `, ${alert.confidence}% confidence` : ''}
+                              </span>
+                            ) : (
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E]">
+                                Passenger reported
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <span
+                            className="text-xs font-semibold px-2 py-1 rounded-md"
+                            style={{
+                              backgroundColor: STATUS_THEME[alert.status]?.bg || '#F7FAFC',
+                              color: STATUS_THEME[alert.status]?.color || '#718096',
+                            }}
+                          >
+                            {alert.status.toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-
-                    <div className="flex items-center gap-3 mt-1.5">
-                      {alert.source === 'ai' && alert.confidence !== null ? (
-                        <span
-                          className="text-xs font-bold px-3 py-1.5 rounded-full"
-                          style={{ backgroundColor: '#FEF2F0', color: '#D34026' }}
-                        >
-                          AI detected, {alert.confidence}% confidence
-                        </span>
-                      ) : (
-                        <span
-                          className="text-xs font-bold px-3 py-1.5 rounded-full"
-                          style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}
-                        >
-                          Passenger reported
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-end gap-2.5 flex-shrink-0">
-                    <span className="text-xs font-semibold text-gray-400">{alert.time}</span>
-                    <span
-                      className="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-extrabold"
-                      style={{
-                        backgroundColor:
-                          alert.status === 'pending' ? '#FFF7ED' :
-                            alert.status === 'verified' ? '#F0FDF4' : '#F9FAFB',
-                        color:
-                          alert.status === 'pending' ? '#C2410C' :
-                            alert.status === 'verified' ? '#15803D' : '#6B7280'
-                      }}
-                    >
-                      {alert.status.charAt(0).toUpperCase() + alert.status.slice(1)}
-                    </span>
                   </div>
                 </div>
               );

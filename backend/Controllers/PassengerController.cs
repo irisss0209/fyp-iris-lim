@@ -50,7 +50,6 @@ namespace backend.Controllers
             {
                 UserId = userId,
                 CoachId = req.Coach,
-                ViolationType = req.Type,
                 Description = req.Desc,
                 CreatedAt = DateTime.UtcNow
             };
@@ -105,7 +104,6 @@ namespace backend.Controllers
     {
         public string Line { get; set; } = null!;
         public string Coach { get; set; } = null!;
-        public string Type { get; set; } = null!;
         public string Desc { get; set; } = null!;
     }
 }

@@ -65,7 +65,17 @@ namespace backend.Models
 
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        [Column("verified_comment")]
+        public string? VerifiedComment { get; set; }
 
+        [Column("escalated_comment")]
+        public string? EscalatedComment { get; set; }
+
+        [Column("resolved_comment")]
+        public string? ResolvedComment { get; set; }
+
+        [Column("dismissed_comment")]
+        public string? DismissedComment { get; set; }
         // --- Navigation ---
         [ForeignKey(nameof(DetectionId))]
         public Detection? Detection { get; set; }

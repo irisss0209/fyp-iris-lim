@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { LogOutIcon, UserIcon, ShieldIcon, MailIcon, BadgeCheckIcon } from 'lucide-react';
+import { useState } from 'react';
+import { LogOutIcon, ShieldIcon, MailIcon, BadgeCheckIcon } from 'lucide-react';
 import { UserSession } from '../../App';
 
 interface AuxiliaryProfileProps {

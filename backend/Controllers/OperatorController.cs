@@ -3,7 +3,7 @@ using backend.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
-
+using System.IdentityModel.Tokens.Jwt;
 namespace backend.Controllers
 {
     [ApiController]
@@ -36,7 +36,7 @@ namespace backend.Controllers
             {
                 id = "RPT-" + i.IncidentId.ToString("D3"),
                 line = i.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineName ?? "Unknown",
-                type = i.UserReport?.ViolationType ?? "Unknown",
+                type = i.Source == IncidentSource.AI_DETECTION ? "AI Detection" : "Passenger Report",
                 time = GetTimeSince(i.CreatedAt),
                 status = i.Status,
                 elapsed = (int)(DateTime.UtcNow - i.CreatedAt).TotalMinutes
@@ -105,7 +105,7 @@ namespace backend.Controllers
             });
         }
 
-        [HttpGet("police-alerts")]
+        [HttpGet("indicent-alerts")]
         public async Task<IActionResult> GetPoliceAlerts([FromQuery] string? assignedStationId = null)
         {
             // Preload all line→station mappings once (first station per line by sequence)
@@ -145,7 +145,6 @@ namespace backend.Controllers
                 string? lineId = null;
                 string? lineName = null;
                 string? coachId = null;
-                string? violationType = null;
                 string? snapshotUrl = null;
 
                 if (i.Source == IncidentSource.AI_DETECTION && i.Detection?.Camera != null)
@@ -154,7 +153,6 @@ namespace backend.Controllers
                     lineName = i.Detection.Camera.TrainCoach?.TrainAsset?.TrainLine?.LineName;
                     lineId   = i.Detection.Camera.TrainCoach?.TrainAsset?.TrainLine?.LineId;
                     snapshotUrl = i.Detection.ImageUrl;
-                    violationType = "AI Detection";
                 }
                 else if (i.UserReport != null)
                 {
@@ -162,7 +160,6 @@ namespace backend.Controllers
                     lineName = i.UserReport.TrainCoach?.TrainAsset?.TrainLine?.LineName;
                     lineId   = i.UserReport.TrainCoach?.TrainAsset?.TrainLine?.LineId;
                     snapshotUrl = i.UserReport.ImageUrl;
-                    violationType = i.UserReport.ViolationType;
                 }
 
                 return new
@@ -174,9 +171,9 @@ namespace backend.Controllers
                     station = lineStations.FirstOrDefault(ls => ls.LineId == lineId)?.Station?.StationName ?? "Unknown",
                     time = i.CreatedAt.ToString("HH:mm"),
                     elapsed = Math.Max(1, (int)(DateTime.UtcNow - i.CreatedAt).TotalMinutes),
-                    severity = violationType?.Contains("Male") == true ? "high" : "medium",
+                    severity = i.Source == IncidentSource.AI_DETECTION ? "high" : "medium",
                     status = i.Status.ToString().ToLower(),
-                    type = violationType ?? "Possible Violation",
+                    type = i.Source == IncidentSource.AI_DETECTION ? "AI Detection" : "Passenger Report",
                     snapshotUrl
                 };
             })
@@ -187,25 +184,74 @@ namespace backend.Controllers
             return Ok(alerts);
         }
 
-        [HttpPost("police-alerts/{id}/status")]
-        public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateStatusRequest request)
-        {
-            var incidentIdStr = id.Replace("ALT-", "");
-            if (int.TryParse(incidentIdStr, out var incidentId))
-            {
-                var incident = await _context.Incidents.FindAsync(incidentId);
-                if (incident != null)
-                {
-                    if (Enum.TryParse<IncidentStatus>(request.Status, true, out var parsedStatus))
-                    {
-                        incident.Status = parsedStatus;
-                    }
-                    await _context.SaveChangesAsync();
-                    return Ok();
-                }
-            }
-            return NotFound();
-        }
+        [Authorize]
+[HttpPost("indicent-alerts/{id}/status")]
+public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateStatusRequest request)
+{
+    var incidentIdStr = id.Replace("ALT-", "").Replace("RPT-", "");
+
+    if (!int.TryParse(incidentIdStr, out var incidentId))
+        return BadRequest();
+
+    var incident = await _context.Incidents.FindAsync(incidentId);
+    if (incident == null)
+        return NotFound();
+
+    // Accept frontend aliases (e.g. "resolve" → "Resolved", "en_route" → "En_Route")
+    var normalizedStatus = request.Status?.Trim() switch
+    {
+        "resolve"  => "Resolved",
+        "en_route" => "En_Route",
+        { } s      => char.ToUpper(s[0]) + s[1..],  // capitalise first letter
+        null       => null
+    };
+
+    if (!Enum.TryParse<IncidentStatus>(normalizedStatus, true, out var parsedStatus))
+        return BadRequest("Invalid status");
+
+    incident.Status = parsedStatus;
+
+    var userId = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+
+    switch (parsedStatus)
+    {
+        case IncidentStatus.Verified:
+            incident.VerifiedBy      = userId;
+            incident.VerifiedAt      = DateTime.UtcNow;
+            incident.VerifiedComment = request.Comment;
+            break;
+
+        case IncidentStatus.Escalated:
+            incident.EscalatedBy      = userId;
+            incident.EscalatedAt      = DateTime.UtcNow;
+            incident.EscalatedComment = request.Comment;
+            break;
+
+        case IncidentStatus.En_Route:
+            incident.EnrouteBy = userId;
+            incident.EnrouteAt = DateTime.UtcNow;
+            break;
+
+        case IncidentStatus.Resolved:
+            incident.ResolvedBy      = userId;
+            incident.ResolvedAt      = DateTime.UtcNow;
+            incident.ResolvedComment = request.Comment;
+            break;
+
+        case IncidentStatus.Dismissed:
+            incident.DismissedBy      = userId;
+            incident.DismissedAt      = DateTime.UtcNow;
+            incident.DismissedComment = request.Comment;
+            break;
+    }
+
+    await _context.SaveChangesAsync();
+    return Ok(new
+    {
+        incidentId = incident.IncidentId,
+        status     = incident.Status.ToString().ToLower()
+    });
+}
 
         [HttpGet("operator/dashboard")]
         public async Task<IActionResult> GetOperatorDashboard()
@@ -359,7 +405,6 @@ namespace backend.Controllers
                 string? lineId     = null;
                 string? coachId    = null;
                 string? deviceId   = null;
-                string? reportedBy = null;
                 decimal? confidence = null;
                 string source;
 
@@ -376,7 +421,6 @@ namespace backend.Controllers
                 {
                     source     = "passenger";
                     coachId    = inc.UserReport?.CoachId;
-                    reportedBy = inc.UserReport?.User?.UserName ?? "Anonymous Passenger";
                     lineName   = inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
                     lineId     = inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineId;
                 }
@@ -401,15 +445,31 @@ namespace backend.Controllers
                     lineId     = lineId     ?? "Unknown",
                     station    = stationName,
                     time       = inc.CreatedAt.ToString("HH:mm:ss"),
+                    date       = inc.CreatedAt.ToString("yyyy-MM-dd"),
                     elapsed    = GetTimeSince(inc.CreatedAt),
                     status     = mappedStatus,
                     confidence = confidence != null ? (int)confidence : (int?)null,
                     deviceId,
                     source,
-                    reportedBy,
+                    passengerComment = inc.UserReport?.Description,
                     imageUrl   = inc.Source == IncidentSource.AI_DETECTION
                         ? inc.Detection?.ImageUrl
-                        : inc.UserReport?.ImageUrl
+                        : inc.UserReport?.ImageUrl,
+                    // ── Audit trail ──
+                    verifiedBy      = inc.VerifiedBy,
+                    verifiedAt      = inc.VerifiedAt?.ToString("yyyy-MM-dd HH:mm"),
+                    verifiedComment = inc.VerifiedComment,
+                    escalatedBy      = inc.EscalatedBy,
+                    escalatedAt      = inc.EscalatedAt?.ToString("yyyy-MM-dd HH:mm"),
+                    escalatedComment = inc.EscalatedComment,
+                    enrouteBy  = inc.EnrouteBy,
+                    enrouteAt  = inc.EnrouteAt?.ToString("yyyy-MM-dd HH:mm"),
+                    resolvedBy      = inc.ResolvedBy,
+                    resolvedAt      = inc.ResolvedAt?.ToString("yyyy-MM-dd HH:mm"),
+                    resolvedComment = inc.ResolvedComment,
+                    dismissedBy      = inc.DismissedBy,
+                    dismissedAt      = inc.DismissedAt?.ToString("yyyy-MM-dd HH:mm"),
+                    dismissedComment = inc.DismissedComment,
                 };
             }).ToList();
 
@@ -499,7 +559,8 @@ namespace backend.Controllers
             var shifts = await _context.AuxiliaryShifts
                 .Include(s => s.User)
                 .Include(s => s.Station)
-                .OrderByDescending(s => s.ShiftStart)
+                .OrderByDescending(s => s.ShiftDate)
+                .ThenByDescending(s => s.StartTime)
                 .ToListAsync();
 
             var result = shifts.Select(s =>
@@ -516,8 +577,9 @@ namespace backend.Controllers
                     stationId   = s.StationId,
                     stationName = s.Station.StationName,
                     lineName,
-                    shiftStart  = s.ShiftStart.ToString("o"),
-                    shiftEnd    = s.ShiftEnd.ToString("o")
+                    shiftDate   = s.ShiftDate.ToString("yyyy-MM-dd"),
+                    startTime   = s.StartTime.ToString(@"hh\:mm"),
+                    endTime     = s.EndTime.ToString(@"hh\:mm")
                 };
             }).ToList();
 
@@ -526,55 +588,70 @@ namespace backend.Controllers
 
         // ── Excel bulk import ───────────────────────────────────────────────────────
 
-        [HttpPost("operator/shifts/import")]
+[HttpPost("operator/shifts/import")]
 public async Task<IActionResult> ImportShifts([FromForm] IFormFile file)
 {
     if (file == null || file.Length == 0)
         return BadRequest(new { error = "No file uploaded." });
 
     var inserted = 0;
-    var errors = new List<string>();
+    var errors   = new List<string>();
 
     using var stream = file.OpenReadStream();
     using var reader = new StreamReader(stream);
 
     var rows = new List<string[]>();
-
-    while (!reader.EndOfStream)
+    string? line;
+    while ((line = await reader.ReadLineAsync()) != null)
     {
-        var line = await reader.ReadLineAsync();
         if (string.IsNullOrWhiteSpace(line)) continue;
         rows.Add(line.Split(','));
     }
 
-    for (int i = 1; i < rows.Count; i++) // skip header
+    for (int i = 1; i < rows.Count; i++) // skip header row
     {
         var cols = rows[i];
 
-        if (cols.Length < 4)
+        // FIXED: expect 5 columns, not 4
+        if (cols.Length < 5)
         {
-            errors.Add($"Row {i + 1}: Missing columns.");
+            errors.Add($"Row {i + 1}: Expected 5 columns (user_id, station_id, shift_date, start_time, end_time). Got {cols.Length}.");
             continue;
         }
 
-        var userId = cols[0].Trim();
+        var userId    = cols[0].Trim();
         var stationId = cols[1].Trim();
-        var startText = cols[2].Trim();
-        var endText = cols[3].Trim();
+        var dateText  = cols[2].Trim();  // FIXED: shift_date
+        var startText = cols[3].Trim();  // FIXED: start_time
+        var endText   = cols[4].Trim();  // FIXED: end_time
 
-        if (!DateTime.TryParse(startText, out var shiftStart) ||
-            !DateTime.TryParse(endText, out var shiftEnd))
+        // Parse date separately
+        if (!DateOnly.TryParse(dateText, out var shiftDate))
         {
-            errors.Add($"Row {i + 1}: Invalid date format.");
+            errors.Add($"Row {i + 1}: Invalid shift_date '{dateText}'. Expected format: yyyy-MM-dd.");
             continue;
         }
 
-        if (shiftEnd <= shiftStart)
+        // Parse times separately
+        if (!TimeOnly.TryParse(startText, out var startTime))
         {
-            errors.Add($"Row {i + 1}: shift_end must be after shift_start.");
+            errors.Add($"Row {i + 1}: Invalid start_time '{startText}'. Expected format: HH:mm.");
             continue;
         }
 
+        if (!TimeOnly.TryParse(endText, out var endTime))
+        {
+            errors.Add($"Row {i + 1}: Invalid end_time '{endText}'. Expected format: HH:mm.");
+            continue;
+        }
+
+        if (endTime <= startTime)
+        {
+            errors.Add($"Row {i + 1}: end_time must be after start_time.");
+            continue;
+        }
+
+        // Validate user
         var user = await _context.Users.FindAsync(userId);
         if (user == null || user.Role != UserRole.Auxiliary)
         {
@@ -582,6 +659,7 @@ public async Task<IActionResult> ImportShifts([FromForm] IFormFile file)
             continue;
         }
 
+        // Validate station
         var station = await _context.Stations.FindAsync(stationId);
         if (station == null)
         {
@@ -591,10 +669,11 @@ public async Task<IActionResult> ImportShifts([FromForm] IFormFile file)
 
         _context.AuxiliaryShifts.Add(new AuxiliaryShift
         {
-            UserId = userId,
+            UserId    = userId,
             StationId = stationId,
-            ShiftStart = DateTime.SpecifyKind(shiftStart, DateTimeKind.Utc),
-            ShiftEnd = DateTime.SpecifyKind(shiftEnd, DateTimeKind.Utc),
+            ShiftDate = new DateTime(shiftDate.Year, shiftDate.Month, shiftDate.Day, 0, 0, 0, DateTimeKind.Utc),
+            StartTime = startTime.ToTimeSpan(),
+            EndTime   = endTime.ToTimeSpan(),
             CreatedAt = DateTime.UtcNow
         });
 
@@ -609,7 +688,8 @@ public async Task<IActionResult> ImportShifts([FromForm] IFormFile file)
 
     public class UpdateStatusRequest
     {
-        public string Status { get; set; } = null!;
+        public string  Status  { get; set; } = null!;
+        public string? Comment { get; set; }
     }
 
     public class PatchUserStatusRequest

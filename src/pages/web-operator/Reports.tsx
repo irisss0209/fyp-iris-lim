@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+
 import {
   BarChart,
   Bar,
@@ -17,7 +18,6 @@ import {
   CalendarIcon,
   DownloadIcon,
   FileTextIcon,
-  TableIcon,
   TrendingUpIcon
 } from
   'lucide-react';
@@ -94,7 +94,7 @@ const INCIDENTS = [
     coach: 'KJ-07 Coach 3',
     line: 'LRT Kelana Jaya',
     datetime: '28 Feb 2025, 14:32',
-    type: 'Male Detected',
+    type: 'AI Detection',
     status: 'Resolved',
     operator: 'Ahmad'
   },
@@ -103,7 +103,7 @@ const INCIDENTS = [
     coach: 'KTM-12 Coach 1',
     line: 'KTM Komuter',
     datetime: '28 Feb 2025, 14:26',
-    type: 'Male Detected',
+    type: 'AI Detection',
     status: 'Escalated',
     operator: 'Ahmad'
   },
@@ -112,7 +112,7 @@ const INCIDENTS = [
     coach: 'MRT-05 Coach 2',
     line: 'MRT Putrajaya',
     datetime: '28 Feb 2025, 14:19',
-    type: 'Male Detected',
+    type: 'AI Detection',
     status: 'Pending',
     operator: 'Siti'
   },
@@ -121,7 +121,7 @@ const INCIDENTS = [
     coach: 'KJ-03 Coach 3',
     line: 'LRT Kelana Jaya',
     datetime: '28 Feb 2025, 14:12',
-    type: 'Possible Male',
+    type: 'AI Detection',
     status: 'False Alarm',
     operator: 'Ahmad'
   },
@@ -130,7 +130,7 @@ const INCIDENTS = [
     coach: 'MRT-08 Coach 2',
     line: 'MRT Putrajaya',
     datetime: '28 Feb 2025, 14:05',
-    type: 'Male Detected',
+    type: 'AI Detection',
     status: 'Resolved',
     operator: 'Razif'
   },
@@ -139,36 +139,12 @@ const INCIDENTS = [
     coach: 'KTM-07 Coach 1',
     line: 'KTM Komuter',
     datetime: '28 Feb 2025, 13:58',
-    type: 'Male Detected',
+    type: 'AI Detection',
     status: 'Resolved',
     operator: 'Siti'
   }];
 
-const OPERATORS = [
-  {
-    name: 'Ahmad Fadzil',
-    alerts: 34,
-    resolved: 28,
-    falseAlarms: 6,
-    avgTime: '2.1m',
-    score: 94
-  },
-  {
-    name: 'Siti Nurhaliza',
-    alerts: 29,
-    resolved: 25,
-    falseAlarms: 4,
-    avgTime: '2.4m',
-    score: 91
-  },
-  {
-    name: 'Razif Hamdan',
-    alerts: 22,
-    resolved: 18,
-    falseAlarms: 4,
-    avgTime: '2.8m',
-    score: 87
-  }];
+
 
 export function Reports() {
   const [activeTab, setActiveTab] = useState<ReportTab>('overview');
@@ -225,11 +201,7 @@ export function Reports() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1
-            className="text-2xl font-bold"
-            style={{
-              color: '#1A202C'
-            }}>
+          <h1 className="text-[28px] font-bold text-gray-900 leading-tight">
 
             Reports & Analytics
           </h1>

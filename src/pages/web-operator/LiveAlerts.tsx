@@ -5,11 +5,10 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   AlertTriangleIcon,
-  ChevronRightIcon,
-  MessageSquareIcon,
-  UserIcon,
   FilterIcon,
   RefreshCwIcon,
+  XIcon,
+  UserIcon,
 } from 'lucide-react';
 import { JustificationModal } from '../../components/JustificationModal';
 
@@ -25,13 +24,30 @@ interface Alert {
   lineId: string;
   station: string;
   time: string;
+  date: string;
   elapsed: string;
   status: 'pending' | 'verified' | 'escalated' | 'en_route' | 'resolved' | 'dismissed';
   confidence: number | null;
   deviceId: string | null;
   source: 'ai' | 'passenger';
   reportedBy?: string;
+  passengerComment?: string;
   imageUrl?: string;
+  // audit trail
+  verifiedBy?: string | null;
+  verifiedAt?: string | null;
+  verifiedComment?: string | null;
+  escalatedBy?: string | null;
+  escalatedAt?: string | null;
+  escalatedComment?: string | null;
+  enrouteBy?: string | null;
+  enrouteAt?: string | null;
+  resolvedBy?: string | null;
+  resolvedAt?: string | null;
+  resolvedComment?: string | null;
+  dismissedBy?: string | null;
+  dismissedAt?: string | null;
+  dismissedComment?: string | null;
 }
 
 interface LineOption { lineId: string; lineName: string; }
@@ -59,7 +75,14 @@ const STAT_CONFIGS: {
     { key: 'resolved', label: 'Resolved', color: '#1D4ED8', bg: '#EBF8FF' },
     { key: 'dismissed', label: 'Dismissed', color: '#4A5568', bg: '#F7FAFC' },
   ];
-
+const STATUS_THEME: Record<string, { color: string, bg: string }> = {
+  pending: { color: '#C2410C', bg: '#FFF7ED' },
+  verified: { color: '#2D7A5D', bg: '#F0FBF6' },
+  escalated: { color: '#7B5EA7', bg: '#F5F0FF' },
+  en_route: { color: '#0B4F6C', bg: '#EFF6FF' },
+  resolved: { color: '#1D4ED8', bg: '#EBF8FF' },
+  dismissed: { color: '#4A5568', bg: '#F7FAFC' }
+}
 interface StatsState {
   pending: number;
   verified: number;
@@ -84,10 +107,10 @@ export function LiveAlerts() {
   const [lineFilter, setLineFilter] = useState('all');
   const [stationFilter, setStationFilter] = useState('all');
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
-  const [notes, setNotes] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
-  const [pendingAction, setPendingAction] = useState<{ type: 'verify' | 'dismiss'; alertId: string } | null>(null);
-
+  const [pendingAction, setPendingAction] = useState<{ type: 'verify' | 'dismiss' | 'escalate'; alertId: string } | null>(null);
+  const [escalatedAt, setEscalatedAt] = useState<Record<string, number>>({}); // alertId → timestamp
+  const [, setTick] = useState(0); // force re-render for timer
   // ── Fetch all alerts from DB ──────────────────────────────────────────────────
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
@@ -98,13 +121,13 @@ export function LiveAlerts() {
       setLines(data.lines ?? []);
       setStationsByLine(data.stationsByLine ?? []);
       setStats(data.stats ?? { pending: 0, verified: 0, escalated: 0, enRoute: 0, resolved: 0, dismissed: 0 });
-      // Keep or auto-select first alert
+      // Keep selected alert if it still exists
       setSelectedAlert(prev => {
         if (prev) {
           const updated = (data.alerts as Alert[]).find(a => a.id === prev.id);
-          return updated ?? (data.alerts[0] ?? null);
+          return updated ?? null;
         }
-        return data.alerts[0] ?? null;
+        return null;
       });
       setLastRefresh(new Date());
     } catch (err) {
@@ -121,6 +144,13 @@ export function LiveAlerts() {
     const interval = setInterval(fetchAlerts, 30_000);
     return () => clearInterval(interval);
   }, [fetchAlerts]);
+
+  // ── Tick every 10s so the 2-min re-escalate button can appear ──
+  useEffect(() => {
+    if (Object.keys(escalatedAt).length === 0) return;
+    const timer = setInterval(() => setTick(t => t + 1), 10_000);
+    return () => clearInterval(timer);
+  }, [escalatedAt]);
 
   // ── Derived filter options ────────────────────────────────────────────────────
   const availableStations = useMemo(() => {
@@ -155,47 +185,58 @@ export function LiveAlerts() {
   // ── Status update ─────────────────────────────────────────────────────────────
   const handleModalConfirm = async (comment: string) => {
     if (!pendingAction) return;
-    const newStatus = pendingAction.type === 'verify' ? 'verified' : 'dismissed';
+
+    let newStatus: string;
+    switch (pendingAction.type) {
+      case 'verify': newStatus = 'verified'; break;
+      case 'dismiss': newStatus = 'dismissed'; break;
+      case 'escalate': newStatus = 'escalated'; break;
+      default: return;
+    }
+
     const id = pendingAction.alertId;
 
     // Optimistic update
-    setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a));
-    setSelectedAlert(prev => prev?.id === id ? { ...prev, status: newStatus } : prev);
+    setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: newStatus as any } : a));
+    setSelectedAlert(prev => prev?.id === id ? { ...prev, status: newStatus as any } : prev);
+
+    // Track escalation timestamp for the 2-min re-escalate logic
+    if (pendingAction.type === 'escalate') {
+      setEscalatedAt(prev => ({ ...prev, [id]: Date.now() }));
+    }
 
     console.log(`[${pendingAction.type.toUpperCase()}] ${id}: ${comment}`);
 
-    // Persist to DB — strip prefix to get numeric id
     const numericId = id.replace('ALT-', '').replace('RPT-', '');
-    try {
-      await fetch(`${API}/police-alerts/${numericId}/status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
-      });
-    } catch (err) {
-      console.error('Failed to update status:', err);
-    }
+    const token = JSON.parse(localStorage.getItem('user_session') || '{}')?.token;
 
+    await fetch(`${API}/indicent-alerts/${numericId}/status`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ status: newStatus, comment }),
+    });
     setModalOpen(false);
     setPendingAction(null);
   };
 
-  const openModal = (type: 'verify' | 'dismiss', alertId: string, e?: React.MouseEvent) => {
+  const openModal = (type: 'verify' | 'dismiss' | 'escalate', alertId: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     setPendingAction({ type, alertId });
     setModalOpen(true);
   };
-
   const pendingAlertForModal = pendingAction ? alerts.find(a => a.id === pendingAction.alertId) : null;
 
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: '#FAF9F5' }}>
 
       {/* ── Header ── */}
-      <div className="px-6 pt-6 pb-4 bg-[#FAF9F5] border-b border-gray-100">
+      <div className="px-6 pt-6 pb-2 bg-[#FAF9F5] border-b border-gray-100">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold" style={{ color: '#1A202C' }}>Live Alerts</h1>
+            <h1 className="text-[28px] font-bold text-gray-900 leading-tight">Live Alerts</h1>
             <p className="text-sm mt-0.5" style={{ color: '#4A5568' }}>
               Real-time gender compliance monitoring feed
               {!loading && (
@@ -233,8 +274,12 @@ export function LiveAlerts() {
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-3 mt-4 flex-wrap">
-          <div className="flex gap-1">
+
+
+        <div className="flex items-center gap-3 mt-4">
+
+          {/* Status tabs (DON'T shrink) */}
+          <div className="flex gap-1 flex-shrink-0">
             {statusTabs.map(tab => (
               <button
                 key={tab.id}
@@ -250,61 +295,77 @@ export function LiveAlerts() {
             ))}
           </div>
 
-          <div className="w-px h-6 bg-gray-200" />
+          <div className="w-px h-6 bg-gray-200 flex-shrink-0" />
 
-          <div className="flex items-center gap-1.5">
-            <FilterIcon size={13} className="text-gray-400" />
+          {/* Filters (SHARE SPACE) */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+
+            {/* Source */}
+            <div className="flex items-center gap-1 w-full min-w-0">
+              <FilterIcon size={13} className="text-gray-400 flex-shrink-0" />
+              <select
+                value={sourceFilter}
+                onChange={e => setSourceFilter(e.target.value as AlertSource)}
+                className="w-full min-w-0 text-xs px-3 py-2 rounded-lg border border-gray-200 bg-gray-50"
+              >
+                <option value="all">All Sources</option>
+                <option value="ai">AI Detected</option>
+                <option value="passenger">Passenger Reported</option>
+              </select>
+            </div>
+
+            {/* Line */}
             <select
-              value={sourceFilter}
-              onChange={e => setSourceFilter(e.target.value as AlertSource)}
-              className="text-xs bg-gray-50 border border-gray-200 text-gray-700 py-1.5 px-2.5 rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/30"
+              value={lineFilter}
+              onChange={e => handleLineChange(e.target.value)}
+              className="w-full min-w-0 text-xs px-3 py-2 rounded-lg border border-gray-200 bg-gray-50"
             >
-              <option value="all">All Sources</option>
-              <option value="ai">AI Detected</option>
-              <option value="passenger">Passenger Reported</option>
+              <option value="all">All Lines</option>
+              {lines.map((l) => (
+                <option key={l.lineId} value={l.lineId}>
+                  {l.lineName}
+                </option>
+              ))}
             </select>
+
+            {/* Station */}
+            <select
+              value={stationFilter}
+              onChange={e => setStationFilter(e.target.value)}
+              className="w-full min-w-0 text-xs px-3 py-2 rounded-lg border border-gray-200 bg-gray-50"
+            >
+              <option value="all">All Stations</option>
+              {availableStations.map(s => (
+                <option key={s.stationId} value={s.stationName}>
+                  {s.stationName}
+                </option>
+              ))}
+            </select>
+
           </div>
 
-          <select
-            value={lineFilter}
-            onChange={e => handleLineChange(e.target.value)}
-            className="text-xs bg-gray-50 border border-gray-200 text-gray-700 py-1.5 px-2.5 rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/30"
-          >
-            <option value="all">All Lines</option>
-            {lines.map((l, i) => (
-              <option key={l.lineId} value={l.lineId} style={{ color: getLineColor(l.lineId, i) }}>
-                {l.lineName}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={stationFilter}
-            onChange={e => setStationFilter(e.target.value)}
-            className="text-xs bg-gray-50 border border-gray-200 text-gray-700 py-1.5 px-2.5 rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/30"
-          >
-            <option value="all">All Stations</option>
-            {availableStations.map(s => (
-              <option key={s.stationId} value={s.stationName}>{s.stationName}</option>
-            ))}
-          </select>
-
+          {/* Clear button*/}
           {(sourceFilter !== 'all' || lineFilter !== 'all' || stationFilter !== 'all') && (
             <button
-              onClick={() => { setSourceFilter('all'); setLineFilter('all'); setStationFilter('all'); }}
-              className="text-xs font-medium hover:underline text-gray-500"
+              onClick={() => {
+                setSourceFilter('all');
+                setLineFilter('all');
+                setStationFilter('all');
+              }}
+              className="text-xs font-medium hover:underline text-gray-500 flex-shrink-0"
             >
               Clear filters
             </button>
           )}
+
         </div>
       </div>
 
       {/* ── Content ── */}
-      <div className="flex flex-1 overflow-hidden gap-4 p-4">
+      <div className="flex flex-1 overflow-hidden gap-2 p-2">
 
         {/* Alert List */}
-        <div className="flex-1 overflow-y-auto space-y-2 scrollbar-thin pr-1" style={{ maxWidth: '60%' }}>
+        <div className="flex-1 overflow-y-auto space-y-2 scrollbar-thin pr-1 transition-all duration-300" style={{ maxWidth: selectedAlert ? '60%' : '100%' }}>
 
           {loading && alerts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -327,18 +388,19 @@ export function LiveAlerts() {
               return (
                 <div
                   key={alert.id}
-                  onClick={() => { setSelectedAlert(alert); setNotes(''); }}
-                  className={`bg-white rounded-xl shadow-sm border cursor-pointer transition-all duration-150 overflow-hidden ${selectedAlert?.id === alert.id
+                  onClick={() => { setSelectedAlert(prev => prev?.id === alert.id ? null : alert); }}
+                  className={`bg-white rounded-xl border cursor-pointer transition-all duration-150 overflow-hidden ${selectedAlert?.id === alert.id
                     ? 'ring-2 ring-[#0B4F6C] border-transparent'
                     : 'border-gray-100 hover:border-gray-200'
                     }`}
                 >
                   <div className="flex">
                     <div
-                      className="w-1 flex-shrink-0 rounded-l-xl"
+                      className="w-1 flex-shrink-0 rounded-l-xl transition-colors duration-150"
                       style={{
-                        backgroundColor: alert.status === 'pending' ? '#D34026'
-                          : alert.status === 'verified' ? '#2D7A5D' : '#CBD5E0'
+                        backgroundColor: selectedAlert?.id === alert.id
+                          ? '#0B4F6C'
+                          : 'transparent'
                       }}
                     />
                     <div className="flex-1 p-4">
@@ -359,7 +421,7 @@ export function LiveAlerts() {
                           <div className="flex items-center gap-3 mt-2 flex-wrap">
                             <span className="text-xs text-gray-500">
                               <ClockIcon className="w-3 h-3 inline mr-1" />
-                              {alert.time} · {alert.elapsed}
+                              {alert.time}
                             </span>
                             {alert.source === 'ai' ? (
                               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#FEF2F0] text-[#D34026]">
@@ -384,15 +446,12 @@ export function LiveAlerts() {
                           <span
                             className="text-xs font-semibold px-2 py-1 rounded-md"
                             style={{
-                              backgroundColor: alert.status === 'pending' ? '#FEF2F0'
-                                : alert.status === 'verified' ? '#F0FBF6' : '#F7FAFC',
-                              color: alert.status === 'pending' ? '#D34026'
-                                : alert.status === 'verified' ? '#2D7A5D' : '#718096',
+                              backgroundColor: STATUS_THEME[alert.status]?.bg || '#F7FAFC',
+                              color: STATUS_THEME[alert.status]?.color || '#718096',
                             }}
                           >
                             {alert.status.toUpperCase()}
                           </span>
-                          <ChevronRightIcon className="w-4 h-4 text-gray-300" />
                         </div>
                       </div>
 
@@ -403,14 +462,25 @@ export function LiveAlerts() {
                             className="flex-1 text-xs font-semibold py-1.5 rounded-lg text-white hover:opacity-90 transition-opacity"
                             style={{ backgroundColor: '#0B4F6C' }}
                           >
-                            Verify & Escalate
+                            Verify
                           </button>
                           <button
                             onClick={e => openModal('dismiss', alert.id, e)}
                             className="flex-1 text-xs font-semibold py-1.5 rounded-lg text-white hover:opacity-90 transition-opacity"
                             style={{ backgroundColor: '#D34026' }}
                           >
-                            Dismiss Alert
+                            Dismiss
+                          </button>
+                        </div>
+                      )}
+                      {alert.status === 'verified' && (
+                        <div className="mt-3">
+                          <button
+                            onClick={e => openModal('escalate', alert.id, e)}
+                            className="w-full text-xs font-semibold py-1.5 rounded-lg text-white hover:opacity-90 transition-opacity"
+                            style={{ backgroundColor: '#7B5EA7' }}
+                          >
+                            Escalate
                           </button>
                         </div>
                       )}
@@ -423,166 +493,183 @@ export function LiveAlerts() {
         </div>
 
         {/* ── Detail Panel ── */}
-        <div className="w-[40%] flex-shrink-0">
-          {selectedAlert ? (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 sticky top-0 overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="font-semibold text-sm text-gray-900">Alert Detail</h2>
-                <span className="text-xs font-mono text-gray-400">{selectedAlert.id}</span>
-              </div>
-
-              {/* Source banner */}
-              <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-                {selectedAlert.source === 'ai' ? (
-                  <span className="text-sm font-semibold text-[#D34026]">
-                    AI detected{selectedAlert.confidence !== null ? `, ${selectedAlert.confidence}% confidence` : ''}
-                  </span>
-                ) : (
-                  <>
-                    <span className="text-sm font-semibold text-[#92400E]">Passenger reported</span>
-                    <span className="text-xs text-gray-500">By: {selectedAlert.reportedBy || 'Anonymous'}</span>
-                  </>
-                )}
-              </div>
-
-              {/* Snapshot / image */}
-              <div className="mx-4 mt-4 rounded-xl overflow-hidden bg-gray-800" style={{ aspectRatio: '16/9' }}>
-                {selectedAlert.imageUrl ? (
-                  <img src={selectedAlert.imageUrl} alt="Snapshot" className="w-full h-full object-cover opacity-80" />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+        {selectedAlert && (
+          <div className="w-[45%] flex-shrink-0">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden h-full">
+              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+                <div>
+                  <h2 className="font-semibold text-sm text-gray-900 leading-tight">
+                    Alert Detail <span className="text-xs font-mono text-gray-400 font-normal">({selectedAlert.id})</span>
+                  </h2>
+                  <div className="mt-0.5">
                     {selectedAlert.source === 'ai' ? (
-                      <>
-                        <CameraIcon className="w-10 h-10 text-white/30" />
-                        <span className="text-white/40 text-xs font-medium">Snapshot</span>
-                        <span className="text-white/25 text-xs">{selectedAlert.deviceId ?? '—'}</span>
-                      </>
+                      <span className="text-[11px] font-medium text-[#D34026]">
+                        AI detected{selectedAlert.confidence !== null ? `, ${selectedAlert.confidence}% confidence` : ''}
+                      </span>
                     ) : (
-                      <>
-                        <UserIcon className="w-10 h-10 text-white/30" />
-                        <span className="text-white/40 text-xs font-medium">Passenger Report</span>
-                        <span className="text-white/25 text-xs">{selectedAlert.reportedBy || 'No photo attached'}</span>
-                      </>
+                      <span className="text-[11px] font-medium text-[#92400E]">Passenger reported</span>
                     )}
                   </div>
-                )}
+                </div>
+
+                <button
+                  onClick={() => setSelectedAlert(null)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+                >
+                  <XIcon size={18} />
+                </button>
               </div>
 
-              {/* Metadata */}
-              <div className="px-5 py-4 space-y-2">
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  {[
-                    { label: 'Coach ID', value: selectedAlert.coachId },
-                    { label: 'Line', value: selectedAlert.line },
-                    { label: 'Station', value: selectedAlert.station },
-                    { label: 'Time', value: selectedAlert.time },
-                    ...(selectedAlert.source === 'ai' ? [{ label: 'Device', value: selectedAlert.deviceId ?? '—' }] : []),
-                  ].map(item => (
-                    <div key={item.label} className="bg-gray-50 rounded-lg px-3 py-2">
-                      <div className="text-gray-400 text-xs mb-0.5">{item.label}</div>
-                      <div className="font-medium text-xs text-gray-900">{item.value}</div>
+              {/* Unified Scrollable Container */}
+              <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
+                {/* Snapshot / image */}
+                <div className="rounded-lg overflow-hidden bg-gray-800" style={{ aspectRatio: '21/9' }}>
+                  {selectedAlert.imageUrl ? (
+                    <img src={selectedAlert.imageUrl} alt="Snapshot" className="w-full h-full object-cover opacity-80" />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                      {selectedAlert.source === 'ai' ? (
+                        <>
+                          <CameraIcon className="w-10 h-10 text-white/30" />
+                          <span className="text-white/40 text-xs font-medium">Snapshot</span>
+                          <span className="text-white/25 text-xs">{selectedAlert.deviceId ?? '—'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <UserIcon className="w-10 h-10 text-white/30" />
+                          <span className="text-white/40 text-xs font-medium">Passenger Report</span>
+                          <span className="text-white/25 text-xs">No photo attached</span>
+                        </>
+                      )}
                     </div>
-                  ))}
+                  )}
                 </div>
 
-                {/* Status Timeline */}
-                <div className="pt-2">
-                  <div className="text-xs font-medium mb-3 text-gray-500">Status Timeline</div>
-                  <div className="flex items-center gap-0">
-                    {['Detected', 'Under Review', 'Resolved'].map((step, i) => {
-                      const isActive = i <= (selectedAlert.status === 'pending' ? 1 : 2);
-                      return (
-                        <div key={step} className="flex items-center flex-1">
-                          <div className="flex flex-col items-center">
-                            <div
-                              className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
-                              style={{ backgroundColor: isActive ? '#0B4F6C' : '#E2E8F0', color: isActive ? 'white' : '#A0AEC0' }}
-                            >
-                              {i + 1}
+                {/* Details Body */}
+                <div className="space-y-4 p-2">
+                  {/* Core info grid */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: 'Coach ID', value: selectedAlert.coachId },
+                      { label: 'Line', value: selectedAlert.line },
+                      { label: 'Station', value: selectedAlert.station },
+                      { label: 'Time', value: selectedAlert.time },
+                      ...(selectedAlert.source === 'ai'
+                        ? [{ label: 'Device', value: selectedAlert.deviceId ?? '—' }]
+                        : []),
+                    ].map(item => (
+                      <div key={item.label} className="bg-gray-50 rounded-lg px-3 py-2">
+                        <div className="text-gray-400 text-[10px] mb-0.5">{item.label}</div>
+                        <div className="font-medium text-xs text-gray-900 leading-tight">{item.value}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Passenger comment */}
+                  {selectedAlert.source === 'passenger' && selectedAlert.passengerComment && (
+                    <div className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5">
+                      <div className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide mb-1">Passenger comment</div>
+                      <p className="text-xs text-amber-900 leading-relaxed">{selectedAlert.passengerComment}</p>
+                    </div>
+                  )}
+
+                  {/* Audit trail */}
+                  {(() => {
+                    const steps: { label: string, by?: string | null, at?: string | null, comment?: string | null, color: string, bg: string }[] = []
+
+                    if (selectedAlert.verifiedAt || selectedAlert.verifiedBy)
+                      steps.push({ label: 'Verified', by: selectedAlert.verifiedBy, at: selectedAlert.verifiedAt, comment: selectedAlert.verifiedComment, color: '#2D7A5D', bg: '#F0FBF6' })
+                    if (selectedAlert.escalatedAt || selectedAlert.escalatedBy)
+                      steps.push({ label: 'Escalated', by: selectedAlert.escalatedBy, at: selectedAlert.escalatedAt, comment: selectedAlert.escalatedComment, color: '#7B5EA7', bg: '#F5F0FF' })
+                    if (selectedAlert.enrouteAt || selectedAlert.enrouteBy)
+                      steps.push({ label: 'En Route', by: selectedAlert.enrouteBy, at: selectedAlert.enrouteAt, color: '#0B4F6C', bg: '#EFF6FF' })
+                    if (selectedAlert.resolvedAt || selectedAlert.resolvedBy)
+                      steps.push({ label: 'Resolved', by: selectedAlert.resolvedBy, at: selectedAlert.resolvedAt, comment: selectedAlert.resolvedComment, color: '#1D4ED8', bg: '#EBF8FF' })
+                    if (selectedAlert.dismissedAt || selectedAlert.dismissedBy)
+                      steps.push({ label: 'Dismissed', by: selectedAlert.dismissedBy, at: selectedAlert.dismissedAt, comment: selectedAlert.dismissedComment, color: '#718096', bg: '#F7FAFC' })
+
+                    if (steps.length === 0) return null
+
+                    return (
+                      <div>
+                        <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Audit trail</div>
+                        <div className="space-y-2">
+                          {steps.map(s => (
+                            <div key={s.label} className="rounded-lg px-3 py-2.5" style={{ backgroundColor: s.bg }}>
+                              <div className="flex items-center justify-between mb-0.5">
+                                <span className="text-xs font-semibold" style={{ color: s.color }}>{s.label} By: {s.by ? s.by : 'N/A'}</span>
+                                {s.at && <span className="text-[10px] text-gray-400">{s.at}</span>}
+                              </div>
+
+
+
+                              {/* Always display the comment block to maintain the aesthetic */}
+                              <div className="mt-1.5 text-[11px] italic text-gray-600 border-l-2 pl-2" style={{ borderColor: s.color + '60' }}>
+                                {s.comment ? `"${s.comment}"` : 'No comment'}
+                              </div>
                             </div>
-                            <span
-                              className="text-xs mt-1 text-center leading-tight"
-                              style={{ color: isActive ? '#0B4F6C' : '#A0AEC0', fontSize: '10px' }}
-                            >
-                              {i === 0 && selectedAlert.source === 'passenger' ? 'Reported' : step}
-                            </span>
-                          </div>
-                          {i < 2 && (
-                            <div
-                              className="flex-1 h-0.5 mx-1 mb-4"
-                              style={{ backgroundColor: i < (selectedAlert.status === 'pending' ? 1 : 2) ? '#0B4F6C' : '#E2E8F0' }}
-                            />
-                          )}
+                          ))}
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
+                      </div>
+                    )
+                  })()}
 
-                {/* Notes */}
-                <div>
-                  <label className="text-xs font-medium block mb-1.5 text-gray-500">
-                    <MessageSquareIcon className="w-3 h-3 inline mr-1" />
-                    Operator Notes
-                  </label>
-                  <textarea
-                    value={notes}
-                    onChange={e => setNotes(e.target.value)}
-                    placeholder="Add notes about this alert..."
-                    className="w-full text-xs rounded-lg border border-gray-200 p-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/30 text-gray-900"
-                    rows={2}
-                  />
-                </div>
+                  {/* ── Actions ── */}
+                  {selectedAlert.status === 'pending' && (
+                    <div className="space-y-2 pt-2">
+                      <button
+                        onClick={() => openModal('verify', selectedAlert.id)}
+                        className="w-full py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 flex items-center justify-center gap-2 transition-opacity"
+                        style={{ backgroundColor: '#0B4F6C' }}
+                      >
+                        <CheckCircleIcon className="w-4 h-4" /> Verify Alert
+                      </button>
+                      <button
+                        onClick={() => openModal('dismiss', selectedAlert.id)}
+                        className="w-full py-2 text-sm font-medium hover:underline text-gray-500 transition-colors flex items-center justify-center gap-1"
+                      >
+                        <XCircleIcon className="w-4 h-4 inline" /> Dismiss Alert
+                      </button>
+                    </div>
+                  )}
 
-                {/* Actions */}
-                {selectedAlert.status === 'pending' && (
-                  <div className="space-y-2 pt-1">
+                  {selectedAlert.status === 'verified' && (
                     <button
-                      onClick={() => openModal('verify', selectedAlert.id)}
+                      onClick={() => openModal('escalate', selectedAlert.id)}
                       className="w-full py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 flex items-center justify-center gap-2 transition-opacity"
-                      style={{ backgroundColor: '#0B4F6C' }}
+                      style={{ backgroundColor: '#7B5EA7' }}
                     >
-                      <CheckCircleIcon className="w-4 h-4" /> Verify & Escalate
+                      Escalate Alert
                     </button>
-                    <button
-                      onClick={() => openModal('dismiss', selectedAlert.id)}
-                      className="w-full py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 flex items-center justify-center gap-2 transition-opacity"
-                      style={{ backgroundColor: '#D34026' }}
-                    >
-                      <AlertTriangleIcon className="w-4 h-4" /> Dismiss Alert
-                    </button>
-                    <button
-                      onClick={() => openModal('dismiss', selectedAlert.id)}
-                      className="w-full py-2 text-sm font-medium hover:underline text-gray-500 transition-colors flex items-center justify-center gap-1"
-                    >
-                      <XCircleIcon className="w-4 h-4 inline" /> Dismiss as False Alarm
-                    </button>
-                  </div>
-                )}
+                  )}
 
-                {selectedAlert.status !== 'pending' && (
-                  <div className="pt-1 text-center">
-                    <span
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
-                      style={{
-                        backgroundColor: selectedAlert.status === 'verified' ? '#F0FBF6' : '#F7FAFC',
-                        color: selectedAlert.status === 'verified' ? '#2D7A5D' : '#718096',
-                      }}
-                    >
-                      {selectedAlert.status === 'verified' ? <CheckCircleIcon className="w-3.5 h-3.5" /> : <XCircleIcon className="w-3.5 h-3.5" />}
-                      {selectedAlert.status === 'verified' ? 'Verified & Escalated' : 'Dismissed'}
-                    </span>
-                  </div>
-                )}
+                  {selectedAlert.status === 'escalated' && (() => {
+                    const ts = escalatedAt[selectedAlert.id];
+                    const elapsed = ts ? (Date.now() - ts) / 1000 : Infinity;
+                    const canReEscalate = elapsed >= 120;
+                    return canReEscalate ? (
+                      <div>
+                        <button
+                          onClick={() => openModal('escalate', selectedAlert.id)}
+                          className="w-full py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 flex items-center justify-center gap-2 transition-opacity"
+                          style={{ backgroundColor: '#D34026' }}
+                        >
+                          <AlertTriangleIcon className="w-4 h-4" /> Re-Escalate Alert
+                        </button>
+                        <p className="text-[10px] text-gray-400 text-center mt-1">No response received after 2 minutes</p>
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <p className="text-xs text-gray-400">Waiting for auxiliary response…</p>
+                        <p className="text-[10px] text-gray-300 mt-0.5">Re-escalate in {Math.ceil(120 - elapsed)}s</p>
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
             </div>
-          ) : (
-            <div className="bg-white rounded-xl border border-gray-100 h-64 flex flex-col items-center justify-center text-center">
-              <FilterIcon size={28} className="text-gray-200 mb-2" />
-              <p className="text-sm text-gray-400">Select an alert to view details</p>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Justification Modal */}

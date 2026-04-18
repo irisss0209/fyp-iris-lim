@@ -17,59 +17,60 @@ namespace backend.Controllers
         }
 
         [HttpGet("auxiliary/shift")]
-        public async Task<IActionResult> GetAuxiliaryShift([FromQuery] string userId)
+    public async Task<IActionResult> GetAuxiliaryShift([FromQuery] string userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+            return BadRequest(new { error = "userId query parameter is required." });
+
+        var today = DateTime.UtcNow.Date;
+        var nowTime = DateTime.UtcNow.TimeOfDay;
+
+        var shift = await _context.AuxiliaryShifts
+            .Include(s => s.Station)
+            .Where(s => s.UserId == userId && s.ShiftDate == today)
+            .OrderBy(s => s.StartTime)
+            .FirstOrDefaultAsync();
+
+        if (shift == null)
+            return Ok(new { active = false });
+
+        var isOnDuty = shift.StartTime <= nowTime && shift.EndTime > nowTime;
+
+        return Ok(new
         {
-            if (string.IsNullOrWhiteSpace(userId))
-                return BadRequest(new { error = "userId query parameter is required." });
-
-            var now = DateTime.UtcNow;
-
-            // Try to find current active shift first, then next upcoming
-            var shift = await _context.AuxiliaryShifts
-                .Include(s => s.Station)
-                .Where(s => s.UserId == userId && s.ShiftEnd > now)
-                .OrderBy(s => s.ShiftStart)
-                .FirstOrDefaultAsync();
-
-            if (shift == null)
-                return Ok(new { active = false });
-
-            var isOnDuty = shift.ShiftStart <= now && shift.ShiftEnd > now;
-
-            return Ok(new
-            {
-                active = true,
-                onDuty = isOnDuty,
-                shiftId = shift.ShiftId,
-                station = shift.Station.StationName,
-                stationId = shift.StationId,
-                shiftStart = shift.ShiftStart.ToString("HH:mm"),
-                shiftEnd = shift.ShiftEnd.ToString("HH:mm"),
-                shiftDate = shift.ShiftStart.ToString("yyyy-MM-dd")
-            });
-        }
+            active = true,
+            onDuty = isOnDuty,
+            shiftId = shift.ShiftId,
+            station = shift.Station.StationName,
+            stationId = shift.StationId,
+            shiftStart = shift.StartTime.ToString(@"hh\:mm"),
+            shiftEnd = shift.EndTime.ToString(@"hh\:mm"),
+            shiftDate = shift.ShiftDate.ToString("yyyy-MM-dd")
+        });
+    }
 
         [HttpGet("auxiliary/shifts")]
-        public async Task<IActionResult> GetAllShifts()
+public async Task<IActionResult> GetAllShifts()
+{
+    var shifts = await _context.AuxiliaryShifts
+        .Include(s => s.User)
+        .Include(s => s.Station)
+        .OrderByDescending(s => s.ShiftDate)
+        .Select(s => new
         {
-            var shifts = await _context.AuxiliaryShifts
-                .Include(s => s.User)
-                .Include(s => s.Station)
-                .OrderByDescending(s => s.ShiftStart)
-                .Select(s => new
-                {
-                    shiftId = s.ShiftId,
-                    userId = s.UserId,
-                    userName = s.User.UserName,
-                    stationId = s.StationId,
-                    stationName = s.Station.StationName,
-                    shiftStart = s.ShiftStart.ToString("o"),
-                    shiftEnd = s.ShiftEnd.ToString("o")
-                })
-                .ToListAsync();
+            shiftId = s.ShiftId,
+            userId = s.UserId,
+            userName = s.User.UserName,
+            stationId = s.StationId,
+            stationName = s.Station.StationName,
+            shiftDate = s.ShiftDate.ToString("yyyy-MM-dd"),
+            startTime = s.StartTime.ToString(@"hh\:mm"),
+            endTime = s.EndTime.ToString(@"hh\:mm")
+        })
+        .ToListAsync();
 
-            return Ok(shifts);
-        }
+    return Ok(shifts);
+}
 
         [HttpPost("auxiliary/shifts")]
         public async Task<IActionResult> CreateShift([FromBody] CreateShiftRequest req)
@@ -83,15 +84,16 @@ namespace backend.Controllers
             if (station == null)
                 return BadRequest(new { error = "Invalid station." });
 
-            if (req.ShiftEnd <= req.ShiftStart)
+            if (req.EndTime <= req.StartTime)
                 return BadRequest(new { error = "Shift end must be after shift start." });
 
             var shift = new AuxiliaryShift
             {
                 UserId = req.UserId,
                 StationId = req.StationId,
-                ShiftStart = req.ShiftStart,
-                ShiftEnd = req.ShiftEnd,
+                ShiftDate = DateTime.SpecifyKind(req.ShiftDate, DateTimeKind.Utc),
+                StartTime = req.StartTime,
+                EndTime = req.EndTime,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -270,8 +272,9 @@ namespace backend.Controllers
     {
         public string UserId { get; set; } = null!;
         public string StationId { get; set; } = null!;
-        public DateTime ShiftStart { get; set; }
-        public DateTime ShiftEnd { get; set; }
+        public DateTime ShiftDate { get; set; }
+        public TimeSpan StartTime { get; set; }
+        public TimeSpan EndTime { get; set; }
     }
     public class UpdateStatusRequest
 {
