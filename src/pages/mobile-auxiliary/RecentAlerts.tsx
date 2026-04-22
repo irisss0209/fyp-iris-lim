@@ -7,48 +7,34 @@ import {
   TrainIcon,
   DoorOpenIcon,
   ClockIcon,
-  ArrowUpCircleIcon,
   ShieldAlertIcon,
 } from 'lucide-react';
+import { JustificationModal } from '../../components/JustificationModal';
 
 const ACCENT = '#0B4F6C';
 const RED = '#D34026';
 
-type AlertStatus = 'pending' | 'dismissed' | 'resolved' | 'escalated';
+import { DetailAlert, AlertDetailView } from './AlertDetailView';
 
-interface RecentAlerts {
-  id: string;
-  coach: string;
-  door: string;
-  line: string;
-  station: string;
-  platform: string;
-  time: string;
-  elapsed: number;
-  severity: 'high' | 'medium';
-  status: AlertStatus;
-  type: string;
-  snapshotUrl?: string;
-}
-
-
+type AlertStatus = 'pending' | 'dismissed' | 'resolved' | 'escalated' | 'en_route';
 
 const SUB_TABS: { id: AlertStatus; label: string }[] = [
   { id: 'pending', label: 'Pending' },
   { id: 'escalated', label: 'Escalated' },
+  { id: 'en_route', label: 'En Route' },
   { id: 'resolved', label: 'Resolved' },
   { id: 'dismissed', label: 'Dismissed' },
-
 ];
 
-const STATUS_STYLES: Record<AlertStatus, { bg: string; text: string; dot: string }> = {
+const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
   pending: { bg: '#FEF3C7', text: '#92400E', dot: '#F59E0B' },
   dismissed: { bg: '#F3F4F6', text: '#6B7280', dot: '#9CA3AF' },
   resolved: { bg: '#D1FAE5', text: '#065F46', dot: '#10B981' },
   escalated: { bg: '#FEE2E2', text: '#7F1D1D', dot: '#EF4444' },
+  en_route: { bg: '#EFF6FF', text: '#1E3A8A', dot: '#3B82F6' },
 };
 
-function StatusBadge({ status }: { status: AlertStatus }) {
+function StatusBadge({ status }: { status: string }) {
   const s = STATUS_STYLES[status];
   return (
     <span
@@ -64,12 +50,15 @@ function StatusBadge({ status }: { status: AlertStatus }) {
 function PendingAlertCard({
   alert,
   onAction,
+  onClick,
 }: {
-  alert: RecentAlerts;
-  onAction: (id: string, action: 'resolved' | 'dismissed' | 'escalated') => void;
+  alert: DetailAlert;
+  onAction: (id: string, action: AlertStatus) => void;
+  onClick: () => void;
 }) {
   return (
     <motion.div
+      onClick={onClick}
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -6 }}
@@ -154,24 +143,23 @@ function PendingAlertCard({
         {/* Actions */}
         <div className="flex gap-2">
           <button
-            onClick={() => onAction(alert.id, 'resolved')}
+            onClick={(e) => { e.stopPropagation(); onAction(alert.id, 'en_route'); }}
             className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5 transition-all active:scale-[0.97]"
             style={{ backgroundColor: '#0B4F6C' }}
           >
-            Acknowledged
+            En Route
           </button>
           <button
-            onClick={() => onAction(alert.id, 'dismissed')}
+            onClick={(e) => { e.stopPropagation(); onAction(alert.id, 'resolved'); }}
+            className="flex-1 py-2.5 rounded-xl text-xs font-bold text-gray-800 bg-green-100/50 border border-green-200 flex items-center justify-center gap-1.5 transition-all active:scale-[0.97]"
+          >
+            Resolve
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onAction(alert.id, 'dismissed'); }}
             className="flex-1 py-2.5 rounded-xl text-xs font-bold text-gray-600 bg-gray-100 border border-gray-200 flex items-center justify-center gap-1.5 transition-all active:scale-[0.97]"
           >
             Dismiss
-          </button>
-          <button
-            onClick={() => onAction(alert.id, 'escalated')}
-            className="px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center transition-all active:scale-[0.97]"
-            style={{ backgroundColor: '#FEE2E2', color: RED }}
-          >
-            <ArrowUpCircleIcon size={14} />
           </button>
         </div>
       </div>
@@ -179,9 +167,9 @@ function PendingAlertCard({
   );
 }
 
-function CompactAlertCard({ alert }: { alert: RecentAlerts }) {
+function CompactAlertCard({ alert, onClick }: { alert: DetailAlert, onClick: () => void }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
+    <div onClick={onClick} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3 cursor-pointer active:scale-[0.98] transition-transform">
       <div
         className="w-1.5 self-stretch rounded-full flex-shrink-0"
         style={{ backgroundColor: STATUS_STYLES[alert.status].dot }}
@@ -203,11 +191,19 @@ function CompactAlertCard({ alert }: { alert: RecentAlerts }) {
 }
 
 export function RecentAlerts({ assignedStationId }: { assignedStationId?: string }) {
-  const [alerts, setAlerts] = useState<RecentAlerts[]>([]);
-  const [activeStatus, setActiveStatus] = useState<AlertStatus>('pending');
+  const [alerts, setAlerts] = useState<DetailAlert[]>([]);
+  const [activeStatus, setActiveStatus] = useState<string>('pending');
+  const [selectedAlert, setSelectedAlert] = useState<DetailAlert | null>(null);
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean;
+    action: AlertStatus | null;
+    alertId: string | null;
+    alertCoach: string;
+  }>({ isOpen: false, action: null, alertId: null, alertCoach: '' });
+
+  const [userId] = useState('user3');
 
   useEffect(() => {
-    // If no stationId (officer not on shift), return empty immediately
     const url = assignedStationId
       ? `http://localhost:5293/api/data/auxiliary/alerts?stationId=${assignedStationId}`
       : null;
@@ -223,28 +219,85 @@ export function RecentAlerts({ assignedStationId }: { assignedStationId?: string
       .catch(err => { console.error('Failed to fetch alerts', err); });
   }, [assignedStationId]);
 
-  const handleAction = async (id: string, action: 'resolved' | 'dismissed' | 'escalated') => {
+  const handleAction = async (id: string, action: AlertStatus) => {
+    const alert = alerts.find(a => a.id === id);
+    if (!alert) return;
+    setModalConfig({
+      isOpen: true,
+      action,
+      alertId: id,
+      alertCoach: alert.coachId || alert.coach
+    });
+  };
+
+  const confirmAction = async (comment: string) => {
+    const { action, alertId } = modalConfig;
+    if (!action || !alertId) return;
+
+    setModalConfig(prev => ({ ...prev, isOpen: false }));
+
     // Optimistic update
-    setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: action } : a));
+    setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, status: action } : a));
+    if (selectedAlert?.id === alertId) {
+      setSelectedAlert({ ...selectedAlert, status: action, 
+        ...(action === 'resolved' ? { resolvedComment: comment } : {}),
+        ...(action === 'dismissed' ? { dismissedComment: comment } : {}),
+        ...(action === 'escalated' ? { escalatedComment: comment } : {})
+      });
+    }
+
     try {
-      await fetch(`http://localhost:5293/api/data/auxiliary/alerts/${id}/status`, {
+      await fetch(`http://localhost:5293/api/data/auxiliary/alerts/${alertId}/status`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: action })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: action, comment })
       });
     } catch (err) {
       console.error('Failed to update status', err);
     }
   };
 
-  const filtered = alerts.filter(a => a.status === activeStatus);
-
   const counts = {
     pending: alerts.filter(a => a.status === 'pending').length,
-    dismissed: alerts.filter(a => a.status === 'dismissed').length,
-    resolved: alerts.filter(a => a.status === 'resolved').length,
     escalated: alerts.filter(a => a.status === 'escalated').length,
+    en_route: alerts.filter(a => a.status === 'en_route').length,
+    resolved: alerts.filter(a => a.status === 'resolved').length,
+    dismissed: alerts.filter(a => a.status === 'dismissed').length,
   };
+
+  const filtered = alerts.filter(a => a.status === activeStatus);
+
+  const renderModal = () => (
+    <JustificationModal
+      isOpen={modalConfig.isOpen}
+      actionType={
+        modalConfig.action === 'resolved' ? 'resolve' :
+        modalConfig.action === 'dismissed' ? 'dismiss' :
+        modalConfig.action === 'en_route' ? 'en_route' :
+        modalConfig.action === 'escalated' ? 'escalate' : 'verify'
+      }
+      alertId={modalConfig.alertId || ''}
+      alertCoach={modalConfig.alertCoach}
+      isOptional={true}
+      onConfirm={confirmAction}
+      onCancel={() => setModalConfig(prev => ({ ...prev, isOpen: false }))}
+    />
+  );
+
+  if (selectedAlert) {
+    return (
+      <div className="absolute inset-0 bg-white z-50 overflow-hidden flex flex-col h-[calc(100vh-145px)] sm:h-[710px]">
+        <AlertDetailView
+          alert={selectedAlert}
+          onBack={() => setSelectedAlert(null)}
+          onAction={handleAction}
+        />
+        {renderModal()}
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -267,7 +320,7 @@ export function RecentAlerts({ assignedStationId }: { assignedStationId?: string
       </div>
 
       {/* Sub-tab pills */}
-      <div className="flex gap-2 px-4 pb-3 overflow-x-auto scrollbar-none">
+      <div className="flex flex-wrap gap-2 px-4 pb-3">
         {SUB_TABS.map(tab => {
           const active = activeStatus === tab.id;
           const count = counts[tab.id];
@@ -293,14 +346,18 @@ export function RecentAlerts({ assignedStationId }: { assignedStationId?: string
                         ? '#FEF3C7'
                         : tab.id === 'escalated'
                           ? '#FEE2E2'
-                          : '#E5E7EB',
+                          : tab.id === 'en_route'
+                            ? '#DBEAFE'
+                            : '#E5E7EB',
                     color: active
                       ? 'white'
                       : tab.id === 'pending'
                         ? '#92400E'
                         : tab.id === 'escalated'
                           ? RED
-                          : '#6B7280',
+                          : tab.id === 'en_route'
+                            ? '#1E3A8A'
+                            : '#6B7280',
                   }}
                 >
                   {count}
@@ -358,7 +415,7 @@ export function RecentAlerts({ assignedStationId }: { assignedStationId?: string
               className="space-y-3"
             >
               {filtered.map(alert => (
-                <PendingAlertCard key={alert.id} alert={alert} onAction={handleAction} />
+                <PendingAlertCard key={alert.id} alert={alert} onAction={handleAction} onClick={() => setSelectedAlert(alert)} />
               ))}
             </motion.div>
           ) : (
@@ -370,12 +427,14 @@ export function RecentAlerts({ assignedStationId }: { assignedStationId?: string
               className="space-y-2"
             >
               {filtered.map(alert => (
-                <CompactAlertCard key={alert.id} alert={alert} />
+                <CompactAlertCard key={alert.id} alert={alert} onClick={() => setSelectedAlert(alert)} />
               ))}
             </motion.div>
           )}
         </AnimatePresence>
       </div>
+
+      {renderModal()}
     </motion.div>
   );
 }

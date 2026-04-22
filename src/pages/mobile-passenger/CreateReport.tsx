@@ -2,19 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   CheckCircleIcon,
-  SendIcon,
   CameraIcon,
   XIcon,
+  ArrowLeftIcon
 } from 'lucide-react';
-
-const VIOLATION_TYPES = [
-  'Male in Women-Only Coach',
-  'Harassment / Inappropriate Behaviour',
-  'Suspicious Package / Item',
-  'Vandalism',
-  'Fare Evasion',
-  'Other',
-];
 
 function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
@@ -25,7 +16,7 @@ function FieldLabel({ children, required }: { children: React.ReactNode; require
   );
 }
 
-export function Report() {
+export function CreateReport({ session, onBack }: { session: any, onBack: () => void }) {
   const [step, setStep] = useState<'form' | 'sent' | 'sending'>('form');
   const [line, setLine] = useState('');
   const [coach, setCoach] = useState('');
@@ -37,7 +28,7 @@ export function Report() {
   const [linesData, setLinesData] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/data/lines')
+    fetch('http://localhost:5293/api/data/lines')
       .then(res => res.json())
       .then(data => setLinesData(data))
       .catch(err => console.error('Failed to fetch lines', err));
@@ -56,7 +47,6 @@ export function Report() {
     const e: Record<string, string> = {};
     if (!line) e.line = 'Please select a train line.';
     if (!coach) e.coach = 'Please select a coach.';
-    if (!type) e.type = 'Please select a violation type.';
     if (!desc.trim()) e.desc = 'Please describe the incident.';
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -67,7 +57,7 @@ export function Report() {
     setStep('sending');
 
     try {
-      const response = await fetch('http://localhost:5000/api/data/report', {
+      const response = await fetch(`http://localhost:5293/api/data/report?userId=${session.userId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -81,11 +71,15 @@ export function Report() {
       if (response.ok) {
         setStep('sent');
         setTimeout(() => {
-          setStep('form');
-          setLine(''); setCoach(''); setType(''); setDesc(''); setPhoto(null); setErrors({});
+          onBack(); // Auto-return to list when successfully finished
         }, 3000);
       } else {
-        setErrors({ desc: 'Failed to submit report. Please try again.' });
+        let errorMsg = 'Failed to submit report. Please try again.';
+        try {
+          const errData = await response.json();
+          errorMsg = errData.error || errorMsg;
+        } catch {}
+        setErrors({ desc: errorMsg });
         setStep('form');
       }
     } catch (err) {
@@ -116,18 +110,26 @@ export function Report() {
 
   return (
     <motion.div
-      key="report"
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
+      key="create"
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -20 }}
       transition={{ duration: 0.2 }}
       className="px-4 pt-5 pb-6 space-y-4"
     >
-      <div>
-        <h2 className="text-base font-bold text-gray-900">Report a Violation</h2>
-        <p className="text-xs text-gray-400 mt-0.5">
-          Fields marked with <span className="text-red-400">*</span> are required
-        </p>
+      <div className="flex items-center gap-3">
+        <button 
+          onClick={onBack}
+          className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200"
+        >
+          <ArrowLeftIcon size={18} />
+        </button>
+        <div>
+          <h2 className="text-base font-bold text-gray-900">Report a Violation</h2>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Fields marked with <span className="text-red-400">*</span> are required
+          </p>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
@@ -157,23 +159,10 @@ export function Report() {
             disabled={!line || availableCoaches.length === 0}
           >
             <option value="">{!line ? 'Select a line first…' : 'Select coach…'}</option>
+            <option value="Unknown">Unknown</option>
             {availableCoaches.map((c: string) => <option key={c} value={c}>{c}</option>)}
           </select>
           {errors.coach && <p className="text-xs text-red-500 mt-1">{errors.coach}</p>}
-        </div>
-
-        {/* Violation Type */}
-        <div>
-          <FieldLabel required>Violation Type</FieldLabel>
-          <select
-            value={type}
-            onChange={e => { setType(e.target.value); setErrors(v => ({ ...v, type: '' })); }}
-            className={inputClass('type')}
-          >
-            <option value="">Select type…</option>
-            {VIOLATION_TYPES.map(t => <option key={t}>{t}</option>)}
-          </select>
-          {errors.type && <p className="text-xs text-red-500 mt-1">{errors.type}</p>}
         </div>
 
         {/* Description */}
@@ -229,7 +218,6 @@ export function Report() {
         className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold text-white shadow-lg active:scale-[0.98] transition-all disabled:opacity-75"
         style={{ backgroundColor: '#0B4F6C' }}
       >
-        <SendIcon size={15} />
         {step === 'sending' ? 'Submitting...' : 'Submit Report'}
       </button>
     </motion.div>

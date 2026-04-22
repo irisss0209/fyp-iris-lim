@@ -16,6 +16,7 @@ namespace backend.Controllers
             _context = context;
         }
 
+
         [HttpGet("lines")]
         public async Task<IActionResult> GetLines()
         {
@@ -45,36 +46,48 @@ namespace backend.Controllers
             if (user == null)
                 return NotFound(new { error = "User not found." });
 
-            // Create user report
-            var report = new UserReport
+            try
             {
-                UserId = userId,
-                CoachId = req.Coach,
-                Description = req.Desc,
-                CreatedAt = DateTime.UtcNow
-            };
+                // Create user report
+                var report = new UserReport
+                {
+                    UserId = userId,
+                    CoachId = (req.Coach?.Trim().Equals("Unknown", StringComparison.OrdinalIgnoreCase) == true) ? null : req.Coach,
+                    Description = req.Desc,
+                    CreatedAt = DateTime.UtcNow
+                };
 
-            _context.UserReports.Add(report);
-            await _context.SaveChangesAsync();
+                _context.UserReports.Add(report);
+                await _context.SaveChangesAsync();
 
-            // Auto-create incident
-            var incident = new Incident
+                // Auto-create incident
+                var incident = new Incident
+                {
+                    Source = IncidentSource.USER_REPORT,
+                    ReportId = report.ReportId,
+                    Status = IncidentStatus.Pending,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.Incidents.Add(incident);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { success = true, reportId = report.ReportId });
+            }
+            catch (Exception ex)
             {
-                Source = IncidentSource.USER_REPORT,
-                ReportId = report.ReportId,
-                Status = IncidentStatus.Pending,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _context.Incidents.Add(incident);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { success = true, reportId = report.ReportId });
+                return StatusCode(500, new { error = ex.InnerException?.Message ?? ex.Message });
+            }
         }
 
         [HttpGet("profile")]
         public async Task<IActionResult> GetProfile([FromQuery] string userId)
         {
+            try {
+                await _context.Database.ExecuteSqlRawAsync("ALTER TABLE \"User_Report\" DROP CONSTRAINT IF EXISTS \"User_Report_coach_id_fkey\";");
+                await _context.Database.ExecuteSqlRawAsync("ALTER TABLE \"User_Report\" ADD CONSTRAINT \"User_Report_coach_id_fkey\" FOREIGN KEY (coach_id) REFERENCES \"Train_Coach\"(coach_id) ON DELETE SET NULL;");
+            } catch {} // Ignore error if already modified
+
             if (string.IsNullOrWhiteSpace(userId))
                 return BadRequest(new { error = "userId query parameter is required." });
 
@@ -86,8 +99,6 @@ namespace backend.Controllers
                 .Include(i => i.UserReport)
                 .CountAsync(i => i.UserReport != null && i.UserReport.UserId == userId && (i.Status == IncidentStatus.Verified || i.Status == IncidentStatus.Resolved || i.Status == IncidentStatus.Escalated));
             
-            var accuracy = reportsCount == 0 ? 100 : (int)((validReports / (double)reportsCount) * 100);
-
             return Ok(new
             {
                 userId = user.UserId,
@@ -95,8 +106,144 @@ namespace backend.Controllers
                 email = user.Email,
                 role = user.Role,
                 reports = reportsCount,
-                accuracy = accuracy
+                verified = validReports
             });
+        }
+
+        [HttpGet("incident-near-me")]
+        public async Task<IActionResult> GetIncidentNearMe()
+        {
+            var incidents = await _context.Incidents
+                .Include(i => i.Detection)
+                    .ThenInclude(d => d!.Camera)
+                        .ThenInclude(c => c!.TrainCoach)
+                            .ThenInclude(tc => tc.TrainAsset)
+                                .ThenInclude(ta => ta.TrainLine)
+                .Include(i => i.UserReport)
+                    .ThenInclude(r => r!.TrainCoach)
+                        .ThenInclude(tc => tc!.TrainAsset)
+                            .ThenInclude(ta => ta.TrainLine)
+                .Where(i => i.Status == IncidentStatus.Pending || i.Status == IncidentStatus.Verified || i.Status == IncidentStatus.En_Route || i.Status == IncidentStatus.Escalated)
+                .OrderByDescending(i => i.CreatedAt)
+                .Take(10)
+                .ToListAsync();
+
+            var result = incidents.Select(inc =>
+            {
+                string? lineName = null;
+                string? coachId = null;
+                string? type = null;
+                string? imageUrl = null;
+
+                if (inc.Source == IncidentSource.AI_DETECTION && inc.Detection?.Camera != null)
+                {
+                    coachId = inc.Detection.Camera.CoachId;
+                    lineName = inc.Detection.Camera.TrainCoach?.TrainAsset?.TrainLine?.LineName;
+                    type = "AI Detection";
+                    imageUrl = inc.Detection.ImageUrl;
+                }
+                else if (inc.UserReport != null)
+                {
+                    coachId = inc.UserReport.CoachId;
+                    lineName = inc.UserReport.TrainCoach?.TrainAsset?.TrainLine?.LineName;
+                    type = inc.UserReport.Description;
+                    imageUrl = inc.UserReport.ImageUrl;
+                }
+
+                return new
+                {
+                    id = inc.IncidentId,
+                    line = lineName ?? "Unknown",
+                    coach = coachId ?? "Unknown",
+                    type = type ?? "Man in WOCs",
+                    time = inc.CreatedAt.ToString("HH:mm"),
+                    status = inc.Status.ToString(),
+                    imageUrl = imageUrl
+                };
+            });
+
+            return Ok(result);
+        }
+
+        [HttpGet("debug-reports")]
+        public async Task<IActionResult> DebugReports()
+        {
+            var reports = await _context.UserReports.ToListAsync();
+            var incidents = await _context.Incidents.Where(i => i.ReportId != null).ToListAsync();
+            return Ok(new { totalReports = reports.Count, totalReportIncidents = incidents.Count, reports = reports });
+        }
+
+        [HttpGet("my-history")]
+        public async Task<IActionResult> GetMyHistory([FromQuery] string userId)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+                return BadRequest(new { error = "userId query parameter is required." });
+
+            var incidents = await _context.Incidents
+                .Include(i => i.UserReport)
+                    .ThenInclude(r => r!.TrainCoach)
+                        .ThenInclude(tc => tc!.TrainAsset)
+                            .ThenInclude(ta => ta.TrainLine)
+                .Where(i => i.UserReport != null && i.UserReport.UserId == userId)
+                .OrderByDescending(i => i.CreatedAt)
+                .ToListAsync();
+
+            var result = incidents.Select(inc => new
+            {
+                id = "RPT-" + inc.IncidentId.ToString("D3"),
+                incidentId = inc.IncidentId,
+                type = inc.UserReport?.Description ?? "Violation",
+                date = inc.CreatedAt.ToString("MMM dd, yyyy"),
+                time = inc.CreatedAt.ToString("HH:mm"),
+                status = inc.Status.ToString(),
+                line = inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineName ?? "Unknown Line",
+                coach = inc.UserReport?.CoachId ?? "Unknown Coach",
+                description = inc.UserReport?.Description,
+                imageUrl = inc.UserReport?.ImageUrl
+            });
+
+            return Ok(result);
+        }
+
+        [HttpPost("incident/{incidentId}/status")]
+        public async Task<IActionResult> UpdateIncidentStatus(int incidentId, [FromBody] UpdatePassengerStatusRequest req, [FromQuery] string userId)
+        {
+            if (string.IsNullOrWhiteSpace(userId)) 
+                return BadRequest(new { error = "userId query parameter is required." });
+
+            var incident = await _context.Incidents.Include(i => i.UserReport).FirstOrDefaultAsync(i => i.IncidentId == incidentId);
+            if (incident == null) return NotFound();
+
+            if (incident.UserReport == null || incident.UserReport.UserId != userId)
+                return Unauthorized(new { error = "You can only modify your own reports." });
+
+            if (incident.Status != IncidentStatus.Pending)
+                return BadRequest(new { error = "Only pending reports can be updated." });
+
+            if (req.Action == "Escalate")
+            {
+                incident.Status = IncidentStatus.Escalated;
+                incident.EscalatedBy = userId;
+                incident.EscalatedAt = DateTime.UtcNow;
+                incident.EscalatedComment = req.Comment;
+            }
+            else if (req.Action == "Dismiss")
+            {
+                if (string.IsNullOrWhiteSpace(req.Comment)) 
+                    return BadRequest(new { error = "A comment is required to cancel/dismiss a report." });
+                
+                incident.Status = IncidentStatus.Dismissed;
+                incident.DismissedBy = userId;
+                incident.DismissedAt = DateTime.UtcNow;
+                incident.DismissedComment = req.Comment;
+            }
+            else
+            {
+                return BadRequest(new { error = "Invalid action. Use 'Escalate' or 'Dismiss'." });
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok(new { success = true, status = incident.Status.ToString() });
         }
     }
 
@@ -105,5 +252,11 @@ namespace backend.Controllers
         public string Line { get; set; } = null!;
         public string Coach { get; set; } = null!;
         public string Desc { get; set; } = null!;
+    }
+
+    public class UpdatePassengerStatusRequest
+    {
+        public string Action { get; set; } = null!;
+        public string? Comment { get; set; }
     }
 }

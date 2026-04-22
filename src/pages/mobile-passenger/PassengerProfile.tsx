@@ -7,6 +7,8 @@ import {
   EyeIcon,
   EyeOffIcon,
   ChevronRightIcon,
+  ClockIcon,
+  XIcon,
 } from 'lucide-react';
 
 const DARKBLUE = '#0B4F6C';
@@ -23,19 +25,28 @@ export function Profile({ session, onLogout }: { session: UserSession, onLogout:
   const [tempEmail, setTempEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [tempPhone, setTempPhone] = useState('');
-  
-  const [stats, setStats] = useState({ reports: 0, accuracy: 100 });
 
+  const [stats, setStats] = useState({ reports: 0, verified: 0 });
   useEffect(() => {
-    fetch('http://localhost:5293/api/data/profile')
+    fetch(`http://localhost:5293/api/data/profile?userId=${session.userId}`)
       .then(res => res.json())
       .then(data => {
         setEmail(data.email);
         setPhone(data.phone || '');
-        setStats({ reports: data.reports, accuracy: data.accuracy });
+        setStats({ reports: data.reports || 0, verified: data.verified || 0 });
       })
       .catch(console.error);
   }, []);
+    fetch(`http://localhost:5293/api/data/profile?userId=${session.userId}`)
+      .then(res => res.json())
+      .then(data => {
+        setEmail(data.email);
+        setPhone(data.phone || '');
+        setStats({ reports: data.reports || 0, verified: data.verified || 0 });
+      })
+      .catch(console.error);
+
+
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
@@ -102,15 +113,14 @@ export function Profile({ session, onLogout }: { session: UserSession, onLogout:
       {/* Avatar card */}
       <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col items-center text-center">
         <p className="text-base font-bold text-gray-900">{session.userName || 'Passenger'}</p>
-        <p className="text-xs text-gray-400 mt-0.5">+60 {phone}</p>
         <div className="flex gap-4 mt-4 w-full">
           <div className="flex-1 bg-gray-50 rounded-2xl p-3 border border-gray-100 text-center">
             <p className="text-xl font-bold text-gray-900">{stats.reports}</p>
             <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mt-0.5">Reports</p>
           </div>
           <div className="flex-1 bg-gray-50 rounded-2xl p-3 border border-gray-100 text-center">
-            <p className="text-xl font-bold text-green-600">{stats.accuracy}%</p>
-            <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mt-0.5">Accuracy</p>
+            <p className="text-xl font-bold text-gray-900">{stats.verified}</p>
+            <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mt-0.5">Verified</p>
           </div>
         </div>
       </div>
@@ -253,6 +263,7 @@ export function Profile({ session, onLogout }: { session: UserSession, onLogout:
         </AnimatePresence>
       </div>
 
+
       {/* Sign out */}
 
       <button
@@ -261,7 +272,6 @@ export function Profile({ session, onLogout }: { session: UserSession, onLogout:
         style={{ background: `linear-gradient(135deg, ${RED} 0%, #E05A3A 100%)` }}
       >
         Sign Out
-
       </button>
     </motion.div>
   );

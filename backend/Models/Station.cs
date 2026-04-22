@@ -15,7 +15,10 @@ namespace backend.Models
         [Column("station_name")]
         [MaxLength(150)]
         public string StationName { get; set; } = null!;
-
+        [Column("latitude")]
+        public double? Latitude { get; set; }
+        [Column("longitude")]
+        public double? Longitude { get; set; }
         // Navigation
         public ICollection<LineStation> LineStations { get; set; } = [];
     }

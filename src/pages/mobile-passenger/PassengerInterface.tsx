@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { BarChart2Icon, AlertTriangleIcon, UserIcon } from 'lucide-react';
+import { BarChart2Icon, AlertTriangleIcon, UserIcon, RadioIcon } from 'lucide-react';
 import { Home } from './Home';
 import { Report } from './PassengerReport';
 import { Profile } from './PassengerProfile';
+import { IncidentNearMe } from './IncidentNearMe';
 import { UserSession } from '../../App';
 
 export interface PassengerInterface {
@@ -11,10 +12,11 @@ export interface PassengerInterface {
   onLogout: () => void;
 }
 
-type Tab = 'home' | 'report' | 'profile';
+type Tab = 'home' | 'report' | 'incident' | 'profile';
 
 const TABS: { id: Tab; icon: React.ElementType; label: string }[] = [
   { id: 'home', icon: BarChart2Icon, label: 'Trends' },
+  { id: 'incident', icon: RadioIcon, label: 'Near Me' },
   { id: 'report', icon: AlertTriangleIcon, label: 'Report' },
   { id: 'profile', icon: UserIcon, label: 'Profile' },
 ];
@@ -42,20 +44,18 @@ export function PassengerInterface({ session, onLogout }: PassengerInterface) {
           />
           <div>
             <p className="text-black font-bold text-sm leading-none">Railly</p>
-            <p className="text-gray-400 text-xs mt-0.5">Passenger Gateway</p>
+            <p className="text-gray-400 text-xs mt-0.5">For Safer Transit</p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 bg-gray-100 rounded-full px-3 py-1.5">
-          <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Active</span>
-        </div>
+
       </div>
 
       {/* ── Scrollable Content ── */}
       <div className="flex-1 overflow-y-auto pb-24">
         <AnimatePresence mode="wait">
           {activeTab === 'home' && <Home key="home" />}
-          {activeTab === 'report' && <Report key="report" />}
+          {activeTab === 'incident' && <IncidentNearMe key="incident" />}
+          {activeTab === 'report' && <Report key="report" session={session} />}
           {activeTab === 'profile' && <Profile key="profile" session={session} onLogout={onLogout} />}
         </AnimatePresence>
       </div>
@@ -68,9 +68,8 @@ export function PassengerInterface({ session, onLogout }: PassengerInterface) {
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-2xl transition-all duration-200 ${
-                active ? 'text-theme-passenger' : 'text-gray-400 hover:text-gray-600'
-              }`}
+              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-2xl transition-all duration-200 ${active ? 'text-theme-passenger' : 'text-gray-400 hover:text-gray-600'
+                }`}
             >
               <Icon size={24} />
               <span className="text-[10px] font-bold">

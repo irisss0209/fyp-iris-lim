@@ -1,767 +1,597 @@
-import React, { useState } from 'react';
-
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
-} from
-  'recharts';
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, PieChart, Pie, Cell,
+} from 'recharts';
 import {
-  CalendarIcon,
-  DownloadIcon,
-  FileTextIcon,
-  TrendingUpIcon
-} from
-  'lucide-react';
-type ReportTab = 'overview' | 'incidents' | 'performance' | 'export';
-const DAILY_DATA = [
-  {
-    day: 'Mon',
-    LRT: 4,
-    KTM: 2,
-    MRT: 3
-  },
-  {
-    day: 'Tue',
-    LRT: 6,
-    KTM: 3,
-    MRT: 5
-  },
-  {
-    day: 'Wed',
-    LRT: 3,
-    KTM: 1,
-    MRT: 2
-  },
-  {
-    day: 'Thu',
-    LRT: 8,
-    KTM: 4,
-    MRT: 6
-  },
-  {
-    day: 'Fri',
-    LRT: 11,
-    KTM: 6,
-    MRT: 8
-  },
-  {
-    day: 'Sat',
-    LRT: 5,
-    KTM: 2,
-    MRT: 4
-  },
-  {
-    day: 'Sun',
-    LRT: 3,
-    KTM: 1,
-    MRT: 2
-  }];
+  CalendarIcon, DownloadIcon, FileTextIcon, TrendingUpIcon,
+  RefreshCwIcon, ChevronDownIcon,
+} from 'lucide-react';
 
-const PIE_DATA = [
-  {
-    name: 'Verified & Resolved',
-    value: 58,
-    color: '#2D7A5D'
-  },
-  {
-    name: 'False Alarms',
-    value: 22,
-    color: '#4A5568'
-  },
-  {
-    name: 'Pending',
-    value: 12,
-    color: '#F6AD55'
-  },
-  {
-    name: 'Escalated to Police',
-    value: 8,
-    color: '#D34026'
-  }];
+const API = 'http://localhost:5293/api/data';
 
-const INCIDENTS = [
-  {
-    id: 'INC-001',
-    coach: 'KJ-07 Coach 3',
-    line: 'LRT Kelana Jaya',
-    datetime: '28 Feb 2025, 14:32',
-    type: 'AI Detection',
-    status: 'Resolved',
-    operator: 'Ahmad'
-  },
-  {
-    id: 'INC-002',
-    coach: 'KTM-12 Coach 1',
-    line: 'KTM Komuter',
-    datetime: '28 Feb 2025, 14:26',
-    type: 'AI Detection',
-    status: 'Escalated',
-    operator: 'Ahmad'
-  },
-  {
-    id: 'INC-003',
-    coach: 'MRT-05 Coach 2',
-    line: 'MRT Putrajaya',
-    datetime: '28 Feb 2025, 14:19',
-    type: 'AI Detection',
-    status: 'Pending',
-    operator: 'Siti'
-  },
-  {
-    id: 'INC-004',
-    coach: 'KJ-03 Coach 3',
-    line: 'LRT Kelana Jaya',
-    datetime: '28 Feb 2025, 14:12',
-    type: 'AI Detection',
-    status: 'False Alarm',
-    operator: 'Ahmad'
-  },
-  {
-    id: 'INC-005',
-    coach: 'MRT-08 Coach 2',
-    line: 'MRT Putrajaya',
-    datetime: '28 Feb 2025, 14:05',
-    type: 'AI Detection',
-    status: 'Resolved',
-    operator: 'Razif'
-  },
-  {
-    id: 'INC-006',
-    coach: 'KTM-07 Coach 1',
-    line: 'KTM Komuter',
-    datetime: '28 Feb 2025, 13:58',
-    type: 'AI Detection',
-    status: 'Resolved',
-    operator: 'Siti'
-  }];
+// ── Colour palette (consistent with Dashboard) ────────────────────────────
+const LINE_PALETTE = ['#D34026', '#0B4F6C', '#2D7A5D', '#7B5EA7', '#B45309', '#0E7490'];
+const lineColorCache: Record<string, string> = {};
+let _colorIdx = 0;
+function getLineColor(lineId: string) {
+  if (!lineColorCache[lineId]) {
+    lineColorCache[lineId] = LINE_PALETTE[_colorIdx % LINE_PALETTE.length];
+    _colorIdx++;
+  }
+  return lineColorCache[lineId];
+}
 
+// ── Types ─────────────────────────────────────────────────────────────────
+type ReportTab = 'overview' | 'incidents' | 'export';
 
+interface ReportStats {
+  total: number;
+  falseAlarmRate: number;
+  avgResponseMinutes: number;
+  complianceScore: number;
+  totalDelta: number;
+  falseAlarmDelta: number;
+  complianceDelta: number;
+}
 
+interface StatusSlice {
+  name: string;
+  value: number;
+  color: string;
+}
+
+interface LineInfo {
+  lineId: string;
+  lineName: string;
+}
+
+interface MonthOption {
+  year: number;
+  month: number;
+  label: string;
+}
+
+interface IncidentRow {
+  id: string;
+  coach: string;
+  line: string;
+  lineId: string;
+  datetime: string;
+  type: string;
+  status: string;
+  handledBy: string;
+}
+
+interface ReportData {
+  year: number;
+  month: number;
+  stats: ReportStats;
+  dailyData: Record<string, number | string>[];   // { day, [lineName]: count }
+  lines: LineInfo[];
+  statusBreakdown: StatusSlice[];
+  incidents: IncidentRow[];
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+const statusColor = (status: string) => {
+  const s = status.toLowerCase();
+  if (s === 'resolved')  return { bg: '#F0FBF6', text: '#2D7A5D' };
+  if (s === 'escalated') return { bg: '#FEF2F0', text: '#D34026' };
+  if (s === 'pending')   return { bg: '#FFF7ED', text: '#C05621' };
+  if (s === 'verified')  return { bg: '#EFF6FF', text: '#1D4ED8' };
+  if (s === 'en_route')  return { bg: '#EFF6FF', text: '#0B4F6C' };
+  return { bg: '#F7FAFC', text: '#718096' };
+};
+
+const fmtDelta = (v: number, invert = false) => {
+  if (v === 0) return null;
+  const good = invert ? v < 0 : v > 0;
+  const arrow = v > 0 ? '↑' : '↓';
+  return { label: `${arrow} ${Math.abs(v)}%`, good };
+};
+
+// ── Component ─────────────────────────────────────────────────────────────
 export function Reports() {
   const [activeTab, setActiveTab] = useState<ReportTab>('overview');
-  const tabs: {
-    id: ReportTab;
-    label: string;
-    icon: React.ReactNode;
-  }[] = [
-      {
-        id: 'overview',
-        label: 'Overview',
-        icon: <TrendingUpIcon className="w-4 h-4" />
-      },
-      {
-        id: 'incidents',
-        label: 'Incident Reports',
-        icon: <FileTextIcon className="w-4 h-4" />
-      },
+  const [data, setData]           = useState<ReportData | null>(null);
+  const [months, setMonths]       = useState<MonthOption[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<MonthOption | null>(null);
+  const [loading, setLoading]     = useState(true);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [search, setSearch]       = useState('');
+  const [page, setPage]           = useState(1);
+  const PAGE_SIZE = 10;
 
-      {
-        id: 'export',
-        label: 'Export',
-        icon: <DownloadIcon className="w-4 h-4" />
-      }];
+  // ── Load available months first ──────────────────────────────────────
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API}/operator/reports`);
+        const json = await res.json();
+        // The endpoint returns months list too on first load
+        if (json.months && json.months.length > 0) {
+          setMonths(json.months);
+          setSelectedMonth(json.months[0]); // newest first
+        } else {
+          // fallback: use current month
+          const now = new Date();
+          const cur = { year: now.getFullYear(), month: now.getMonth() + 1,
+            label: now.toLocaleDateString('en-MY', { month: 'short', year: 'numeric' }) };
+          setMonths([cur]);
+          setSelectedMonth(cur);
+        }
+        setData(json);
+      } catch (err) {
+        console.error('Reports initial load failed:', err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const statusColor = (status: string) => {
-    if (status === 'Resolved')
-      return {
-        bg: '#F0FBF6',
-        text: '#2D7A5D'
-      };
-    if (status === 'Escalated')
-      return {
-        bg: '#FEF2F0',
-        text: '#D34026'
-      };
-    if (status === 'Pending')
-      return {
-        bg: '#FFF7ED',
-        text: '#C05621'
-      };
-    return {
-      bg: '#F7FAFC',
-      text: '#718096'
-    };
+  // ── Re-fetch when month changes ──────────────────────────────────────
+  const fetchReport = useCallback(async (m: MonthOption) => {
+    setLoading(true);
+    try {
+      const res  = await fetch(`${API}/operator/reports?year=${m.year}&month=${m.month}`);
+      const json = await res.json();
+      setData(json);
+      // also refresh months list
+      if (json.months && json.months.length > 0) setMonths(json.months);
+    } catch (err) {
+      console.error('Reports fetch failed:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedMonth) fetchReport(selectedMonth);
+  }, [selectedMonth, fetchReport]);
+
+  // ── Filtered incidents ───────────────────────────────────────────────
+  const allIncidents = data?.incidents ?? [];
+  const filtered = allIncidents.filter(inc => {
+    const matchStatus = !statusFilter || inc.status.toLowerCase() === statusFilter;
+    const q = search.toLowerCase();
+    const matchSearch = !q || inc.id.toLowerCase().includes(q)
+      || inc.coach.toLowerCase().includes(q)
+      || inc.line.toLowerCase().includes(q)
+      || inc.handledBy.toLowerCase().includes(q);
+    return matchStatus && matchSearch;
+  });
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // ── CSV export ───────────────────────────────────────────────────────
+  const exportCSV = () => {
+    const rows = [
+      ['Case ID', 'Coach', 'Line', 'Date/Time', 'Type', 'Status', 'Operator'],
+      ...allIncidents.map(i => [i.id, i.coach, i.line, i.datetime, i.type, i.status, i.handledBy]),
+    ];
+    const csv  = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a'); a.href = url;
+    a.download = `incidents-${selectedMonth?.label ?? 'report'}.csv`; a.click();
+    URL.revokeObjectURL(url);
   };
-  return (
-    <div
-      className="p-6 min-h-full"
-      style={{
-        backgroundColor: '#FAF9F5'
-      }}>
 
-      {/* Header */}
+  // ── Tabs ─────────────────────────────────────────────────────────────
+  const tabs: { id: ReportTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'overview',   label: 'Overview',         icon: <TrendingUpIcon className="w-4 h-4" /> },
+    { id: 'incidents',  label: 'Incident Reports',  icon: <FileTextIcon   className="w-4 h-4" /> },
+    { id: 'export',     label: 'Export',            icon: <DownloadIcon   className="w-4 h-4" /> },
+  ];
+
+  const stats = data?.stats;
+
+  return (
+    <div className="p-6 min-h-full" style={{ backgroundColor: '#FAF9F5' }}>
+
+      {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-[28px] font-bold text-gray-900 leading-tight">
-
-            Reports & Analytics
+            Reports &amp; Analytics
           </h1>
-          <p
-            className="text-sm mt-0.5"
-            style={{
-              color: '#4A5568'
-            }}>
-
+          <p className="text-sm mt-0.5" style={{ color: '#4A5568' }}>
             Compliance monitoring insights
           </p>
         </div>
-        <button
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
-          style={{
-            color: '#1A202C'
-          }}>
 
-          <CalendarIcon
-            className="w-4 h-4"
-            style={{
-              color: '#4A5568'
-            }} />
+        {/* Month picker */}
+        <div className="relative">
+          <button
+            id="month-picker-btn"
+            onClick={() => setPickerOpen(p => !p)}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+            style={{ color: '#1A202C' }}
+          >
+            <CalendarIcon className="w-4 h-4" style={{ color: '#4A5568' }} />
+            {loading ? '…' : (selectedMonth?.label ?? 'Select month')}
+            <ChevronDownIcon className="w-3.5 h-3.5 text-gray-400" />
+          </button>
 
-          Feb 2025
-        </button>
+          {pickerOpen && (
+            <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 min-w-[160px] py-1 max-h-64 overflow-y-auto">
+              {months.map(m => (
+                <button
+                  key={`${m.year}-${m.month}`}
+                  onClick={() => { setSelectedMonth(m); setPickerOpen(false); setPage(1); }}
+                  className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                    selectedMonth?.year === m.year && selectedMonth?.month === m.month
+                      ? 'bg-[#EFF6FF] text-[#0B4F6C] font-semibold'
+                      : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+              {months.length === 0 && (
+                <p className="px-4 py-2 text-xs text-gray-400">No data yet</p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Tabs */}
+      {/* ── Tabs ────────────────────────────────────────────────────────── */}
       <div className="flex gap-1 mb-6 bg-white rounded-xl p-1 shadow-sm border border-gray-100 w-fit">
-        {tabs.map((tab) =>
+        {tabs.map(tab => (
           <button
             key={tab.id}
+            id={`tab-${tab.id}`}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${activeTab === tab.id ? 'text-white shadow-sm' : 'hover:bg-gray-50'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150`}
             style={{
               backgroundColor: activeTab === tab.id ? '#0B4F6C' : 'transparent',
-              color: activeTab === tab.id ? 'white' : '#4A5568'
-            }}>
-
-            {tab.icon}
-            {tab.label}
+              color: activeTab === tab.id ? 'white' : '#4A5568',
+            }}
+          >
+            {tab.icon}{tab.label}
           </button>
-        )}
+        ))}
       </div>
 
-      {/* Overview */}
-      {activeTab === 'overview' &&
+      {/* ── Loading skeleton ─────────────────────────────────────────────── */}
+      {loading && (
+        <div className="flex items-center gap-2 py-16 justify-center">
+          <RefreshCwIcon className="w-5 h-5 text-gray-300 animate-spin" />
+          <span className="text-sm text-gray-400">Loading report data…</span>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          OVERVIEW TAB
+      ════════════════════════════════════════════════════════════════════ */}
+      {!loading && activeTab === 'overview' && (
         <div className="space-y-5">
-          {/* Summary Stats */}
+
+          {/* Summary stat cards */}
           <div className="grid grid-cols-4 gap-4">
             {[
               {
                 label: 'Total Incidents',
-                value: '142',
-                sub: 'This month',
-                color: '#1A202C'
+                value: stats?.total ?? 0,
+                fmt: (v: number) => String(v),
+                sub: stats && stats.totalDelta !== 0
+                  ? fmtDelta(stats.totalDelta)?.label
+                  : 'This month',
+                subGood: stats ? fmtDelta(stats.totalDelta)?.good : undefined,
+                color: '#1A202C',
               },
               {
                 label: 'False Alarm Rate',
-                value: '22%',
-                sub: '↓ 3% from last month',
-                color: '#2D7A5D'
+                value: stats?.falseAlarmRate ?? 0,
+                fmt: (v: number) => `${v}%`,
+                sub: stats && stats.falseAlarmDelta !== 0
+                  ? fmtDelta(stats.falseAlarmDelta, true)?.label
+                  : undefined,
+                subGood: stats ? fmtDelta(stats.falseAlarmDelta, true)?.good : undefined,
+                color: '#2D7A5D',
               },
               {
                 label: 'Avg Response Time',
-                value: '2.4m',
-                sub: '↓ 0.3m improvement',
-                color: '#0B4F6C'
+                value: stats?.avgResponseMinutes ?? 0,
+                fmt: (v: number) => `${v}m`,
+                sub: stats?.avgResponseMinutes === 0 ? 'No verified incidents' : 'to verify',
+                color: '#0B4F6C',
               },
               {
                 label: 'Compliance Score',
-                value: '94.2%',
-                sub: '↑ 1.8% this month',
-                color: '#2D7A5D'
-              }].
-              map((stat) =>
-                <div
-                  key={stat.label}
-                  className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-
-                  <div
-                    className="text-xs font-medium mb-2"
-                    style={{
-                      color: '#4A5568'
-                    }}>
-
-                    {stat.label}
-                  </div>
-                  <div
-                    className="text-3xl font-bold"
-                    style={{
-                      color: stat.color
-                    }}>
-
-                    {stat.value}
-                  </div>
+                value: stats?.complianceScore ?? 0,
+                fmt: (v: number) => `${v}%`,
+                sub: stats && stats.complianceDelta !== 0
+                  ? fmtDelta(stats.complianceDelta)?.label
+                  : 'This month',
+                subGood: stats ? fmtDelta(stats.complianceDelta)?.good : undefined,
+                color: '#2D7A5D',
+              },
+            ].map(s => (
+              <div key={s.label} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <div className="text-xs font-medium mb-2" style={{ color: '#4A5568' }}>{s.label}</div>
+                <div className="text-3xl font-bold" style={{ color: s.color }}>
+                  {s.fmt(s.value)}
+                </div>
+                {s.sub && (
                   <div
                     className="text-xs mt-1"
-                    style={{
-                      color: '#4A5568'
-                    }}>
+                    style={{ color: s.subGood === true ? '#2D7A5D' : s.subGood === false ? '#D34026' : '#4A5568' }}
+                  >
+                    {s.sub}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
 
-                    {stat.sub}
+          {/* Charts row */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Bar chart: Daily incidents by line */}
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+              <h3 className="font-semibold text-sm mb-4" style={{ color: '#1A202C' }}>
+                Daily Incidents by Line
+              </h3>
+              {(data?.dailyData?.length ?? 0) === 0 ? (
+                <div className="flex items-center justify-center h-[220px] text-sm text-gray-400">
+                  No incidents this month
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={data!.dailyData} barSize={8} barGap={2}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" />
+                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#4A5568' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: '#4A5568' }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #E2E8F0' }} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    {(data?.lines ?? []).map(l => (
+                      <Bar key={l.lineId} dataKey={l.lineName} fill={getLineColor(l.lineId)} radius={[3, 3, 0, 0]} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            {/* Pie chart: status breakdown */}
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+              <h3 className="font-semibold text-sm mb-4" style={{ color: '#1A202C' }}>
+                Alert Resolution Status
+              </h3>
+              {(data?.statusBreakdown?.length ?? 0) === 0 ? (
+                <div className="flex items-center justify-center h-[220px] text-sm text-gray-400">
+                  No incidents this month
+                </div>
+              ) : (
+                <div className="flex items-center gap-4">
+                  <ResponsiveContainer width="60%" height={220}>
+                    <PieChart>
+                      <Pie
+                        data={data!.statusBreakdown}
+                        cx="50%" cy="50%"
+                        innerRadius={55} outerRadius={85}
+                        paddingAngle={3} dataKey="value"
+                      >
+                        {data!.statusBreakdown.map((entry, i) => (
+                          <Cell key={i} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex-1 space-y-2">
+                    {data!.statusBreakdown.map(item => {
+                      const total = data!.statusBreakdown.reduce((s, x) => s + x.value, 0);
+                      const pct   = total > 0 ? Math.round(item.value * 100 / total) : 0;
+                      return (
+                        <div key={item.name} className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: item.color }} />
+                          <div className="flex-1">
+                            <div className="text-xs" style={{ color: '#1A202C' }}>{item.name}</div>
+                            <div className="text-sm font-bold" style={{ color: item.color }}>{pct}%</div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
-          </div>
-
-          {/* Charts */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-              <h3
-                className="font-semibold text-sm mb-4"
-                style={{
-                  color: '#1A202C'
-                }}>
-
-                Daily Incidents by Line
-              </h3>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={DAILY_DATA} barSize={8} barGap={2}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" />
-                  <XAxis
-                    dataKey="day"
-                    tick={{
-                      fontSize: 11,
-                      fill: '#4A5568'
-                    }}
-                    axisLine={false}
-                    tickLine={false} />
-
-                  <YAxis
-                    tick={{
-                      fontSize: 11,
-                      fill: '#4A5568'
-                    }}
-                    axisLine={false}
-                    tickLine={false} />
-
-                  <Tooltip
-                    contentStyle={{
-                      fontSize: 12,
-                      borderRadius: 8,
-                      border: '1px solid #E2E8F0'
-                    }} />
-
-                  <Legend
-                    wrapperStyle={{
-                      fontSize: 11
-                    }} />
-
-                  <Bar dataKey="LRT" fill="#D34026" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="KTM" fill="#0B4F6C" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="MRT" fill="#2D7A5D" radius={[3, 3, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-              <h3
-                className="font-semibold text-sm mb-4"
-                style={{
-                  color: '#1A202C'
-                }}>
-
-                Alert Resolution Status
-              </h3>
-              <div className="flex items-center gap-4">
-                <ResponsiveContainer width="60%" height={220}>
-                  <PieChart>
-                    <Pie
-                      data={PIE_DATA}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={85}
-                      paddingAngle={3}
-                      dataKey="value">
-
-                      {PIE_DATA.map((entry, index) =>
-                        <Cell key={index} fill={entry.color} />
-                      )}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        fontSize: 12,
-                        borderRadius: 8
-                      }} />
-
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="flex-1 space-y-2">
-                  {PIE_DATA.map((item) =>
-                    <div key={item.name} className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{
-                          backgroundColor: item.color
-                        }} />
-
-                      <div className="flex-1">
-                        <div
-                          className="text-xs"
-                          style={{
-                            color: '#1A202C'
-                          }}>
-
-                          {item.name}
-                        </div>
-                        <div
-                          className="text-sm font-bold"
-                          style={{
-                            color: item.color
-                          }}>
-
-                          {item.value}%
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
             </div>
           </div>
 
-          {/* Recent Incidents Table */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100">
-              <h3
-                className="font-semibold text-sm"
-                style={{
-                  color: '#1A202C'
-                }}>
-
-                Recent Incidents
-              </h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                    {[
-                      'Case ID',
-                      'Coach',
-                      'Line',
-                      'Date/Time',
-                      'Type',
-                      'Status',
-                      'Operator',
-                      'Action'].
-                      map((h) =>
-                        <th
-                          key={h}
-                          className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide"
-                          style={{
-                            color: '#4A5568'
-                          }}>
-
-                          {h}
-                        </th>
-                      )}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {INCIDENTS.map((inc) => {
-                    const sc = statusColor(inc.status);
-                    return (
-                      <tr
-                        key={inc.id}
-                        className="hover:bg-gray-50 transition-colors">
-
-                        <td
-                          className="px-4 py-3 font-mono text-xs"
-                          style={{
-                            color: '#0B4F6C'
-                          }}>
-
-                          {inc.id}
-                        </td>
-                        <td
-                          className="px-4 py-3 font-medium text-xs"
-                          style={{
-                            color: '#1A202C'
-                          }}>
-
-                          {inc.coach}
-                        </td>
-                        <td
-                          className="px-4 py-3 text-xs"
-                          style={{
-                            color: '#4A5568'
-                          }}>
-
-                          {inc.line}
-                        </td>
-                        <td
-                          className="px-4 py-3 text-xs"
-                          style={{
-                            color: '#4A5568'
-                          }}>
-
-                          {inc.datetime}
-                        </td>
-                        <td
-                          className="px-4 py-3 text-xs"
-                          style={{
-                            color: '#1A202C'
-                          }}>
-
-                          {inc.type}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className="text-xs font-medium px-2 py-0.5 rounded-full"
-                            style={{
-                              backgroundColor: sc.bg,
-                              color: sc.text
-                            }}>
-
-                            {inc.status}
-                          </span>
-                        </td>
-                        <td
-                          className="px-4 py-3 text-xs"
-                          style={{
-                            color: '#4A5568'
-                          }}>
-
-                          {inc.operator}
-                        </td>
-                        <td className="px-4 py-3">
-                          <button
-                            className="text-xs font-medium hover:underline"
-                            style={{
-                              color: '#0B4F6C'
-                            }}>
-
-                            View
-                          </button>
-                        </td>
-                      </tr>);
-
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          {/* Recent incidents table (top 6) */}
+          <IncidentTable
+            incidents={allIncidents.slice(0, 6)}
+            title="Recent Incidents"
+            showPagination={false}
+          />
         </div>
-      }
+      )}
 
-      {/* Incidents Tab */}
-      {activeTab === 'incidents' &&
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-            <h3
-              className="font-semibold text-sm"
-              style={{
-                color: '#1A202C'
-              }}>
-
-              All Incident Reports
-            </h3>
+      {/* ════════════════════════════════════════════════════════════════════
+          INCIDENTS TAB
+      ════════════════════════════════════════════════════════════════════ */}
+      {!loading && activeTab === 'incidents' && (
+        <div className="space-y-4">
+          {/* Filters row */}
+          <div className="flex items-center gap-3">
+            <input
+              type="text"
+              placeholder="Search ID, coach, line, operator…"
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B4F6C] bg-white"
+            />
+            <select
+              value={statusFilter}
+              onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
+              className="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]"
+              style={{ color: '#1A202C' }}
+            >
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="verified">Verified</option>
+              <option value="en_route">En Route</option>
+              <option value="escalated">Escalated</option>
+              <option value="resolved">Resolved</option>
+              <option value="dismissed">Dismissed</option>
+            </select>
             <button
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-white"
-              style={{
-                backgroundColor: '#0B4F6C'
-              }}>
-
-              <DownloadIcon className="w-4 h-4" /> Export
+              onClick={exportCSV}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-white"
+              style={{ backgroundColor: '#0B4F6C' }}
+            >
+              <DownloadIcon className="w-4 h-4" /> Export CSV
             </button>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  {[
-                    'Case ID',
-                    'Coach',
-                    'Line',
-                    'Date/Time',
-                    'Type',
-                    'Status',
-                    'Operator',
-                    'Action'].
-                    map((h) =>
-                      <th
-                        key={h}
-                        className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide"
-                        style={{
-                          color: '#4A5568'
-                        }}>
 
-                        {h}
-                      </th>
-                    )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {[
-                  ...INCIDENTS,
-                  ...INCIDENTS.map((i) => ({
-                    ...i,
-                    id: i.id + 'B'
-                  }))].
-                  map((inc) => {
-                    const sc = statusColor(inc.status);
-                    return (
-                      <tr
-                        key={inc.id}
-                        className="hover:bg-gray-50 transition-colors">
-
-                        <td
-                          className="px-4 py-3 font-mono text-xs"
-                          style={{
-                            color: '#0B4F6C'
-                          }}>
-
-                          {inc.id}
-                        </td>
-                        <td
-                          className="px-4 py-3 font-medium text-xs"
-                          style={{
-                            color: '#1A202C'
-                          }}>
-
-                          {inc.coach}
-                        </td>
-                        <td
-                          className="px-4 py-3 text-xs"
-                          style={{
-                            color: '#4A5568'
-                          }}>
-
-                          {inc.line}
-                        </td>
-                        <td
-                          className="px-4 py-3 text-xs"
-                          style={{
-                            color: '#4A5568'
-                          }}>
-
-                          {inc.datetime}
-                        </td>
-                        <td
-                          className="px-4 py-3 text-xs"
-                          style={{
-                            color: '#1A202C'
-                          }}>
-
-                          {inc.type}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className="text-xs font-medium px-2 py-0.5 rounded-full"
-                            style={{
-                              backgroundColor: sc.bg,
-                              color: sc.text
-                            }}>
-
-                            {inc.status}
-                          </span>
-                        </td>
-                        <td
-                          className="px-4 py-3 text-xs"
-                          style={{
-                            color: '#4A5568'
-                          }}>
-
-                          {inc.operator}
-                        </td>
-                        <td className="px-4 py-3">
-                          <button
-                            className="text-xs font-medium hover:underline"
-                            style={{
-                              color: '#0B4F6C'
-                            }}>
-
-                            View
-                          </button>
-                        </td>
-                      </tr>);
-
-                  })}
-              </tbody>
-            </table>
-          </div>
+          <IncidentTable
+            incidents={paginated}
+            title={`All Incident Reports (${filtered.length})`}
+            showPagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+          />
         </div>
-      }
+      )}
 
-
-      {/* Export Tab */}
-      {activeTab === 'export' &&
+      {/* ════════════════════════════════════════════════════════════════════
+          EXPORT TAB
+      ════════════════════════════════════════════════════════════════════ */}
+      {!loading && activeTab === 'export' && (
         <div className="max-w-lg">
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-4">
-            <h3
-              className="font-semibold"
-              style={{
-                color: '#1A202C'
-              }}>
-
-              Export Reports
-            </h3>
+            <h3 className="font-semibold" style={{ color: '#1A202C' }}>Export Reports</h3>
+            <p className="text-xs" style={{ color: '#4A5568' }}>
+              Exporting data for <strong>{selectedMonth?.label ?? 'selected month'}</strong>
+              &nbsp;— {allIncidents.length} incident{allIncidents.length !== 1 ? 's' : ''}
+            </p>
             <div className="space-y-3">
               {[
                 {
-                  format: 'PDF Report',
-                  desc: 'Full incident report with charts',
-                  icon: '📄'
-                },
-                {
                   format: 'CSV Data',
                   desc: 'Raw incident data for analysis',
-                  icon: '📊'
+                  icon: '📊',
+                  action: exportCSV,
                 },
-                {
-                  format: 'Excel Workbook',
-                  desc: 'Formatted spreadsheet with multiple sheets',
-                  icon: '📋'
-                }].
-                map((item) =>
-                  <div
-                    key={item.format}
-                    className="flex items-center justify-between p-4 border border-gray-100 rounded-xl hover:border-gray-200 transition-colors">
-
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">{item.icon}</span>
-                      <div>
-                        <div
-                          className="font-medium text-sm"
-                          style={{
-                            color: '#1A202C'
-                          }}>
-
-                          {item.format}
-                        </div>
-                        <div
-                          className="text-xs"
-                          style={{
-                            color: '#4A5568'
-                          }}>
-
-                          {item.desc}
-                        </div>
-                      </div>
+              ].map(item => (
+                <div
+                  key={item.format}
+                  className="flex items-center justify-between p-4 border border-gray-100 rounded-xl hover:border-gray-200 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{item.icon}</span>
+                    <div>
+                      <div className="font-medium text-sm" style={{ color: '#1A202C' }}>{item.format}</div>
+                      <div className="text-xs" style={{ color: '#4A5568' }}>{item.desc}</div>
                     </div>
-                    <button
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-white"
-                      style={{
-                        backgroundColor: '#0B4F6C'
-                      }}>
-
-                      <DownloadIcon className="w-4 h-4" /> Export
-                    </button>
                   </div>
-                )}
+                  <button
+                    onClick={item.action}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-white"
+                    style={{ backgroundColor: '#0B4F6C' }}
+                  >
+                    <DownloadIcon className="w-4 h-4" /> Export
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      }
-    </div>);
+      )}
+    </div>
+  );
+}
 
+// ── Shared incident table sub-component ──────────────────────────────────
+interface IncidentTableProps {
+  incidents: IncidentRow[];
+  title: string;
+  showPagination: boolean;
+  page?: number;
+  totalPages?: number;
+  onPageChange?: (p: number) => void;
+}
+
+function IncidentTable({ incidents, title, showPagination, page = 1, totalPages = 1, onPageChange }: IncidentTableProps) {
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <h3 className="font-semibold text-sm" style={{ color: '#1A202C' }}>{title}</h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-100">
+              {['Case ID', 'Coach', 'Line', 'Date/Time', 'Type', 'Status', 'Operator'].map(h => (
+                <th
+                  key={h}
+                  className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide"
+                  style={{ color: '#4A5568' }}
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {incidents.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">
+                  No incidents found
+                </td>
+              </tr>
+            ) : incidents.map(inc => {
+              const sc = statusColor(inc.status);
+              return (
+                <tr key={inc.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3 font-mono text-xs" style={{ color: '#0B4F6C' }}>{inc.id}</td>
+                  <td className="px-4 py-3 font-medium text-xs" style={{ color: '#1A202C' }}>{inc.coach}</td>
+                  <td className="px-4 py-3 text-xs" style={{ color: '#4A5568' }}>{inc.line}</td>
+                  <td className="px-4 py-3 text-xs" style={{ color: '#4A5568' }}>{inc.datetime}</td>
+                  <td className="px-4 py-3 text-xs" style={{ color: '#1A202C' }}>{inc.type}</td>
+                  <td className="px-4 py-3">
+                    <span
+                      className="text-xs font-medium px-2 py-0.5 rounded-full"
+                      style={{ backgroundColor: sc.bg, color: sc.text }}
+                    >
+                      {inc.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs" style={{ color: '#4A5568' }}>{inc.handledBy}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {showPagination && totalPages > 1 && (
+        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100">
+          <span className="text-xs text-gray-400">Page {page} of {totalPages}</span>
+          <div className="flex gap-1">
+            <button
+              disabled={page <= 1}
+              onClick={() => onPageChange?.(page - 1)}
+              className="px-3 py-1 text-xs rounded border border-gray-200 disabled:opacity-40 hover:bg-gray-50"
+            >
+              ←
+            </button>
+            <button
+              disabled={page >= totalPages}
+              onClick={() => onPageChange?.(page + 1)}
+              className="px-3 py-1 text-xs rounded border border-gray-200 disabled:opacity-40 hover:bg-gray-50"
+            >
+              →
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

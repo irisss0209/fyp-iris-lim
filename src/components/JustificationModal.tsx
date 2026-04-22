@@ -8,11 +8,12 @@ import {
 } from 'lucide-react';
 interface JustificationModalProps {
   isOpen: boolean;
-  actionType: 'verify' | 'dismiss' | 'escalate';
+  actionType: 'verify' | 'dismiss' | 'escalate' | 'en_route' | 'resolve';
   alertId: string;
   alertCoach: string;
   onConfirm: (comment: string) => void;
   onCancel: () => void;
+  isOptional?: boolean;
 }
 const QUICK_REASONS_VERIFY = [
   'Confirmed via CCTV footage',
@@ -38,14 +39,19 @@ export function JustificationModal({
   alertId,
   alertCoach,
   onConfirm,
-  onCancel
+  onCancel,
+  isOptional = false
 }: JustificationModalProps) {
   const [comment, setComment] = useState('');
   const [error, setError] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
   const isVerify = actionType === 'verify';
   const isEscalate = actionType === 'escalate';
-  const accentColor = isVerify ? '#0D6E6E' : isEscalate ? '#7B5EA7' : '#DC2626';
+  const isEnRoute = actionType === 'en_route';
+  const isResolve = actionType === 'resolve';
+  
+  const accentColor = isVerify ? '#0D6E6E' : isEscalate ? '#7B5EA7' : isEnRoute ? '#0B4F6C' : isResolve ? '#1D4ED8' : '#DC2626';
   const quickReasons = isVerify ? QUICK_REASONS_VERIFY : isEscalate ? QUICK_REASONS_ESCALATE : QUICK_REASONS_DISMISS;
   // Reset state when modal opens
   useEffect(() => {
@@ -64,7 +70,7 @@ export function JustificationModal({
     return () => document.removeEventListener('keydown', handleKey);
   }, [isOpen, onCancel]);
   const handleConfirm = () => {
-    if (!comment.trim()) {
+    if (!isOptional && !comment.trim()) {
       setError(true);
       textareaRef.current?.focus();
       return;
@@ -119,19 +125,12 @@ export function JustificationModal({
               }}>
 
               {isVerify ?
-                <CheckCircleIcon
-                  size={18}
-                  style={{ color: accentColor }}
-                  aria-hidden="true" /> :
+                <CheckCircleIcon size={18} style={{ color: accentColor }} aria-hidden="true" /> :
                 isEscalate ?
-                <ChevronRightIcon
-                  size={18}
-                  style={{ color: accentColor }}
-                  aria-hidden="true" /> :
-                <XCircleIcon
-                  size={18}
-                  style={{ color: accentColor }}
-                  aria-hidden="true" />
+                <ChevronRightIcon size={18} style={{ color: accentColor }} aria-hidden="true" /> :
+                isEnRoute || isResolve ?
+                <CheckCircleIcon size={18} style={{ color: accentColor }} aria-hidden="true" /> :
+                <XCircleIcon size={18} style={{ color: accentColor }} aria-hidden="true" />
               }
             </div>
             <div>
@@ -139,7 +138,7 @@ export function JustificationModal({
                 id="modal-title"
                 className="text-base font-bold text-gray-900 leading-tight">
 
-                {isVerify ? 'Verify Alert' : isEscalate ? 'Escalate Alert' : 'Dismiss Alert'}
+                {isVerify ? 'Verify Alert' : isEscalate ? 'Escalate Alert' : isEnRoute ? 'En Route to Alert' : isResolve ? 'Resolve Alert' : 'Dismiss Alert'}
               </h2>
               <p className="text-xs text-gray-400 mt-0.5">
                 {alertCoach} · {alertId}
@@ -193,10 +192,12 @@ export function JustificationModal({
               className="flex items-center gap-1.5 text-xs font-medium text-gray-700 mb-1.5">
 
               <MessageSquareIcon size={12} aria-hidden="true" />
-              Justification comment
-              <span className="text-red-400" aria-hidden="true">
-                *
-              </span>
+              {isOptional ? 'Optional Comment' : 'Justification comment'}
+              {!isOptional && (
+                <span className="text-red-400" aria-hidden="true">
+                  *
+                </span>
+              )}
             </label>
             <textarea
               ref={textareaRef}
@@ -207,11 +208,11 @@ export function JustificationModal({
                 if (e.target.value.trim()) setError(false);
               }}
               placeholder={
-                isVerify ?
-                  'Describe why this alert is being verified...' :
-                  isEscalate ?
-                  'Describe why this alert needs escalation...' :
-                  'Describe why this alert is being dismissed...'
+                isVerify ? 'Describe why this alert is being verified...' :
+                isEscalate ? 'Describe why this alert needs escalation...' :
+                isEnRoute ? 'Add any notes before routing...' :
+                isResolve ? 'Describe how this was resolved...' :
+                'Describe why this alert is being dismissed...'
               }
               rows={3}
               className={`
@@ -258,7 +259,7 @@ export function JustificationModal({
                 backgroundColor: accentColor
               }}>
 
-              {isVerify ? 'Confirm Verify' : isEscalate ? 'Confirm Escalate' : 'Confirm Dismiss'}
+              {isVerify ? 'Confirm Verify' : isEscalate ? 'Confirm Escalate' : isEnRoute ? 'Confirm En Route' : isResolve ? 'Confirm Resolve' : 'Confirm Dismiss'}
             </button>
           </div>
         </div>

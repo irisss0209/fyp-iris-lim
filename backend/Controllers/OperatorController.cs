@@ -4,10 +4,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using System.IdentityModel.Tokens.Jwt;
+using backend.Models.DTOs;
+
 namespace backend.Controllers
 {
     [ApiController]
-    [Route("api/data")] // Maintained original route to not break frontend links
+    [Route("api/data")]
     public class OperatorController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -490,6 +492,179 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
             });
         }
 
+        // ── Reports ────────────────────────────────────────────────────────────────
+
+        [HttpGet("operator/reports")]
+        public async Task<IActionResult> GetOperatorReports(
+            [FromQuery] int year  = 0,
+            [FromQuery] int month = 0)
+        {
+            // Default to current month if not specified
+            var now = DateTime.UtcNow;
+            if (year  == 0) year  = now.Year;
+            if (month == 0) month = now.Month;
+
+            var from = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
+            var to   = from.AddMonths(1);
+
+            // ── Load all incidents for the month ──────────────────────────────
+            var incidents = await _context.Incidents
+                .Include(i => i.Detection)
+                    .ThenInclude(d => d!.Camera)
+                        .ThenInclude(c => c!.TrainCoach)
+                            .ThenInclude(tc => tc.TrainAsset)
+                                .ThenInclude(ta => ta.TrainLine)
+                .Include(i => i.UserReport)
+                    .ThenInclude(r => r!.TrainCoach)
+                        .ThenInclude(tc => tc!.TrainAsset)
+                            .ThenInclude(ta => ta.TrainLine)
+                .Where(i => i.CreatedAt >= from && i.CreatedAt < to)
+                .OrderByDescending(i => i.CreatedAt)
+                .ToListAsync();
+
+            // ── Summary stats ─────────────────────────────────────────────────
+            var total      = incidents.Count;
+            var dismissed  = incidents.Count(i => i.Status == IncidentStatus.Dismissed);
+            var resolved   = incidents.Count(i => i.Status == IncidentStatus.Resolved);
+            var pending    = incidents.Count(i => i.Status == IncidentStatus.Pending);
+            var escalated  = incidents.Count(i => i.Status == IncidentStatus.Escalated);
+            var verified   = incidents.Count(i => i.Status == IncidentStatus.Verified);
+
+            double falseAlarmRate = total > 0 ? Math.Round(dismissed * 100.0 / total, 1) : 0;
+
+            // Avg response time (verified_at - created_at)
+            var verifiedIncidents = incidents.Where(i => i.VerifiedAt != null).ToList();
+            double avgResponseMinutes = verifiedIncidents.Count > 0
+                ? Math.Round(verifiedIncidents.Average(i => (i.VerifiedAt!.Value - i.CreatedAt).TotalMinutes), 1)
+                : 0;
+
+            // Compliance score: % of incidents NOT still pending
+            double complianceScore = total > 0
+                ? Math.Round((total - pending) * 100.0 / total, 1)
+                : 100.0;
+
+            // ── Previous month for delta calculations ─────────────────────────
+            var prevFrom = from.AddMonths(-1);
+            var prevTo   = from;
+            var prevIncidents = await _context.Incidents
+                .Where(i => i.CreatedAt >= prevFrom && i.CreatedAt < prevTo)
+                .ToListAsync();
+
+            var prevTotal     = prevIncidents.Count;
+            var prevDismissed = prevIncidents.Count(i => i.Status == IncidentStatus.Dismissed);
+            var prevPending   = prevIncidents.Count(i => i.Status == IncidentStatus.Pending);
+
+            double prevFalseAlarmRate    = prevTotal > 0 ? Math.Round(prevDismissed * 100.0 / prevTotal, 1) : 0;
+            double prevComplianceScore   = prevTotal > 0
+                ? Math.Round((prevTotal - prevPending) * 100.0 / prevTotal, 1) : 100.0;
+
+            var verifiedPrev = prevIncidents.Where(i => i.Status != IncidentStatus.Pending).ToList();
+
+            // ── Helper: resolve line name + lineId per incident ───────────────
+            (string lineId, string lineName) ResolveLineInfo(Incident inc)
+            {
+                if (inc.Source == IncidentSource.AI_DETECTION && inc.Detection?.Camera?.TrainCoach?.TrainAsset?.TrainLine != null)
+                    return (inc.Detection.Camera.TrainCoach.TrainAsset.TrainLine.LineId,
+                            inc.Detection.Camera.TrainCoach.TrainAsset.TrainLine.LineName);
+                if (inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine != null)
+                    return (inc.UserReport.TrainCoach.TrainAsset.TrainLine.LineId,
+                            inc.UserReport.TrainCoach.TrainAsset.TrainLine.LineName);
+                return ("unknown", "Unknown");
+            }
+
+            // ── Daily bar-chart data (by day-of-week, grouped by line) ────────
+            var dayNames = new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+
+            // Get unique lines present in this month's data
+            var lineGroups = incidents
+                .Select(i => ResolveLineInfo(i))
+                .GroupBy(x => x.lineId)
+                .Select(g => (lineId: g.Key, lineName: g.First().lineName))
+                .ToList();
+
+            // Build an object per day: { day, [lineName]: count, ... }
+            var dailyData = Enumerable.Range(0, 7).Select(d =>
+            {
+                var dayIncs = incidents.Where(i => (int)i.CreatedAt.DayOfWeek == d).ToList();
+                var dayObj  = new Dictionary<string, object> { ["day"] = dayNames[d] };
+                foreach (var (lineId, lineName) in lineGroups)
+                    dayObj[lineName] = dayIncs.Count(i => ResolveLineInfo(i).lineId == lineId);
+                return dayObj;
+            }).ToList();
+
+            // ── Pie / status breakdown ────────────────────────────────────────
+            var statusBreakdown = new[]
+            {
+                new { name = "Resolved",            value = resolved,                     color = "#2D7A5D" },
+                new { name = "Dismissed",           value = dismissed,                    color = "#4A5568" },
+                new { name = "Pending",             value = pending,                      color = "#F6AD55" },
+                new { name = "Escalated",           value = escalated + verified,         color = "#D34026" },
+            }.Where(s => s.value > 0).ToList();
+
+            // ── Incident list ─────────────────────────────────────────────────
+            var incidentList = incidents.Select(i =>
+            {
+                var (lineId, lineName) = ResolveLineInfo(i);
+                string coachId = i.Source == IncidentSource.AI_DETECTION
+                    ? (i.Detection?.Camera?.CoachId ?? "Unknown")
+                    : (i.UserReport?.CoachId ?? "Unknown");
+
+                return new
+                {
+                    id       = (i.Source == IncidentSource.AI_DETECTION ? "ALT-" : "RPT-") + i.IncidentId.ToString("D3"),
+                    coach    = coachId,
+                    line     = lineName,
+                    lineId,
+                    datetime = i.CreatedAt.ToString("d MMM yyyy, HH:mm"),
+                    type     = i.Source == IncidentSource.AI_DETECTION ? "AI Detection" : "Passenger Report",
+                    status   = i.Status.ToString(),
+                    handledBy = i.VerifiedBy ?? i.ResolvedBy ?? i.EscalatedBy ?? "—",
+                };
+            }).ToList();
+
+            // ── Available months (for the date picker) ────────────────────────
+            var oldestIncident = await _context.Incidents
+                .OrderBy(i => i.CreatedAt)
+                .Select(i => (DateTime?)i.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            var months = new List<object>();
+            if (oldestIncident.HasValue)
+            {
+                var cursor = new DateTime(oldestIncident.Value.Year, oldestIncident.Value.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+                var latest = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+                while (cursor <= latest)
+                {
+                    months.Add(new { year = cursor.Year, month = cursor.Month,
+                        label = cursor.ToString("MMM yyyy") });
+                    cursor = cursor.AddMonths(1);
+                }
+                months.Reverse(); // newest first
+            }
+
+            return Ok(new
+            {
+                year,
+                month,
+                months,
+                stats = new
+                {
+                    total,
+                    falseAlarmRate,
+                    avgResponseMinutes,
+                    complianceScore,
+                    // Deltas
+                    totalDelta          = prevTotal > 0 ? Math.Round((total - prevTotal) * 100.0 / prevTotal, 1) : 0.0,
+                    falseAlarmDelta     = Math.Round(falseAlarmRate - prevFalseAlarmRate, 1),
+                    complianceDelta     = Math.Round(complianceScore - prevComplianceScore, 1),
+                },
+                dailyData,
+                lines = lineGroups.Select(l => new { l.lineId, l.lineName }).ToList(),
+                statusBreakdown,
+                incidents = incidentList,
+            });
+        }
+
         private string GetTimeSince(DateTime time)
         {
             var ts = DateTime.UtcNow - time;
@@ -589,6 +764,8 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
         // ── Excel bulk import ───────────────────────────────────────────────────────
 
 [HttpPost("operator/shifts/import")]
+[ApiExplorerSettings(IgnoreApi = true)]
+
 public async Task<IActionResult> ImportShifts([FromForm] IFormFile file)
 {
     if (file == null || file.Length == 0)
@@ -686,11 +863,6 @@ public async Task<IActionResult> ImportShifts([FromForm] IFormFile file)
     return Ok(new { inserted, errors });
 }
 
-    public class UpdateStatusRequest
-    {
-        public string  Status  { get; set; } = null!;
-        public string? Comment { get; set; }
-    }
 
     public class PatchUserStatusRequest
     {

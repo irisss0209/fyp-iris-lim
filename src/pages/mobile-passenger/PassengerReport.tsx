@@ -1,237 +1,260 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  CheckCircleIcon,
-  SendIcon,
-  CameraIcon,
+  ClockIcon,
   XIcon,
+  PlusIcon,
+  ChevronDownIcon
 } from 'lucide-react';
+import { CreateReport } from './CreateReport';
 
-const VIOLATION_TYPES = [
-  'Male in Women-Only Coach',
-  'Harassment / Inappropriate Behaviour',
-  'Suspicious Package / Item',
-  'Vandalism',
-  'Fare Evasion',
-  'Other',
-];
+export function Report({ session }: { session: any }) {
+  const [view, setView] = useState<'dashboard' | 'create'>('dashboard');
 
-function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
-  return (
-    <label className="block text-xs font-bold text-gray-600 mb-1.5 uppercase tracking-wider">
-      {children}
-      {required && <span className="text-red-400 ml-0.5">*</span>}
-    </label>
-  );
-}
+  const [history, setHistory] = useState<any[]>([]);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [dateFilter, setDateFilter] = useState('');
+  
+  const [selectedReport, setSelectedReport] = useState<any | null>(null);
+  const [reportComment, setReportComment] = useState('');
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
-export function Report() {
-  const [step, setStep] = useState<'form' | 'sent' | 'sending'>('form');
-  const [line, setLine] = useState('');
-  const [coach, setCoach] = useState('');
-  const [type, setType] = useState('');
-  const [desc, setDesc] = useState('');
-  const [photo, setPhoto] = useState<string | null>(null);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const [linesData, setLinesData] = useState<any[]>([]);
-
-  useEffect(() => {
-    fetch('http://localhost:5293/api/data/lines')
+  const fetchHistory = () => {
+    fetch(`http://localhost:5293/api/data/my-history?userId=${session.userId}`)
       .then(res => res.json())
-      .then(data => setLinesData(data))
-      .catch(err => console.error('Failed to fetch lines', err));
-  }, []);
-
-  const selectedLineData = linesData.find(l => l.lineName === line);
-  const availableCoaches = selectedLineData?.coaches || [];
-
-  const inputClass = (field: string) =>
-    `w-full px-3.5 py-3 text-sm rounded-xl border transition-all focus:outline-none focus:ring-2 ${errors[field]
-      ? 'border-red-300 bg-red-50 focus:ring-red-200'
-      : 'border-gray-200 bg-gray-50 focus:ring-[#0B4F6C]/20 focus:border-[#0B4F6C]'
-    } text-gray-800 font-medium`;
-
-  const validate = () => {
-    const e: Record<string, string> = {};
-    if (!line) e.line = 'Please select a train line.';
-    if (!coach) e.coach = 'Please select a coach.';
-    if (!type) e.type = 'Please select a violation type.';
-    if (!desc.trim()) e.desc = 'Please describe the incident.';
-    setErrors(e);
-    return Object.keys(e).length === 0;
+      .then(data => setHistory(data))
+      .catch(console.error);
   };
 
-  const handleSubmit = async () => {
-    if (!validate()) return;
-    setStep('sending');
+  useEffect(() => {
+    if (view === 'dashboard') {
+      fetchHistory();
+    }
+  }, [view]);
 
+  const handleUpdateStatus = async (action: 'Cancel' | 'Escalate') => {
+    if (!selectedReport) return;
+    if (action === 'Cancel' && !reportComment.trim()) {
+      alert("A comment is required to cancel this report.");
+      return;
+    }
+
+    setIsUpdatingStatus(true);
     try {
-      const response = await fetch('http://localhost:5293/api/data/report', {
+      const res = await fetch(`http://localhost:5293/api/data/incident/${selectedReport.incidentId}/status?userId=${session.userId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          line,
-          coach,
-          type,
-          desc
-        })
+        body: JSON.stringify({ action: action === 'Cancel' ? 'Dismiss' : 'Escalate', comment: reportComment.trim() })
       });
-
-      if (response.ok) {
-        setStep('sent');
-        setTimeout(() => {
-          setStep('form');
-          setLine(''); setCoach(''); setType(''); setDesc(''); setPhoto(null); setErrors({});
-        }, 3000);
+      
+      if (res.ok) {
+        setReportComment('');
+        setSelectedReport(null);
+        fetchHistory();
       } else {
-        setErrors({ desc: 'Failed to submit report. Please try again.' });
-        setStep('form');
+        const error = await res.json();
+        alert(error.error || "Failed to update status");
       }
     } catch (err) {
       console.error(err);
-      setErrors({ desc: 'Network error. Please try again.' });
-      setStep('form');
+      alert("Network error updating status.");
+    } finally {
+      setIsUpdatingStatus(false);
     }
   };
 
-  if (step === 'sent') {
-    return (
-      <motion.div
-        key="sent"
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="flex flex-col items-center justify-center px-4 py-20 text-center"
-      >
-        <div className="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center mb-5 shadow-sm">
-          <CheckCircleIcon size={40} className="text-green-500" />
-        </div>
-        <h3 className="text-xl font-bold text-gray-900 mb-2">Report Submitted</h3>
-        <p className="text-sm text-gray-400 max-w-[260px] leading-relaxed">
-          Authorities have been notified. Thank you for keeping our coaches safe.
-        </p>
-      </motion.div>
-    );
+  if (view === 'create') {
+    return <CreateReport session={session} onBack={() => setView('dashboard')} />;
   }
+
+  const filteredHistory = history.filter(r => {
+    if (statusFilter !== 'All') {
+      const normalizedStatus = r.status.replace('_', ' ');
+      if (normalizedStatus !== statusFilter && r.status !== statusFilter) {
+        return false;
+      }
+    }
+    
+    if (dateFilter) {
+      // Create date without timezone shifts by using components directly, or just match strictly using simple string manipulation.
+      // Easiest reliable way: parse standard YYYY-MM-DD to MMM DD, YYYY
+      const [year, month, day] = dateFilter.split('-');
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const formattedDate = `${months[parseInt(month, 10) - 1]} ${day}, ${year}`;
+      if (r.date !== formattedDate) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
+
+  const displayedHistory = isExpanded ? filteredHistory : filteredHistory.slice(0, 3);
 
   return (
     <motion.div
-      key="report"
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
+      key="dashboard"
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 20 }}
       transition={{ duration: 0.2 }}
-      className="px-4 pt-5 pb-6 space-y-4"
+      className="px-4 pt-5 pb-6 space-y-6"
     >
       <div>
-        <h2 className="text-base font-bold text-gray-900">Report a Violation</h2>
-        <p className="text-xs text-gray-400 mt-0.5">
-          Fields marked with <span className="text-red-400">*</span> are required
-        </p>
+        <h2 className="text-xl font-black text-gray-900 mb-1">Incident Reports</h2>
+        <p className="text-sm text-gray-500">Track and manage your submitted reports.</p>
       </div>
 
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
+      <button
+        onClick={() => setView('create')}
+        className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl text-sm font-bold text-white shadow-[0_8px_16px_rgba(11,79,108,0.2)] active:scale-[0.98] transition-all"
+        style={{ backgroundColor: '#0B4F6C' }}
+      >
+        <PlusIcon size={18} />
+        Create New Report
+      </button>
 
-        {/* Train Line */}
-        <div>
-          <FieldLabel required>Train Line</FieldLabel>
-          <select
-            value={line}
-            onChange={e => { setLine(e.target.value); setCoach(''); setErrors(v => ({ ...v, line: '' })); }}
-            className={inputClass('line')}
-            disabled={linesData.length === 0}
-          >
-            <option value="">{linesData.length === 0 ? 'Loading lines...' : 'Select line…'}</option>
-            {linesData.map(l => <option key={l.lineId} value={l.lineName}>{l.lineName}</option>)}
-          </select>
-          {errors.line && <p className="text-xs text-red-500 mt-1">{errors.line}</p>}
-        </div>
-
-        {/* Coach */}
-        <div>
-          <FieldLabel required>Coach Number</FieldLabel>
-          <select
-            value={coach}
-            onChange={e => { setCoach(e.target.value); setErrors(v => ({ ...v, coach: '' })); }}
-            className={inputClass('coach')}
-            disabled={!line || availableCoaches.length === 0}
-          >
-            <option value="">{!line ? 'Select a line first…' : 'Select coach…'}</option>
-            {availableCoaches.map((c: string) => <option key={c} value={c}>{c}</option>)}
-          </select>
-          {errors.coach && <p className="text-xs text-red-500 mt-1">{errors.coach}</p>}
-        </div>
-
-        {/* Violation Type */}
-        <div>
-          <FieldLabel required>Violation Type</FieldLabel>
-          <select
-            value={type}
-            onChange={e => { setType(e.target.value); setErrors(v => ({ ...v, type: '' })); }}
-            className={inputClass('type')}
-          >
-            <option value="">Select type…</option>
-            {VIOLATION_TYPES.map(t => <option key={t}>{t}</option>)}
-          </select>
-          {errors.type && <p className="text-xs text-red-500 mt-1">{errors.type}</p>}
-        </div>
-
-        {/* Description */}
-        <div>
-          <FieldLabel required>Description</FieldLabel>
-          <textarea
-            value={desc}
-            onChange={e => { setDesc(e.target.value); setErrors(v => ({ ...v, desc: '' })); }}
-            placeholder="Briefly describe the incident…"
-            rows={4}
-            className={`${inputClass('desc')} resize-none`}
-          />
-          {errors.desc && <p className="text-xs text-red-500 mt-1">{errors.desc}</p>}
-        </div>
-
-        {/* Photo – optional */}
-        <div>
-          <FieldLabel>
-            Photo <span className="text-gray-400 font-normal normal-case ml-1">(Optional)</span>
-          </FieldLabel>
-          {!photo ? (
-            <button
-              onClick={() => setPhoto('attached')}
-              className="w-full py-7 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center gap-2 text-gray-400 hover:bg-gray-100 active:bg-gray-100 transition-colors"
+      {/* My Report History */}
+      <div className="pt-2">
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider px-1 mb-2">My Reports</p>
+        <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+          <div className="flex gap-2 mb-4">
+            <select 
+              value={statusFilter} 
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="flex-1 text-sm p-2 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/20"
             >
-              <CameraIcon size={22} />
-              <span className="text-xs font-medium">Tap to attach photo</span>
-            </button>
+              <option value="All">All Statuses</option>
+              <option value="Pending">Pending</option>
+              <option value="En Route">En Route</option>
+              <option value="Verified">Verified</option>
+              <option value="Resolved">Resolved</option>
+              <option value="Escalated">Escalated</option>
+              <option value="Dismissed">Dismissed</option>
+            </select>
+            <input 
+              type="date" 
+              value={dateFilter} 
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="flex-1 text-sm p-2 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/20"
+            />
+          </div>
+          {filteredHistory.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-4">{history.length === 0 ? "No reports submitted yet." : "No reports match the selected filters."}</p>
           ) : (
-            <div className="relative w-full h-28 rounded-xl overflow-hidden border border-gray-200 bg-gray-900">
-              <img
-                src="https://images.unsplash.com/photo-1599395191060-e10eb96eb678?q=80&w=600&auto=format&fit=crop"
-                alt="Attached"
-                className="w-full h-full object-cover opacity-70"
-              />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-white text-xs font-semibold drop-shadow">Photo attached</span>
-              </div>
-              <button
-                onClick={() => setPhoto(null)}
-                className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white"
-              >
-                <XIcon size={13} />
-              </button>
+            <div className="space-y-4">
+              {displayedHistory.map((r) => (
+                <div 
+                  key={r.id} 
+                  onClick={() => { setSelectedReport(r); setReportComment(''); }}
+                  className="flex items-start justify-between border-b border-gray-50 pb-3 last:border-0 last:pb-0 active:scale-[0.98] transition-transform cursor-pointer hover:bg-gray-50/50 rounded-lg -mx-2 px-2 pt-2"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{r.type}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{r.line} · Coach {r.coach}</p>
+                    <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+                      <ClockIcon size={12} /> {r.date} at {r.time}
+                    </p>
+                  </div>
+                  <div>
+                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${
+                      r.status === 'Verified' ? 'bg-green-50 text-green-600' :
+                      r.status === 'Resolved' ? 'bg-green-50 text-green-600' :
+                      r.status === 'Pending' ? 'bg-yellow-50 text-yellow-600' :
+                      r.status === 'En_Route' ? 'bg-blue-50 text-blue-600' :
+                      r.status === 'Escalated' ? 'bg-red-50 text-red-600' :
+                      'bg-gray-50 text-gray-400'
+                    }`}>
+                      {r.status.replace('_', ' ')}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              
+              {filteredHistory.length > 3 && (
+                <button 
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="w-full flex items-center justify-center gap-1 text-xs font-bold text-gray-500 hover:text-gray-700 py-2 border-t border-gray-50 mt-2"
+                >
+                  {isExpanded ? 'Show Less' : `View All ${filteredHistory.length} Reports`}
+                  <ChevronDownIcon size={14} className={`transform transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                </button>
+              )}
             </div>
           )}
         </div>
       </div>
 
-      <button
-        onClick={handleSubmit}
-        disabled={step === 'sending'}
-        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold text-white shadow-lg active:scale-[0.98] transition-all disabled:opacity-75"
-        style={{ backgroundColor: '#0B4F6C' }}
-      >
-        <SendIcon size={15} />
-        {step === 'sending' ? 'Submitting...' : 'Submit Report'}
-      </button>
+      {/* Details Modal */}
+      <AnimatePresence>
+        {selectedReport && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4 sm:p-0">
+            <motion.div
+              initial={{ opacity: 0, y: 100 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 100 }}
+              className="bg-white w-full sm:max-w-sm rounded-[32px] p-5 shadow-2xl relative"
+            >
+              <button 
+                onClick={() => setSelectedReport(null)}
+                className="absolute right-4 top-4 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+              >
+                <XIcon size={16} />
+              </button>
+
+              <h3 className="text-lg font-bold text-gray-900 pr-10">Report Details</h3>
+              <div className="mt-4 space-y-3">
+                <div className="flex justify-between text-sm py-2 border-b border-gray-50">
+                  <span className="text-gray-500">Status</span>
+                  <span className="font-bold text-gray-900">{selectedReport.status}</span>
+                </div>
+                <div className="flex justify-between text-sm py-2 border-b border-gray-50">
+                  <span className="text-gray-500">Line & Coach</span>
+                  <span className="font-semibold text-gray-800 text-right">{selectedReport.line} <br/><span className="text-xs text-gray-400">Coach {selectedReport.coach}</span></span>
+                </div>
+                <div className="flex justify-between text-sm py-2 border-b border-gray-50">
+                  <span className="text-gray-500">Time</span>
+                  <span className="font-semibold text-gray-800">{selectedReport.date} {selectedReport.time}</span>
+                </div>
+                <div className="text-sm py-2">
+                  <span className="text-gray-500 block mb-1">Description</span>
+                  <p className="font-medium text-gray-800 bg-gray-50 p-3 rounded-xl border border-gray-100">{selectedReport.description || selectedReport.type}</p>
+                </div>
+              </div>
+
+              {selectedReport.status === 'Pending' && (
+                <div className="mt-5 pt-5 border-t border-gray-100 space-y-3">
+                  <textarea
+                    value={reportComment}
+                    onChange={(e) => setReportComment(e.target.value)}
+                    placeholder="Add a comment... (optional for escalate, required for cancel)"
+                    className="w-full text-sm p-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/20"
+                    rows={2}
+                  />
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => handleUpdateStatus('Cancel')}
+                      disabled={isUpdatingStatus || !reportComment.trim()}
+                      className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold disabled:opacity-50"
+                    >
+                      Cancel Report
+                    </button>
+                    <button 
+                      onClick={() => handleUpdateStatus('Escalate')}
+                      disabled={isUpdatingStatus}
+                      className="flex-1 py-3 text-white rounded-xl text-sm font-bold disabled:opacity-50 tracking-wide"
+                      style={{ backgroundColor: '#D34026' }}
+                    >
+                      Escalate
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

@@ -29,7 +29,7 @@ export function Home() {
   const [recentReports, setRecentReports] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/data/home-stats')
+    fetch('http://localhost:5293/api/data/home-stats')
       .then(res => res.json())
       .then(data => {
         setTrendDataMap(data.trendData || {});
@@ -41,34 +41,7 @@ export function Home() {
       });
   }, []);
 
-function UrgeButton({ initialElapsed }: { initialElapsed: number }) {
-  const [elapsed, setElapsed] = useState(initialElapsed);
-  const [urged, setUrged] = useState(false);
 
-  useEffect(() => {
-    if (elapsed < 180) {
-      const t = setInterval(() => setElapsed(e => e + 1), 1000);
-      return () => clearInterval(t);
-    }
-  }, [elapsed]);
-
-  if (urged) {
-    return <span className="text-[10px] font-bold text-red-600 ml-2">Urged ✓</span>;
-  }
-
-  const remaining = Math.max(0, 180 - elapsed);
-  const canUrge = remaining === 0;
-
-  return (
-    <button 
-      disabled={!canUrge}
-      onClick={() => setUrged(true)}
-      className={`ml-2 px-2.5 py-1 text-[10px] font-bold rounded-lg transition-colors ${canUrge ? 'bg-red-50 text-red-600 active:bg-red-100 hover:bg-red-100' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
-    >
-      {canUrge ? 'Urge Police' : `Urge (${Math.floor(remaining / 60)}:${(remaining % 60).toString().padStart(2, '0')})`}
-    </button>
-  );
-}
 
 function StatCard({ label, value, sub, color }: { label: string; value: string | number; sub: string; color: string }) {
   return (
@@ -195,7 +168,6 @@ function StatCard({ label, value, sub, color }: { label: string; value: string |
                 r.status === 'Pending' ? 'bg-yellow-50 text-yellow-600' :
                 'bg-gray-50 text-gray-400'
               }`}>{r.status}</span>
-              {r.status === 'Pending' && <UrgeButton initialElapsed={r.elapsed || 0} />}
             </div>
           </div>
         ))}

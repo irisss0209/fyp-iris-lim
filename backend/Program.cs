@@ -7,7 +7,11 @@ using Npgsql;
 using System.Text;
 using System.Text.Json.Serialization;
 
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -82,14 +86,16 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod();
     });
 });
-
-var app = builder.Build();
+var app = builder.Build(); 
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+        app.MapOpenApi();
+
 }
 
+app.UseSwagger();
+app.UseSwaggerUI();
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();

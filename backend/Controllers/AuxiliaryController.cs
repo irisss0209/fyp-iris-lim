@@ -2,7 +2,7 @@ using backend.Data;
 using backend.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-
+using backend.Models.DTOs;
 namespace backend.Controllers
 {
     [ApiController]
@@ -17,102 +17,50 @@ namespace backend.Controllers
         }
 
         [HttpGet("auxiliary/shift")]
-    public async Task<IActionResult> GetAuxiliaryShift([FromQuery] string userId)
+public async Task<IActionResult> GetAuxiliaryShift([FromQuery] string userId)
+{
+    if (string.IsNullOrWhiteSpace(userId))
+        return BadRequest(new { error = "userId query parameter is required." });
+
+    // Convert UTC → MYT properly
+    var now = DateTime.Now;
+    var today = DateTime.SpecifyKind(now.Date, DateTimeKind.Utc);
+    var nowTime = now.TimeOfDay;
+
+    var shift = await _context.AuxiliaryShifts
+        .Include(s => s.Station)
+        .Where(s => s.UserId == userId && s.ShiftDate.Date == today)
+        .OrderBy(s => s.StartTime)
+        .FirstOrDefaultAsync();
+
+    if (shift == null)
+        return Ok(new { active = false });
+
+    // ✅ Handle overnight shift properly
+    bool isOnDuty;
+    if (shift.EndTime > shift.StartTime)
     {
-        if (string.IsNullOrWhiteSpace(userId))
-            return BadRequest(new { error = "userId query parameter is required." });
-
-        var today = DateTime.UtcNow.Date;
-        var nowTime = DateTime.UtcNow.TimeOfDay;
-
-        var shift = await _context.AuxiliaryShifts
-            .Include(s => s.Station)
-            .Where(s => s.UserId == userId && s.ShiftDate == today)
-            .OrderBy(s => s.StartTime)
-            .FirstOrDefaultAsync();
-
-        if (shift == null)
-            return Ok(new { active = false });
-
-        var isOnDuty = shift.StartTime <= nowTime && shift.EndTime > nowTime;
-
-        return Ok(new
-        {
-            active = true,
-            onDuty = isOnDuty,
-            shiftId = shift.ShiftId,
-            station = shift.Station.StationName,
-            stationId = shift.StationId,
-            shiftStart = shift.StartTime.ToString(@"hh\:mm"),
-            shiftEnd = shift.EndTime.ToString(@"hh\:mm"),
-            shiftDate = shift.ShiftDate.ToString("yyyy-MM-dd")
-        });
+        isOnDuty = shift.StartTime <= nowTime && shift.EndTime > nowTime;
+    }
+    else
+    {
+        isOnDuty = nowTime >= shift.StartTime || nowTime < shift.EndTime;
     }
 
-        [HttpGet("auxiliary/shifts")]
-public async Task<IActionResult> GetAllShifts()
-{
-    var shifts = await _context.AuxiliaryShifts
-        .Include(s => s.User)
-        .Include(s => s.Station)
-        .OrderByDescending(s => s.ShiftDate)
-        .Select(s => new
-        {
-            shiftId = s.ShiftId,
-            userId = s.UserId,
-            userName = s.User.UserName,
-            stationId = s.StationId,
-            stationName = s.Station.StationName,
-            shiftDate = s.ShiftDate.ToString("yyyy-MM-dd"),
-            startTime = s.StartTime.ToString(@"hh\:mm"),
-            endTime = s.EndTime.ToString(@"hh\:mm")
-        })
-        .ToListAsync();
-
-    return Ok(shifts);
+    return Ok(new
+    {
+        active = true,
+        onDuty = isOnDuty,
+        shiftId = shift.ShiftId,
+        station = shift.Station.StationName,
+        stationId = shift.StationId,
+        shiftStart = shift.StartTime.ToString(@"hh\:mm"),
+        shiftEnd = shift.EndTime.ToString(@"hh\:mm"),
+        shiftDate = shift.ShiftDate.ToString("yyyy-MM-dd")
+    });
 }
 
-        [HttpPost("auxiliary/shifts")]
-        public async Task<IActionResult> CreateShift([FromBody] CreateShiftRequest req)
-        {
-            // Validate user exists and is Auxiliary
-            var user = await _context.Users.FindAsync(req.UserId);
-            if (user == null || user.Role != UserRole.Auxiliary)
-                return BadRequest(new { error = "Invalid auxiliary user." });
-
-            var station = await _context.Stations.FindAsync(req.StationId);
-            if (station == null)
-                return BadRequest(new { error = "Invalid station." });
-
-            if (req.EndTime <= req.StartTime)
-                return BadRequest(new { error = "Shift end must be after shift start." });
-
-            var shift = new AuxiliaryShift
-            {
-                UserId = req.UserId,
-                StationId = req.StationId,
-                ShiftDate = DateTime.SpecifyKind(req.ShiftDate, DateTimeKind.Utc),
-                StartTime = req.StartTime,
-                EndTime = req.EndTime,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _context.AuxiliaryShifts.Add(shift);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { shiftId = shift.ShiftId, message = "Shift created successfully." });
-        }
-
-        [HttpDelete("auxiliary/shifts/{id}")]
-        public async Task<IActionResult> DeleteShift(int id)
-        {
-            var shift = await _context.AuxiliaryShifts.FindAsync(id);
-            if (shift == null) return NotFound();
-
-            _context.AuxiliaryShifts.Remove(shift);
-            await _context.SaveChangesAsync();
-            return Ok(new { message = "Shift deleted." });
-        }
+        
 
         [HttpGet("auxiliary/users")]
         public async Task<IActionResult> GetAuxiliaryUsers()
@@ -143,10 +91,16 @@ public async Task<IActionResult> GetAllShifts()
             if (string.IsNullOrWhiteSpace(stationId))
                 return Ok(new List<object>()); // No shift → no alerts
 
-            var allowedLineIds = await _context.LineStations
+            var lineStations = await _context.LineStations
+                .Include(ls => ls.Station)
+                .OrderBy(ls => ls.SequenceOrder)
+                .ToListAsync();
+            var now = DateTime.UtcNow;
+
+            var allowedLineIds = lineStations
                 .Where(ls => ls.StationId == stationId)
                 .Select(ls => ls.LineId)
-                .ToListAsync();
+                .ToList();
 
             if (!allowedLineIds.Any())
                 return Ok(new List<object>());
@@ -156,50 +110,140 @@ public async Task<IActionResult> GetAllShifts()
                     .ThenInclude(d => d!.Camera)
                         .ThenInclude(c => c!.TrainCoach)
                             .ThenInclude(tc => tc!.TrainAsset)
-                .Where(i =>
-                    i.Detection != null &&
-                    i.Detection.Camera != null &&
-                    i.Detection.Camera.TrainCoach != null &&
-                    i.Detection.Camera.TrainCoach.TrainAsset != null &&
-                    allowedLineIds.Contains(i.Detection.Camera.TrainCoach.TrainAsset.LineId))
+                                .ThenInclude(ta => ta.TrainLine)
+                .Include(i => i.UserReport)
+                    .ThenInclude(r => r!.TrainCoach)
+                        .ThenInclude(tc => tc!.TrainAsset)
+                            .ThenInclude(ta => ta.TrainLine)
                 .OrderByDescending(i => i.CreatedAt)
                 .Take(50)
-                .Select(i => new
-                {
-                    id = i.IncidentId.ToString(),
-                    coach = i.Detection != null ? i.Detection.Camera!.CoachId : "Unknown",
-                    door = i.Detection != null ? i.Detection.Camera!.CameraId : "Unknown",
-                    line = (string?)"—",
-                    station = stationId,
-                    platform = "—",
-                    time = i.CreatedAt.ToString("HH:mm"),
-                    elapsed = (int)(DateTime.UtcNow - i.CreatedAt).TotalMinutes,
-                    severity = "high",
-                    status = i.Status.ToString().ToLower(),
-                    type = i.Source == IncidentSource.AI_DETECTION
-                        ? "Male in Women-Only Coach"
-                        : "Passenger Report",
-                    snapshotUrl = i.Detection != null ? i.Detection.ImageUrl : null
-                })
                 .ToListAsync();
 
-            return Ok(incidents);
+            var stationObj = await _context.Stations.FindAsync(stationId);
+            var stationName = stationObj?.StationName ?? "Unknown";
+
+            var alerts = incidents.Select(inc =>
+            {
+                string? lineName   = null;
+                string? lineId     = null;
+                string? coachId    = null;
+                string? deviceId   = null;
+                decimal? confidence = null;
+                string source;
+
+                if (inc.Source == IncidentSource.AI_DETECTION && inc.Detection?.Camera != null)
+                {
+                    source     = "ai";
+                    confidence = inc.Detection.ConfidenceScore;
+                    deviceId   = inc.Detection.CameraId;
+                    coachId    = inc.Detection.Camera.CoachId;
+                    lineName   = inc.Detection.Camera.TrainCoach?.TrainAsset?.TrainLine?.LineName;
+                    lineId     = inc.Detection.Camera.TrainCoach?.TrainAsset?.TrainLine?.LineId;
+                }
+                else
+                {
+                    source     = "passenger";
+                    coachId    = inc.UserReport?.CoachId;
+                    lineName   = inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
+                    lineId     = inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineId;
+                }
+
+                // Map "en_route" correctly
+                var mappedStatus = inc.Status.ToString().ToLower() switch
+                {
+                    "en_route" => "en_route",
+                    var other  => other
+                };
+
+                return new
+                {
+                    id         = (inc.Source == IncidentSource.AI_DETECTION ? "ALT-" : "RPT-") + inc.IncidentId.ToString("D3"),
+                    coach      = coachId    ?? "Unknown", // keeping property coach to not break existing frontend, but also passing coachId
+                    coachId    = coachId    ?? "Unknown",
+                    door       = deviceId   ?? "—",
+                    deviceId,
+                    line       = lineName   ?? "—",
+                    lineId     = lineId  ,
+                    station    = stationName,
+                    platform   = "—",
+                    time       = inc.CreatedAt.ToString("HH:mm"),
+                    date       = inc.CreatedAt.ToString("yyyy-MM-dd"),
+
+elapsed = Math.Max(1, (int)(now - inc.CreatedAt).TotalMinutes),
+                    severity   = inc.Source == IncidentSource.AI_DETECTION ? "high" : "medium",
+                    status     = mappedStatus,
+                    type       = inc.Source == IncidentSource.AI_DETECTION ? "Male in Women-Only Coach" : "Passenger Report",
+                    confidence = confidence != null ? (int)confidence : (int?)null,
+                    source,
+                    passengerComment = inc.UserReport?.Description,
+                    snapshotUrl = inc.Source == IncidentSource.AI_DETECTION
+                        ? inc.Detection?.ImageUrl
+                        : inc.UserReport?.ImageUrl,
+                    // ── Audit trail ──
+                    verifiedBy      = inc.VerifiedBy,
+                    verifiedAt      = inc.VerifiedAt?.ToString("yyyy-MM-dd HH:mm"),
+                    verifiedComment = inc.VerifiedComment,
+                    escalatedBy     = inc.EscalatedBy,
+                    escalatedAt     = inc.EscalatedAt?.ToString("yyyy-MM-dd HH:mm"),
+                    escalatedComment = inc.EscalatedComment,
+                    enrouteBy       = inc.EnrouteBy,
+                    enrouteAt       = inc.EnrouteAt?.ToString("yyyy-MM-dd HH:mm"),
+                    resolvedBy      = inc.ResolvedBy,
+                    resolvedAt      = inc.ResolvedAt?.ToString("yyyy-MM-dd HH:mm"),
+                    resolvedComment = inc.ResolvedComment,
+                    dismissedBy     = inc.DismissedBy,
+                    dismissedAt     = inc.DismissedAt?.ToString("yyyy-MM-dd HH:mm"),
+                    dismissedComment = inc.DismissedComment,
+                };
+            })
+            .Where(a => a.lineId != null && allowedLineIds.Contains(a.lineId))
+            .ToList();
+
+            return Ok(alerts);
         }
 
-        // ── Update incident status (acknowledge / dismiss / escalate) ──────────
         [HttpPost("auxiliary/alerts/{id}/status")]
-        public async Task<IActionResult> UpdateAlertStatus(int id, [FromBody] UpdateStatusRequest req)
+        public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateStatusRequest req)
         {
-            var incident = await _context.Incidents.FindAsync(id);
+            var incidentIdStr = id.Replace("ALT-", "").Replace("RPT-", "");
+            if (!int.TryParse(incidentIdStr, out var incidentId)) return BadRequest();
+
+            var incident = await _context.Incidents.FindAsync(incidentId);
             if (incident == null) return NotFound();
 
-            incident.Status = req.Status.ToLower() switch
+            var normalizedStatus = req.Status?.Trim() switch
             {
-                "resolved"  => IncidentStatus.Resolved,
-                "escalated" => IncidentStatus.Escalated,
-                "dismissed" => IncidentStatus.Dismissed,
-                _           => incident.Status
+                "resolved"  => "Resolved",
+                "escalated" => "Escalated",
+                "dismissed" => "Dismissed",
+                "en_route"  => "En_Route",
+                { } s       => char.ToUpper(s[0]) + s[1..],
+                null        => null
             };
+
+            if (!Enum.TryParse<IncidentStatus>(normalizedStatus, true, out var parsedStatus))
+                return BadRequest(new { error = "Invalid status" });
+
+            incident.Status = parsedStatus;
+
+               switch (parsedStatus)
+            {
+                case IncidentStatus.En_Route:
+                    incident.EnrouteAt = DateTime.UtcNow;
+                    break;
+                case IncidentStatus.Resolved:
+                    incident.ResolvedAt = DateTime.UtcNow;
+                    incident.ResolvedComment = req.Comment;
+                    break;
+                case IncidentStatus.Dismissed:
+                    incident.DismissedAt = DateTime.UtcNow;
+                    incident.DismissedComment = req.Comment;
+                    break;
+                case IncidentStatus.Escalated:
+                    incident.EscalatedAt = DateTime.UtcNow;
+                    incident.EscalatedComment = req.Comment;
+                    break;
+            }
 
             await _context.SaveChangesAsync();
             return Ok(new { message = "Status updated." });
@@ -268,16 +312,6 @@ public async Task<IActionResult> GetAllShifts()
         }
     }
 
-    public class CreateShiftRequest
-    {
-        public string UserId { get; set; } = null!;
-        public string StationId { get; set; } = null!;
-        public DateTime ShiftDate { get; set; }
-        public TimeSpan StartTime { get; set; }
-        public TimeSpan EndTime { get; set; }
-    }
-    public class UpdateStatusRequest
-{
-    public string Status { get; set; } = null!;
-}
+ 
+
 }
