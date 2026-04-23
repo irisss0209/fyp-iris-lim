@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { JustificationModal } from '../../components/JustificationModal';
 import { useTime } from "../../context/TimeContext";
-import { formatTime } from "../../utils/time";
+import { formatTime } from "../../utils/Time";
 
 
 
@@ -244,8 +244,9 @@ export function LiveAlerts() {
               {!loading && (
                 <span className="ml-2 text-xs text-gray-400">
                   · Last updated {formatTime(lastRefresh.toISOString(), format)}
+                </span>
               )}
-                </p>
+            </p>
           </div>
           <button
             onClick={fetchAlerts}

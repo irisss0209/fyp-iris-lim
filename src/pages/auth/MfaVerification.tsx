@@ -8,6 +8,9 @@ export interface MfaVerificationProps {
   onVerify: (otp: string) => Promise<boolean>;
   onBack: () => void;
   accentColor?: string;
+  method?: 'email_otp' | 'google_authenticator';
+  destinationHint?: string;
+  debugCode?: string | null;
 }
 
 export function MfaVerification({
@@ -16,6 +19,9 @@ export function MfaVerification({
   onVerify,
   onBack,
   accentColor = '#0B4F6C',
+  method = 'email_otp',
+  destinationHint,
+  debugCode,
 }: MfaVerificationProps) {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [otpError, setOtpError] = useState('');
@@ -112,13 +118,24 @@ export function MfaVerification({
     >
       <div className="mb-5 sm:mb-7">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">
-          Verify {phone ? 'Phone & Email' : 'Email'}
+          {method === 'google_authenticator' ? 'Google Authenticator' : (phone ? 'Verify Phone & Email' : 'Verify Email')}
         </h1>
         <p className="text-sm text-gray-400 mt-1">
-          Enter the 6-digit code sent to{' '}
-          <span className="font-medium text-gray-600">{maskedEmail}</span>
-          {phone ? ' and your phone.' : '.'}
+          {method === 'google_authenticator' ? (
+            <>Enter the 6-digit code from your Google Authenticator app.</>
+          ) : (
+            <>
+              Enter the 6-digit code sent to{' '}
+              <span className="font-medium text-gray-600">{destinationHint || maskedEmail}</span>
+              {phone ? ' and your phone.' : '.'}
+            </>
+          )}
         </p>
+        {debugCode && (
+          <p className="text-xs text-amber-600 mt-2">
+            Dev code: <span className="font-semibold">{debugCode}</span>
+          </p>
+        )}
       </div>
 
       <div

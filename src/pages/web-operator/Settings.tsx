@@ -1,15 +1,25 @@
 import { useState, useEffect } from 'react';
 import { Clock, Bell } from 'lucide-react';
+import { useTime } from '../../context/TimeContext';
 
 const API = 'http://localhost:5293/api/data';
 
 export function Settings() {
   const [soundAlerts, setSoundAlerts] = useState('on');
-  const [timeFormat, setTimeFormat] = useState(format);
+  const { format, setFormat } = useTime();
+  const [timeFormat, setTimeFormat] = useState<'12h' | '24h'>(() => {
+    const saved = localStorage.getItem("timeFormat");
+    return saved === '12h' ? '12h' : '24h';
+  });
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    setTimeFormat(format);
+  }, [format]);
+
+  useEffect(() => {
     const session = JSON.parse(localStorage.getItem("user_session") || "{}");
+    if (!session?.token) return;
 
     fetch(`${API}/operator/settings`, {
       headers: {
@@ -27,10 +37,19 @@ export function Settings() {
   }, []);
 
   const handleSave = async () => {
-
     setIsSaving(true);
+
+    // Apply locally first so format updates immediately across the app.
+    setFormat(timeFormat);
+    localStorage.setItem("soundAlerts", soundAlerts);
+    localStorage.setItem("timeFormat", timeFormat);
+
     try {
       const session = JSON.parse(localStorage.getItem("user_session") || "{}");
+      if (!session?.token) {
+        alert("Settings saved locally.");
+        return;
+      }
 
       const res = await fetch(`${API}/operator/settings`, {
         method: 'POST',
@@ -44,12 +63,14 @@ export function Settings() {
         })
       });
 
-      if (!res.ok) throw new Error();
-      localStorage.setItem("soundAlerts", soundAlerts);
-      localStorage.setItem("timeFormat", timeFormat);
-      alert("Settings saved successfully");
+      if (!res.ok) {
+        alert("Settings applied locally. Could not sync to server.");
+        return;
+      }
+
+      alert("Settings saved successfully.");
     } catch {
-      alert("Failed to save settings");
+      alert("Settings applied locally. Could not sync to server.");
     } finally {
       setIsSaving(false);
     }

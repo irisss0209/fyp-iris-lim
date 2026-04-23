@@ -3,6 +3,8 @@ import {
   CalendarIcon, CheckCircleIcon, Loader2Icon,
   DownloadIcon, UploadIcon, XCircleIcon, SearchIcon, XIcon
 } from 'lucide-react';
+import { useTime } from '../../context/TimeContext';
+import { formatClockTime } from '../../utils/Time';
 
 const ACCENT = '#0B4F6C';
 const API = 'http://localhost:5293/api/data';
@@ -62,6 +64,7 @@ function ShiftStatusBadge({ shift }: { shift: ShiftRow }) {
 }
 
 export function ShiftManagementPanel() {
+  const { format } = useTime();
   const [shifts, setShifts] = useState<ShiftRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
@@ -435,7 +438,7 @@ export function ShiftManagementPanel() {
 
                   {/* Hours */}
                   <td className="px-4 py-3 font-mono text-xs text-gray-500">
-                    {s.startTime} – {s.endTime}
+                    {formatClockTime(s.startTime, format)} - {formatClockTime(s.endTime, format)}
                   </td>
 
                   {/* Status */}

@@ -8,6 +8,8 @@ import {
   RefreshCwIcon,
 } from 'lucide-react';
 import type { NavPage } from './OperatorInterface';
+import { useTime } from '../../context/TimeContext';
+import { formatClockTime } from '../../utils/Time';
 
 const API = 'http://localhost:5293/api/data';
 
@@ -69,6 +71,7 @@ const STATUS_THEME: Record<string, { color: string, bg: string }> = {
 }
 
 export function Dashboard({ onNavigate }: DashboardProps) {
+  const { format } = useTime();
   const [selectedRange, setSelectedRange] = useState<DateRange>('today');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
@@ -321,7 +324,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                           <div className="flex items-center gap-3 mt-2 flex-wrap">
                             <span className="text-xs text-gray-500">
                               <ClockIcon className="w-3 h-3 inline mr-1" />
-                              {alert.time}
+                              {formatClockTime(alert.time, format)}
                             </span>
                             {alert.source === 'ai' ? (
                               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#FEF2F0] text-[#D34026]">

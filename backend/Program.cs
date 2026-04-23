@@ -1,5 +1,6 @@
 using backend.Data;
 using backend.Models;
+using backend.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -71,6 +72,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddSingleton<AuthChallengeStore>();
+builder.Services.AddSingleton<ITotpService, TotpService>();
+builder.Services.AddScoped<IEmailVerificationSender, SesSmtpEmailVerificationSender>();
 
 // CORS
 var allowedOrigins = builder.Configuration

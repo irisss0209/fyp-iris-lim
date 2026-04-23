@@ -7,6 +7,8 @@ import {
   CalendarIcon, DownloadIcon, FileTextIcon, TrendingUpIcon,
   RefreshCwIcon, ChevronDownIcon,
 } from 'lucide-react';
+import { useTime } from '../../context/TimeContext';
+import { formatDateTimeLabel } from '../../utils/Time';
 
 const API = 'http://localhost:5293/api/data';
 
@@ -60,6 +62,7 @@ interface IncidentRow {
   datetime: string;
   type: string;
   status: string;
+  handledBy?: string;
 }
 
 interface ReportData {
@@ -92,6 +95,7 @@ const fmtDelta = (v: number, invert = false) => {
 
 // ── Component ─────────────────────────────────────────────────────────────
 export function Reports() {
+  const { format } = useTime();
   const [activeTab, setActiveTab] = useState<ReportTab>('overview');
   const [data, setData] = useState<ReportData | null>(null);
   const [months, setMonths] = useState<MonthOption[]>([]);
@@ -158,10 +162,11 @@ export function Reports() {
   const filtered = allIncidents.filter(inc => {
     const matchStatus = !statusFilter || inc.status.toLowerCase() === statusFilter;
     const q = search.toLowerCase();
+    const handledBy = (inc.handledBy ?? '').toLowerCase();
     const matchSearch = !q || inc.id.toLowerCase().includes(q)
       || inc.coach.toLowerCase().includes(q)
       || inc.line.toLowerCase().includes(q)
-      || inc.handledBy.toLowerCase().includes(q);
+      || handledBy.includes(q);
     return matchStatus && matchSearch;
   });
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -474,6 +479,7 @@ interface IncidentTableProps {
 }
 
 function IncidentTable({ incidents, title, showPagination, page = 1, totalPages = 1, onPageChange }: IncidentTableProps) {
+  const { format } = useTime();
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -508,7 +514,9 @@ function IncidentTable({ incidents, title, showPagination, page = 1, totalPages 
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: '#0B4F6C' }}>{inc.id}</td>
                   <td className="px-4 py-3 font-medium text-xs" style={{ color: '#1A202C' }}>{inc.coach}</td>
                   <td className="px-4 py-3 text-xs" style={{ color: '#4A5568' }}>{inc.line}</td>
-                  <td className="px-4 py-3 text-xs" style={{ color: '#4A5568' }}>{inc.datetime}</td>
+                  <td className="px-4 py-3 text-xs" style={{ color: '#4A5568' }}>
+                    {formatDateTimeLabel(inc.datetime, format)}
+                  </td>
                   <td className="px-4 py-3 text-xs" style={{ color: '#1A202C' }}>{inc.type}</td>
                   <td className="px-4 py-3">
                     <span
