@@ -26,9 +26,11 @@ namespace backend.Models
         public string Email { get; set; } = null!;
 
         [Required]
-        [Column("cognito_sub")]
-        [MaxLength(255)]
-        public string CognitoSub { get; set; } = null!;
+        [Column("password_hash")]
+        public string PasswordHash { get; set; } = null!;
+
+        [Column("previous_password_hash")]
+        public string? PreviousPasswordHash { get; set; }
 
         [Required]
         [Column("role")]
@@ -39,7 +41,14 @@ namespace backend.Models
 
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-        
+
+        [Column("MfaSecret")]
+        [MaxLength(255)]
+        public string? MfaSecret { get; set; }
+
+        [Column("MfaEnabled")]
+        public bool IsMfaEnabled { get; set; } = false;
+
         // Navigation
         public ICollection<UserReport> UserReports { get; set; } = [];
     }

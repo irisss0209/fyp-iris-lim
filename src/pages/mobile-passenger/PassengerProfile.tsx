@@ -37,14 +37,14 @@ export function Profile({ session, onLogout }: { session: UserSession, onLogout:
       })
       .catch(console.error);
   }, []);
-    fetch(`http://localhost:5293/api/data/profile?userId=${session.userId}`)
-      .then(res => res.json())
-      .then(data => {
-        setEmail(data.email);
-        setPhone(data.phone || '');
-        setStats({ reports: data.reports || 0, verified: data.verified || 0 });
-      })
-      .catch(console.error);
+  fetch(`http://localhost:5293/api/data/profile?userId=${session.userId}`)
+    .then(res => res.json())
+    .then(data => {
+      setEmail(data.email);
+      setPhone(data.phone || '');
+      setStats({ reports: data.reports || 0, verified: data.verified || 0 });
+    })
+    .catch(console.error);
 
 
   const [currentPw, setCurrentPw] = useState('');
@@ -113,6 +113,7 @@ export function Profile({ session, onLogout }: { session: UserSession, onLogout:
       {/* Avatar card */}
       <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col items-center text-center">
         <p className="text-base font-bold text-gray-900">{session.userName || 'Passenger'}</p>
+        <p className="text-sm text-gray-500 mt-1">{email}</p>
         <div className="flex gap-4 mt-4 w-full">
           <div className="flex-1 bg-gray-50 rounded-2xl p-3 border border-gray-100 text-center">
             <p className="text-xl font-bold text-gray-900">{stats.reports}</p>
@@ -127,80 +128,8 @@ export function Profile({ session, onLogout }: { session: UserSession, onLogout:
 
       <p className="text-xs font-bold text-gray-400 uppercase tracking-wider px-1 pt-1">Account Settings</p>
 
-      {/* Email */}
-      <div className="space-y-2">
-        <SectionHeader id="email" icon={MailIcon} label="Email Address" value={email} />
-        <AnimatePresence>
-          {openSection === 'email' && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-4 space-y-3 overflow-hidden"
-            >
-              <input
-                className={inputBase}
-                type="email"
-                placeholder="New email address"
-                value={tempEmail}
-                onChange={e => setTempEmail(e.target.value)}
-              />
-              <button
-                onClick={() =>
-                  doSave('email', () => {
-                    if (tempEmail) { setEmail(tempEmail); setTempEmail(''); }
-                  })
-                }
-                disabled={!tempEmail}
-                className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50"
-                style={{ backgroundColor: DARKBLUE }}
-              >
-                {saved === 'email' ? '✓ Saved' : 'Update Email'}
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
 
-      {/* Phone */}
-      <div className="space-y-2">
-        <SectionHeader id="phone" icon={PhoneIcon} label="Phone Number" value={phone ? `+60 ${phone}` : 'Add phone'} />
-        <AnimatePresence>
-          {openSection === 'phone' && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-4 space-y-3 overflow-hidden"
-            >
-              <div className="flex gap-2">
-                <div className="px-3.5 py-2.5 bg-gray-100 border border-gray-200 rounded-xl text-sm font-semibold text-gray-500 flex-shrink-0">
-                  +60
-                </div>
-                <input
-                  className={inputBase}
-                  type="tel"
-                  placeholder="New phone number"
-                  value={tempPhone}
-                  onChange={e => setTempPhone(e.target.value)}
-                />
-              </div>
-              <button
-                onClick={() =>
-                  doSave('phone', () => {
-                    if (tempPhone) { setPhone(tempPhone); setTempPhone(''); }
-                  })
-                }
-                disabled={!tempPhone}
-                className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50"
-                style={{ backgroundColor: DARKBLUE }}
-              >
-                {saved === 'phone' ? 'Saved' : 'Update Phone'}
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+
 
       {/* Password */}
       <div className="space-y-2">

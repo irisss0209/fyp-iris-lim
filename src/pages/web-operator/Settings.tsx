@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, Bell } from 'lucide-react';
+import { Clock, Bell, Lock, ShieldCheck } from 'lucide-react';
 import { useTime } from '../../context/TimeContext';
 
 const API = 'http://localhost:5293/api/data';
@@ -12,6 +12,11 @@ export function Settings() {
     return saved === '12h' ? '12h' : '24h';
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
 
   useEffect(() => {
     setTimeFormat(format);
@@ -73,6 +78,61 @@ export function Settings() {
       alert("Settings applied locally. Could not sync to server.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handlePasswordChange = async () => {
+    setPasswordError('');
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError("Please fill in all password fields.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New passwords do not match.");
+      return;
+    }
+    const missingRequirements = [];
+    if (newPassword.length < 8) missingRequirements.push('at least 8 characters');
+    if (!/[A-Z]/.test(newPassword)) missingRequirements.push('one uppercase letter');
+    if (!/[a-z]/.test(newPassword)) missingRequirements.push('one lowercase letter');
+    if (!/[0-9]/.test(newPassword)) missingRequirements.push('one number');
+    if (!/[!@#$%^&*(),.?":{}|<>_~-]/.test(newPassword)) missingRequirements.push('one special character');
+
+    if (missingRequirements.length > 0) {
+      setPasswordError(`Password must contain: ${missingRequirements.join(', ')}.`);
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const session = JSON.parse(localStorage.getItem("user_session") || "{}");
+      const res = await fetch(`http://localhost:5293/api/auth/change-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.token}`
+        },
+        body: JSON.stringify({
+          email: session.email,
+          currentPassword,
+          newPassword
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setPasswordError(data.error || "Failed to change password.");
+        return;
+      }
+
+      alert("Password updated successfully.");
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch {
+      setPasswordError("Unable to connect to server.");
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -144,6 +204,72 @@ export function Settings() {
                 }`}
             >
               24-Hour Format
+            </button>
+          </div>
+        </div>
+
+        {/* SECURITY - PASSWORD CHANGE */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 flex-shrink-0">
+              <Lock className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Security & Password</h2>
+              <p className="text-sm text-gray-500">Update your account password and security preferences.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider">Current Password</label>
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-[#0B4F6C] focus:border-[#0B4F6C] outline-none transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider">New Password</label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-[#0B4F6C] focus:border-[#0B4F6C] outline-none transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wider">Confirm New Password</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-[#0B4F6C] focus:border-[#0B4F6C] outline-none transition-all"
+              />
+            </div>
+          </div>
+
+          {passwordError && (
+            <div className="p-3 rounded-xl bg-red-50 border border-red-100 flex items-center gap-2 text-red-600 text-xs font-medium">
+              <ShieldCheck className="w-4 h-4" />
+              {passwordError}
+            </div>
+          )}
+
+          <div className="flex justify-end pt-2">
+            <button
+              onClick={handlePasswordChange}
+              disabled={isChangingPassword}
+              className={`px-8 py-2.5 rounded-xl text-xs font-bold text-white transition-all duration-200 ${isChangingPassword
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-amber-600 hover:bg-amber-700 hover:shadow-md'
+                }`}
+            >
+              {isChangingPassword ? 'Updating...' : 'Update Password'}
             </button>
           </div>
         </div>

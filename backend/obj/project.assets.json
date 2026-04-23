@@ -2,6 +2,48 @@
   "version": 3,
   "targets": {
     "net10.0": {
+      "AWSSDK.Core/4.0.3.32": {
+        "type": "package",
+        "compile": {
+          "lib/net8.0/AWSSDK.Core.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net8.0/AWSSDK.Core.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "AWSSDK.SimpleEmail/4.0.2.25": {
+        "type": "package",
+        "dependencies": {
+          "AWSSDK.Core": "[4.0.3.32, 5.0.0)"
+        },
+        "compile": {
+          "lib/net8.0/AWSSDK.SimpleEmail.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net8.0/AWSSDK.SimpleEmail.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "BCrypt.Net-Next/4.1.0": {
+        "type": "package",
+        "compile": {
+          "lib/net10.0/BCrypt.Net-Next.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/BCrypt.Net-Next.dll": {
+            "related": ".xml"
+          }
+        }
+      },
       "EPPlus/7.5.2": {
         "type": "package",
         "dependencies": {
@@ -743,6 +785,15 @@
           }
         }
       },
+      "Otp.NET/1.4.1": {
+        "type": "package",
+        "compile": {
+          "lib/net10.0/Otp.NET.dll": {}
+        },
+        "runtime": {
+          "lib/net10.0/Otp.NET.dll": {}
+        }
+      },
       "Swashbuckle.AspNetCore/10.1.7": {
         "type": "package",
         "dependencies": {
@@ -1009,6 +1060,82 @@
     }
   },
   "libraries": {
+    "AWSSDK.Core/4.0.3.32": {
+      "sha512": "Z+FDac2Sb5dRImj87wVcgsj5PbE34CXDPGFodk11AKTx5B30/NgsnYynZH2NYS/uPZylzcX23NEjGbcMSbqAwQ==",
+      "type": "package",
+      "path": "awssdk.core/4.0.3.32",
+      "hasTools": true,
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "awssdk.core.4.0.3.32.nupkg.sha512",
+        "awssdk.core.nuspec",
+        "images/AWSLogo.png",
+        "lib/net472/AWSSDK.Core.dll",
+        "lib/net472/AWSSDK.Core.xml",
+        "lib/net8.0/AWSSDK.Core.dll",
+        "lib/net8.0/AWSSDK.Core.xml",
+        "lib/netcoreapp3.1/AWSSDK.Core.dll",
+        "lib/netcoreapp3.1/AWSSDK.Core.xml",
+        "lib/netstandard2.0/AWSSDK.Core.dll",
+        "lib/netstandard2.0/AWSSDK.Core.xml",
+        "tools/account-management.ps1"
+      ]
+    },
+    "AWSSDK.SimpleEmail/4.0.2.25": {
+      "sha512": "qwNuIty7k9grzaTkN5GrJnWFbe5B02EtxW79/MwTus1A4xET82DiGC+vEHz/DY7biR4OvmHM+TWWpTtjzXShaQ==",
+      "type": "package",
+      "path": "awssdk.simpleemail/4.0.2.25",
+      "hasTools": true,
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "analyzers/dotnet/cs/AWSSDK.SimpleEmail.CodeAnalysis.dll",
+        "analyzers/dotnet/cs/SharedAnalysisCode.dll",
+        "awssdk.simpleemail.4.0.2.25.nupkg.sha512",
+        "awssdk.simpleemail.nuspec",
+        "images/AWSLogo.png",
+        "lib/net472/AWSSDK.SimpleEmail.dll",
+        "lib/net472/AWSSDK.SimpleEmail.xml",
+        "lib/net8.0/AWSSDK.SimpleEmail.dll",
+        "lib/net8.0/AWSSDK.SimpleEmail.xml",
+        "lib/netcoreapp3.1/AWSSDK.SimpleEmail.dll",
+        "lib/netcoreapp3.1/AWSSDK.SimpleEmail.xml",
+        "lib/netstandard2.0/AWSSDK.SimpleEmail.dll",
+        "lib/netstandard2.0/AWSSDK.SimpleEmail.xml",
+        "tools/install.ps1",
+        "tools/uninstall.ps1"
+      ]
+    },
+    "BCrypt.Net-Next/4.1.0": {
+      "sha512": "5YT3DKllmtkyW68PjURu/V1TOe4MKiByKwsRNVcfYE1S5KuFTeozdmKzyNzolKiQF391OXCaQtINvYT3j1ERzQ==",
+      "type": "package",
+      "path": "bcrypt.net-next/4.1.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "bcrypt.net-next.4.1.0.nupkg.sha512",
+        "bcrypt.net-next.nuspec",
+        "ico.png",
+        "lib/net10.0/BCrypt.Net-Next.dll",
+        "lib/net10.0/BCrypt.Net-Next.xml",
+        "lib/net20/BCrypt.Net-Next.dll",
+        "lib/net20/BCrypt.Net-Next.xml",
+        "lib/net35/BCrypt.Net-Next.dll",
+        "lib/net35/BCrypt.Net-Next.xml",
+        "lib/net462/BCrypt.Net-Next.dll",
+        "lib/net462/BCrypt.Net-Next.xml",
+        "lib/net472/BCrypt.Net-Next.dll",
+        "lib/net472/BCrypt.Net-Next.xml",
+        "lib/net48/BCrypt.Net-Next.dll",
+        "lib/net48/BCrypt.Net-Next.xml",
+        "lib/netstandard2.0/BCrypt.Net-Next.dll",
+        "lib/netstandard2.0/BCrypt.Net-Next.xml",
+        "lib/netstandard2.1/BCrypt.Net-Next.dll",
+        "lib/netstandard2.1/BCrypt.Net-Next.xml",
+        "readme.md"
+      ]
+    },
     "EPPlus/7.5.2": {
       "sha512": "qHJurPvgWoheHyyam53NV8d2CiOO2q88Rg/Lk0wSYwi/aoGDtzYihTMCHeTwGM9zHZnnI3aVLu482SODN+HB4g==",
       "type": "package",
@@ -2886,6 +3013,28 @@
         "postgresql.png"
       ]
     },
+    "Otp.NET/1.4.1": {
+      "sha512": "UXjZ80T6BfVACJWmEcz4UFZ93hwX3STKojKvVpPk3qUhubjnLwIiZMsI4Hh91HhYxC0JlatNdNrVK2wkv4O9/Q==",
+      "type": "package",
+      "path": "otp.net/1.4.1",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.txt",
+        "README.md",
+        "icon.png",
+        "lib/net10.0/Otp.NET.dll",
+        "lib/net461/Otp.NET.dll",
+        "lib/net5.0/Otp.NET.dll",
+        "lib/net6.0/Otp.NET.dll",
+        "lib/net7.0/Otp.NET.dll",
+        "lib/net8.0/Otp.NET.dll",
+        "lib/net9.0/Otp.NET.dll",
+        "lib/netstandard2.0/Otp.NET.dll",
+        "otp.net.1.4.1.nupkg.sha512",
+        "otp.net.nuspec"
+      ]
+    },
     "Swashbuckle.AspNetCore/10.1.7": {
       "sha512": "vgef8DPT411JU5JjHiDbr0WOxsIVuAvegPGtqmm4Na4JRl/264dfBJcGkiPHsAr5P+Vda+qN1rZKRtBl1rF9aA==",
       "type": "package",
@@ -3342,11 +3491,14 @@
   },
   "projectFileDependencyGroups": {
     "net10.0": [
+      "AWSSDK.SimpleEmail >= 4.0.2.25",
+      "BCrypt.Net-Next >= 4.1.0",
       "EPPlus >= 7.5.2",
       "Microsoft.AspNetCore.Authentication.JwtBearer >= 10.0.5",
       "Microsoft.AspNetCore.OpenApi >= 10.0.5",
       "Microsoft.EntityFrameworkCore.Design >= 10.0.5",
       "Npgsql.EntityFrameworkCore.PostgreSQL >= 10.0.1",
+      "Otp.NET >= 1.4.1",
       "Swashbuckle.AspNetCore >= 10.1.7"
     ]
   },
@@ -3400,6 +3552,14 @@
       "net10.0": {
         "targetAlias": "net10.0",
         "dependencies": {
+          "AWSSDK.SimpleEmail": {
+            "target": "Package",
+            "version": "[4.0.2.25, )"
+          },
+          "BCrypt.Net-Next": {
+            "target": "Package",
+            "version": "[4.1.0, )"
+          },
           "EPPlus": {
             "target": "Package",
             "version": "[7.5.2, )"
@@ -3421,6 +3581,10 @@
           "Npgsql.EntityFrameworkCore.PostgreSQL": {
             "target": "Package",
             "version": "[10.0.1, )"
+          },
+          "Otp.NET": {
+            "target": "Package",
+            "version": "[1.4.1, )"
           },
           "Swashbuckle.AspNetCore": {
             "target": "Package",
@@ -3446,7 +3610,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.201/PortableRuntimeIdentifierGraph.json",
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.202/PortableRuntimeIdentifierGraph.json",
         "packagesToPrune": {
           "Microsoft.AspNetCore": "(,10.0.32767]",
           "Microsoft.AspNetCore.Antiforgery": "(,10.0.32767]",

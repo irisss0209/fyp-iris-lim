@@ -8,15 +8,45 @@
     ".NETCoreApp,Version=v10.0": {
       "backend/1.0.0": {
         "dependencies": {
+          "AWSSDK.SimpleEmail": "4.0.2.25",
+          "BCrypt.Net-Next": "4.1.0",
           "EPPlus": "7.5.2",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "10.0.5",
           "Microsoft.AspNetCore.OpenApi": "10.0.5",
           "Microsoft.EntityFrameworkCore.Design": "10.0.5",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "10.0.1",
+          "Otp.NET": "1.4.1",
           "Swashbuckle.AspNetCore": "10.1.7"
         },
         "runtime": {
           "backend.dll": {}
+        }
+      },
+      "AWSSDK.Core/4.0.3.32": {
+        "runtime": {
+          "lib/net8.0/AWSSDK.Core.dll": {
+            "assemblyVersion": "4.0.0.0",
+            "fileVersion": "4.0.3.32"
+          }
+        }
+      },
+      "AWSSDK.SimpleEmail/4.0.2.25": {
+        "dependencies": {
+          "AWSSDK.Core": "4.0.3.32"
+        },
+        "runtime": {
+          "lib/net8.0/AWSSDK.SimpleEmail.dll": {
+            "assemblyVersion": "4.0.0.0",
+            "fileVersion": "4.0.2.25"
+          }
+        }
+      },
+      "BCrypt.Net-Next/4.1.0": {
+        "runtime": {
+          "lib/net10.0/BCrypt.Net-Next.dll": {
+            "assemblyVersion": "4.1.0.0",
+            "fileVersion": "4.1.0.0"
+          }
         }
       },
       "EPPlus/7.5.2": {
@@ -562,6 +592,14 @@
           }
         }
       },
+      "Otp.NET/1.4.1": {
+        "runtime": {
+          "lib/net10.0/Otp.NET.dll": {
+            "assemblyVersion": "1.4.1.0",
+            "fileVersion": "1.4.1.0"
+          }
+        }
+      },
       "Swashbuckle.AspNetCore/10.1.7": {
         "dependencies": {
           "Swashbuckle.AspNetCore.Swagger": "10.1.7",
@@ -697,6 +735,27 @@
       "type": "project",
       "serviceable": false,
       "sha512": ""
+    },
+    "AWSSDK.Core/4.0.3.32": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-Z+FDac2Sb5dRImj87wVcgsj5PbE34CXDPGFodk11AKTx5B30/NgsnYynZH2NYS/uPZylzcX23NEjGbcMSbqAwQ==",
+      "path": "awssdk.core/4.0.3.32",
+      "hashPath": "awssdk.core.4.0.3.32.nupkg.sha512"
+    },
+    "AWSSDK.SimpleEmail/4.0.2.25": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-qwNuIty7k9grzaTkN5GrJnWFbe5B02EtxW79/MwTus1A4xET82DiGC+vEHz/DY7biR4OvmHM+TWWpTtjzXShaQ==",
+      "path": "awssdk.simpleemail/4.0.2.25",
+      "hashPath": "awssdk.simpleemail.4.0.2.25.nupkg.sha512"
+    },
+    "BCrypt.Net-Next/4.1.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-5YT3DKllmtkyW68PjURu/V1TOe4MKiByKwsRNVcfYE1S5KuFTeozdmKzyNzolKiQF391OXCaQtINvYT3j1ERzQ==",
+      "path": "bcrypt.net-next/4.1.0",
+      "hashPath": "bcrypt.net-next.4.1.0.nupkg.sha512"
     },
     "EPPlus/7.5.2": {
       "type": "package",
@@ -914,6 +973,13 @@
       "sha512": "sha512-P6EwH0Q4xkaA264iNZDqCPhWt8pscfUGxXazDQg4noBfqjoOlk4hKWfvBjF9ZX3R/9JybRmmJfmxr2iBMj0EpA==",
       "path": "npgsql.entityframeworkcore.postgresql/10.0.1",
       "hashPath": "npgsql.entityframeworkcore.postgresql.10.0.1.nupkg.sha512"
+    },
+    "Otp.NET/1.4.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-UXjZ80T6BfVACJWmEcz4UFZ93hwX3STKojKvVpPk3qUhubjnLwIiZMsI4Hh91HhYxC0JlatNdNrVK2wkv4O9/Q==",
+      "path": "otp.net/1.4.1",
+      "hashPath": "otp.net.1.4.1.nupkg.sha512"
     },
     "Swashbuckle.AspNetCore/10.1.7": {
       "type": "package",

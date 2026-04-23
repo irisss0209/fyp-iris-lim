@@ -10,35 +10,47 @@ export interface MfaVerificationProps {
   accentColor?: string;
   method?: 'email_otp' | 'google_authenticator';
   destinationHint?: string;
-  debugCode?: string | null;
+  onResend?: () => Promise<void>;
 }
 
 export function MfaVerification({
   email,
-  phone,
   onVerify,
   onBack,
   accentColor = '#0B4F6C',
   method = 'email_otp',
   destinationHint,
-  debugCode,
+  onResend,
 }: MfaVerificationProps) {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [otpError, setOtpError] = useState('');
-  const [resendCooldown, setResendCooldown] = useState(30);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [countdown, setCountdown] = useState(60);
+  const [isResending, setIsResending] = useState(false);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  useEffect(() => {
+    let timer: any;
+    if (countdown > 0) {
+      timer = setInterval(() => setCountdown(prev => prev - 1), 1000);
+    }
+    return () => clearInterval(timer);
+  }, [countdown]);
+
+  const handleResendClick = async () => {
+    if (countdown > 0 || !onResend) return;
+    setIsResending(true);
+    try {
+      await onResend();
+      setCountdown(60);
+    } finally {
+      setIsResending(false);
+    }
+  };
 
   useEffect(() => {
     setTimeout(() => otpRefs.current[0]?.focus(), 300);
   }, []);
-
-  useEffect(() => {
-    if (resendCooldown > 0) {
-      const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
-      return () => clearTimeout(t);
-    }
-  }, [resendCooldown]);
 
   const handleOtpChange = (index: number, value: string) => {
     const cleaned = value.replace(/\D/g, '').slice(-1);
@@ -76,23 +88,15 @@ export function MfaVerification({
       setOtpError('Please enter the full 6-digit code.');
       return;
     }
-    setIsLoading(true);
+    setIsVerifying(true);
     const success = await onVerify(fullOtp);
-    setIsLoading(false);
+    setIsVerifying(false);
 
     if (!success) {
       setOtpError('Incorrect code. Please try again.');
       setOtp(['', '', '', '', '', '']);
       setTimeout(() => otpRefs.current[0]?.focus(), 50);
     }
-  };
-
-  const handleResend = () => {
-    if (resendCooldown > 0) return;
-    setOtp(['', '', '', '', '', '']);
-    setOtpError('');
-    setResendCooldown(30);
-    setTimeout(() => otpRefs.current[0]?.focus(), 50);
   };
 
   const maskedEmail = email.includes('@') ? email.replace(
@@ -118,7 +122,7 @@ export function MfaVerification({
     >
       <div className="mb-5 sm:mb-7">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">
-          {method === 'google_authenticator' ? 'Google Authenticator' : (phone ? 'Verify Phone & Email' : 'Verify Email')}
+          {method === 'google_authenticator' ? 'Google Authenticator' : 'Verify Email'}
         </h1>
         <p className="text-sm text-gray-400 mt-1">
           {method === 'google_authenticator' ? (
@@ -127,15 +131,9 @@ export function MfaVerification({
             <>
               Enter the 6-digit code sent to{' '}
               <span className="font-medium text-gray-600">{destinationHint || maskedEmail}</span>
-              {phone ? ' and your phone.' : '.'}
             </>
           )}
         </p>
-        {debugCode && (
-          <p className="text-xs text-amber-600 mt-2">
-            Dev code: <span className="font-semibold">{debugCode}</span>
-          </p>
-        )}
       </div>
 
       <div
@@ -158,7 +156,7 @@ export function MfaVerification({
               focus:outline-none focus:ring-0
               ${otpError ? 'border-red-300 bg-red-50 text-red-600' : digit ? 'border-[#0B4F6C] bg-[#EBF4F8] text-[#0B4F6C]' : 'border-gray-200 bg-gray-50 text-gray-900'}
             `}
-            disabled={isLoading}
+            disabled={isVerifying}
           />
         ))}
       </div>
@@ -178,14 +176,32 @@ export function MfaVerification({
 
       <button
         onClick={() => handleOtpSubmit()}
-        disabled={isLoading || otp.join('').length < 6}
+        disabled={isVerifying || otp.join('').length < 6}
         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
         style={{ backgroundColor: accentColor }}
       >
-        {isLoading
-          ? <span className="flex items-center gap-2"><Spinner /> Verifying…</span>
-          : <> Verify Code</>}
+        {isVerifying ? <Spinner /> : 'Verify Account'}
       </button>
+
+      {method === 'email_otp' && onResend && (
+        <div className="mt-6 text-center">
+          <p className="text-sm text-gray-500">
+            Didn&apos;t receive the code?{' '}
+            {countdown > 0 ? (
+              <span className="font-medium text-gray-400">Resend in {countdown}s</span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleResendClick}
+                disabled={isResending}
+                className="font-bold text-[#0B4F6C] hover:underline disabled:opacity-50"
+              >
+                {isResending ? 'Sending...' : 'Resend Code'}
+              </button>
+            )}
+          </p>
+        </div>
+      )}
 
       <div className="flex items-center justify-between mt-4 sm:mt-5">
         <button
@@ -194,15 +210,7 @@ export function MfaVerification({
         >
           Back
         </button>
-        <button
-          onClick={handleResend}
-          disabled={resendCooldown > 0}
-          className="flex items-center gap-1.5 text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ color: resendCooldown > 0 ? undefined : accentColor }}
-        >
-          <RefreshCwIcon size={12} />
-          {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
-        </button>
+
       </div>
     </motion.div>
   );

@@ -72,9 +72,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddSingleton<IEmailVerificationSender, EmailService>();
 builder.Services.AddSingleton<AuthChallengeStore>();
 builder.Services.AddSingleton<ITotpService, TotpService>();
-builder.Services.AddScoped<IEmailVerificationSender, SesSmtpEmailVerificationSender>();
 
 // CORS
 var allowedOrigins = builder.Configuration

@@ -55,6 +55,41 @@ namespace backend.Controllers
             public string Email { get; set; } = string.Empty;
         }
 
+        public class MfaSetupResponse
+        {
+            public string Secret { get; set; } = string.Empty;
+            public string QrCodeUri { get; set; } = string.Empty;
+        }
+
+        public class MfaActivateRequest
+        {
+            public string Email { get; set; } = string.Empty;
+            public string Code { get; set; } = string.Empty;
+        }
+
+        public class ChangePasswordRequest
+        {
+            public string Email { get; set; } = string.Empty;
+            public string CurrentPassword { get; set; } = string.Empty;
+            public string NewPassword { get; set; } = string.Empty;
+        }
+
+        public class SignupStartRequest
+        {
+            public string Name { get; set; } = string.Empty;
+            public string Email { get; set; } = string.Empty;
+            public string Password { get; set; } = string.Empty;
+        }
+
+        public class SignupCompleteRequest
+        {
+            public string Name { get; set; } = string.Empty;
+            public string Email { get; set; } = string.Empty;
+            public string Password { get; set; } = string.Empty;
+            public string Code { get; set; } = string.Empty;
+            public string ChallengeId { get; set; } = string.Empty;
+        }
+
         [HttpPost("check-account")]
         public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest request)
         {
@@ -88,7 +123,7 @@ namespace backend.Controllers
 
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
 
-            if (user == null)
+            if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             {
                 return Unauthorized(new { error = "Invalid email or password. Please try again." });
             }
@@ -106,6 +141,7 @@ namespace backend.Controllers
                 {
                     requiresMfa = true,
                     mfaMethod = "google_authenticator",
+                    isSetup = user.IsMfaEnabled,
                     email = user.Email,
                     role = frontendRole
                 });
@@ -154,13 +190,12 @@ namespace backend.Controllers
             var isVerified = false;
             if (user.Role == UserRole.Operator)
             {
-                var secret = _configuration[$"OperatorTotpSecrets:{user.Email.ToLower()}"];
-                if (string.IsNullOrWhiteSpace(secret))
+                if (!user.IsMfaEnabled || string.IsNullOrWhiteSpace(user.MfaSecret))
                 {
                     return Unauthorized(new { error = "Google Authenticator is not configured for this operator." });
                 }
 
-                isVerified = _totpService.VerifyCode(secret, request.Code.Trim());
+                isVerified = _totpService.VerifyCode(user.MfaSecret, request.Code.Trim());
             }
             else
             {
@@ -188,6 +223,185 @@ namespace backend.Controllers
                 token,
                 description = user.Role.ToString()
             });
+        }
+
+        [HttpGet("mfa/setup")]
+        public async Task<IActionResult> MfaSetup([FromQuery] string email)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower());
+            if (user == null) return NotFound(new { error = "User not found." });
+
+            var secret = _totpService.GenerateSecret();
+            var uri = _totpService.GetQrCodeUri(user.Email, secret);
+
+            user.MfaSecret = secret;
+            user.IsMfaEnabled = false; // Ensure it's not active yet
+            await _context.SaveChangesAsync();
+
+            return Ok(new MfaSetupResponse
+            {
+                Secret = secret,
+                QrCodeUri = uri
+            });
+        }
+
+        [HttpPost("mfa/activate")]
+        public async Task<IActionResult> MfaActivate([FromBody] MfaActivateRequest request)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
+            if (user == null) return NotFound(new { error = "User not found." });
+
+            if (string.IsNullOrWhiteSpace(user.MfaSecret))
+            {
+                return BadRequest(new { error = "MFA setup has not been initiated." });
+            }
+
+            var isValid = _totpService.VerifyCode(user.MfaSecret, request.Code.Trim());
+            if (!isValid)
+            {
+                return BadRequest(new { error = "Invalid verification code." });
+            }
+
+            user.IsMfaEnabled = true;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Google Authenticator activated successfully." });
+        }
+
+        [HttpPost("change-password")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
+            if (user == null) return NotFound(new { error = "User not found." });
+
+            // 1. Verify current password
+            if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+            {
+                return BadRequest(new { error = "Incorrect current password." });
+            }
+
+            // 2. Validate new password strength
+            var missing = ValidatePasswordStrength(request.NewPassword);
+
+            if (missing.Any())
+            {
+                return BadRequest(new { error = $"Password must contain: {string.Join(", ", missing)}." });
+            }
+
+            // 3. Check password history
+            // Cannot be the current password
+            if (BCrypt.Net.BCrypt.Verify(request.NewPassword, user.PasswordHash))
+            {
+                return BadRequest(new { error = "New password cannot be the same as your current password." });
+            }
+            // Cannot be the previous password
+            if (!string.IsNullOrEmpty(user.PreviousPasswordHash) && BCrypt.Net.BCrypt.Verify(request.NewPassword, user.PreviousPasswordHash))
+            {
+                return BadRequest(new { error = "New password cannot be the same as your previous password." });
+            }
+
+            // 4. Update password and history
+            user.PreviousPasswordHash = user.PasswordHash;
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Password updated successfully." });
+        }
+
+        [HttpPost("signup/start")]
+        public async Task<IActionResult> SignupStart([FromBody] SignupStartRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+            {
+                return BadRequest(new { error = "All fields are required." });
+            }
+
+            // Check if user exists
+            var existing = await _context.Users.AnyAsync(u => u.Email.ToLower() == request.Email.ToLower());
+            if (existing)
+            {
+                return BadRequest(new { error = "An account with this email already exists." });
+            }
+
+            // Validate password
+            var missing = ValidatePasswordStrength(request.Password);
+            if (missing.Any())
+            {
+                return BadRequest(new { error = $"Password must contain: {string.Join(", ", missing)}." });
+            }
+
+            // Create temporary challenge
+            var challenge = _challengeStore.Create(request.Email, TimeSpan.FromMinutes(10));
+            var sent = await _emailVerificationSender.SendLoginOtpAsync(request.Email, request.Name, challenge.Code);
+
+            if (!sent)
+            {
+                return StatusCode(500, new { error = "Unable to send verification email." });
+            }
+
+            return Ok(new
+            {
+                challengeId = challenge.ChallengeId,
+                expiresInSeconds = (int)(challenge.ExpiresAtUtc - DateTime.UtcNow).TotalSeconds,
+                debugOtp = _environment.IsDevelopment() ? challenge.Code : null
+            });
+        }
+
+        [HttpPost("signup/complete")]
+        public async Task<IActionResult> SignupComplete([FromBody] SignupCompleteRequest request)
+        {
+            // 1. Verify OTP
+            var isValid = _challengeStore.VerifyAndConsume(request.ChallengeId, request.Email, request.Code.Trim());
+            if (!isValid)
+            {
+                return Unauthorized(new { error = "Invalid or expired verification code." });
+            }
+
+            // 2. Final check for existing user (double safety)
+            var existing = await _context.Users.AnyAsync(u => u.Email.ToLower() == request.Email.ToLower());
+            if (existing)
+            {
+                return BadRequest(new { error = "Account already exists." });
+            }
+
+            // 3. Create User
+            var user = new User
+            {
+                UserId = "USR-" + Guid.NewGuid().ToString("N").Substring(0, 8).ToUpper(),
+                UserName = request.Name,
+                Email = request.Email.ToLower(),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                Role = UserRole.Passenger, // Default role for signup
+                Status = UserStatus.Active,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+
+            // 4. Generate Token
+            var token = GenerateJwtToken(user, "passenger");
+
+            return Ok(new
+            {
+                userId = user.UserId,
+                userName = user.UserName,
+                email = user.Email,
+                role = "passenger",
+                token,
+                description = "Passenger"
+            });
+        }
+
+        private List<string> ValidatePasswordStrength(string password)
+        {
+            var missing = new List<string>();
+            if (password.Length < 8) missing.Add("at least 8 characters");
+            if (!password.Any(char.IsUpper)) missing.Add("one uppercase letter");
+            if (!password.Any(char.IsLower)) missing.Add("one lowercase letter");
+            if (!password.Any(char.IsDigit)) missing.Add("one number");
+            if (!password.Any(ch => !char.IsLetterOrDigit(ch))) missing.Add("one special character");
+            return missing;
         }
 
         private string GenerateJwtToken(User user, string frontendRole)

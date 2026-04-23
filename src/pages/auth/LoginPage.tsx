@@ -8,9 +8,10 @@ import {
   MailIcon,
 } from 'lucide-react';
 import { MfaVerification } from './MfaVerification';
+import { MfaSetup } from './MfaSetup';
 import { UserSession } from '../../App';
 
-type AuthStep = 'account' | 'password' | 'mfa' | 'success';
+type AuthStep = 'account' | 'password' | 'mfa' | 'mfa_setup' | 'success';
 
 interface PendingMfaState {
   email: string;
@@ -18,6 +19,7 @@ interface PendingMfaState {
   challengeId?: string;
   maskedDestination?: string;
   debugOtp?: string | null;
+  isSetup?: boolean;
 }
 
 interface LoginPageProps {
@@ -32,7 +34,7 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [resolvedUser, setResolvedUser] = useState<UserSession | null>(null);
   const [pendingMfa, setPendingMfa] = useState<PendingMfaState | null>(null);
   const [accountRole, setAccountRole] = useState<'operator' | 'passenger' | 'auxiliary' | null>(null);
@@ -67,7 +69,10 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
       }
 
       if (!data.exists) {
-        onNavigateSignup();
+        setIsRedirecting(true);
+        setTimeout(() => {
+          onNavigateSignup();
+        }, 2000);
         return;
       }
 
@@ -113,9 +118,15 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
         mfaMethod: data.mfaMethod === 'google_authenticator' ? 'google_authenticator' : 'email_otp',
         challengeId: data.challengeId,
         maskedDestination: data.maskedDestination,
-        debugOtp: data.debugOtp
+        debugOtp: data.debugOtp,
+        isSetup: data.isSetup
       });
-      setStep('mfa');
+
+      if (data.mfaMethod === 'google_authenticator' && data.isSetup === false) {
+        setStep('mfa_setup');
+      } else {
+        setStep('mfa');
+      }
     } catch {
       setError('Unable to connect to the server. Is the backend running?');
     } finally {
@@ -184,6 +195,34 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
     }
   };
 
+  const handleResendOtp = async () => {
+    if (!pendingMfa) return;
+    setError('');
+    try {
+      // Re-trigger either password login or direct OTP login to get a new code
+      const response = await fetch('http://localhost:5293/api/auth/login/start-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: pendingMfa.email })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || 'Failed to resend code.');
+        return;
+      }
+
+      setPendingMfa({
+        ...pendingMfa,
+        challengeId: data.challengeId,
+        maskedDestination: data.maskedDestination,
+        debugOtp: data.debugOtp
+      });
+    } catch {
+      setError('Unable to connect to server.');
+    }
+  };
+
   const Spinner = () => (
     <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
       <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
@@ -232,8 +271,14 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
               className="p-5 sm:p-8"
             >
               <div className="mb-5 sm:mb-7">
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">Sign In</h1>
-                <p className="text-sm text-gray-400 mt-1">Enter your email to continue</p>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">
+                  {isRedirecting ? 'Redirecting...' : 'Sign In'}
+                </h1>
+                <p className="text-sm text-gray-400 mt-1">
+                  {isRedirecting 
+                    ? 'Account not found. Sending you to the sign up page...' 
+                    : 'Enter your email to continue'}
+                </p>
               </div>
 
               <form onSubmit={checkAccountAndContinue} className="space-y-4" noValidate>
@@ -294,7 +339,7 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
               transition={{ duration: 0.25, ease: 'easeInOut' }}
               className="p-5 sm:p-8"
             >
-              <div className="mb-5 sm:mb-7">
+              <div className="mb-6 sm:mb-8">
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">Welcome back</h1>
                 <p className="text-sm text-gray-400 mt-1">{email}</p>
               </div>
@@ -358,7 +403,7 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
                     onClick={() => { setStep('account'); setPassword(''); setError(''); }}
                     className="text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
                   >
-                    Sign in with email
+                    Use Another Email
                   </button>
                 </div>
               </form>
@@ -376,7 +421,22 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
               accentColor="#0B4F6C"
               method={pendingMfa?.mfaMethod}
               destinationHint={pendingMfa?.maskedDestination}
-              debugCode={pendingMfa?.debugOtp}
+              onResend={handleResendOtp}
+            />
+          )}
+
+          {step === 'mfa_setup' && (
+            <MfaSetup
+              email={pendingMfa?.email || email}
+              onActivate={() => {
+                setStep('mfa');
+                setPendingMfa(prev => prev ? { ...prev, isSetup: true } : null);
+              }}
+              onBack={() => {
+                setStep('password');
+                setPendingMfa(null);
+              }}
+              accentColor="#0B4F6C"
             />
           )}
 

@@ -139,3 +139,7 @@ C:\Users\iriss\Downloads\fyp-tp076823\backend\bin\Debug\net10.0\backend.runtimec
 C:\Users\iriss\Downloads\fyp-tp076823\backend\bin\Debug\net10.0\backend.pdb
 C:\Users\iriss\Downloads\fyp-tp076823\backend\obj\Debug\net10.0\backend.genruntimeconfig.cache
 C:\Users\iriss\Downloads\fyp-tp076823\backend\obj\Debug\net10.0\ref\backend.dll
+C:\Users\iriss\Downloads\fyp-tp076823\backend\bin\Debug\net10.0\Otp.NET.dll
+C:\Users\iriss\Downloads\fyp-tp076823\backend\bin\Debug\net10.0\AWSSDK.Core.dll
+C:\Users\iriss\Downloads\fyp-tp076823\backend\bin\Debug\net10.0\AWSSDK.SimpleEmail.dll
+C:\Users\iriss\Downloads\fyp-tp076823\backend\bin\Debug\net10.0\BCrypt.Net-Next.dll

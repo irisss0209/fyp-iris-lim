@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   EyeIcon,
@@ -25,28 +25,15 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
   const [step, setStep] = useState<SignupStep>('details');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [signupChallengeId, setSignupChallengeId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   // Success → fire callback after animation
-  useEffect(() => {
-    if (step === 'success') {
-      const mockSession: UserSession = {
-        userId: 'USR-TEMP-' + Math.floor(Math.random() * 1000),
-        userName: name,
-        email: email,
-        role: 'passenger',
-        description: 'Passenger'
-      };
-      const t = setTimeout(() => onSignupSuccess(mockSession), 1400);
-      return () => clearTimeout(t);
-    }
-  }, [step, onSignupSuccess, name, email]);
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,9 +41,8 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
 
     const trimmedName = name.trim();
     const trimmedEmail = email.trim().toLowerCase();
-    const trimmedPhone = phone.trim();
 
-    if (!trimmedName || !trimmedEmail || !trimmedPhone || !password || !confirmPassword) {
+    if (!trimmedName || !trimmedEmail || !password || !confirmPassword) {
       setError('Please fill out all fields to create an account.');
       return;
     }
@@ -67,49 +53,103 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
     }
 
     // Password strength validation
-    const minLength = /.{8,}/;
-    const hasUpperCase = /[A-Z]/;
-    const hasLowerCase = /[a-z]/;
-    const hasNumber = /[0-9]/;
-    const hasSymbol = /[!@#$%^&*(),.?":{}|<>_~-]/;
+    const missingRequirements: string[] = [];
 
-    if (!minLength.test(password)) {
-      setError('Password must be at least 8 characters long.');
-      return;
-    }
-    if (!hasUpperCase.test(password)) {
-      setError('Password must contain at least one uppercase letter.');
-      return;
-    }
-    if (!hasLowerCase.test(password)) {
-      setError('Password must contain at least one lowercase letter.');
-      return;
-    }
-    if (!hasNumber.test(password)) {
-      setError('Password must contain at least one number.');
-      return;
-    }
-    if (!hasSymbol.test(password)) {
-      setError('Password must contain at least one symbol.');
+    if (password.length < 8) missingRequirements.push('at least 8 characters');
+    if (!/[A-Z]/.test(password)) missingRequirements.push('one uppercase letter');
+    if (!/[a-z]/.test(password)) missingRequirements.push('one lowercase letter');
+    if (!/[0-9]/.test(password)) missingRequirements.push('one number');
+    if (!/[!@#$%^&*(),.?":{}|<>_~-]/.test(password)) missingRequirements.push('one special character');
+
+    if (missingRequirements.length > 0) {
+      setError(`Password must contain: ${missingRequirements.join(', ')}.`);
       return;
     }
 
     setIsLoading(true);
-    await new Promise((r) => setTimeout(r, 900));
-    setIsLoading(false);
+    try {
+      const response = await fetch('http://localhost:5293/api/auth/signup/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmedName, email: trimmedEmail, password })
+      });
 
-    setStep('mfa');
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || 'Failed to start signup.');
+        return;
+      }
+
+      setSignupChallengeId(data.challengeId);
+      setStep('mfa');
+    } catch {
+      setError('Unable to connect to server.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const verifyOtp = async (code: string): Promise<boolean> => {
-    await new Promise((r) => setTimeout(r, 800));
+    if (!signupChallengeId) return false;
 
-    // Accept any correct-looking 6 digit for demo
-    if (code === '111111' || code === '123456') {
+    try {
+      const response = await fetch('http://localhost:5293/api/auth/signup/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          password,
+          code,
+          challengeId: signupChallengeId
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || 'Verification failed.');
+        return false;
+      }
+
+      // Success! Account created and logged in.
       setStep('success');
+
+      const session: UserSession = {
+        userId: data.userId,
+        userName: data.userName,
+        email: data.email,
+        role: data.role,
+        token: data.token,
+        description: data.description
+      };
+
+      // Delay success redirect slightly for animation
+      setTimeout(() => onSignupSuccess(session), 1500);
       return true;
+    } catch {
+      setError('Connection error during verification.');
+      return false;
     }
-    return false;
+  };
+
+  const handleResendOtp = async () => {
+    setError('');
+    try {
+      const response = await fetch('http://localhost:5293/api/auth/signup/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), password })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || 'Failed to resend code.');
+        return;
+      }
+      setSignupChallengeId(data.challengeId);
+    } catch {
+      setError('Unable to connect to server.');
+    }
   };
 
   const Spinner = () => (
@@ -205,26 +245,6 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
                   </div>
                 </div>
 
-                {/* Phone Input */}
-                <div>
-                  <label htmlFor="reg-phone" className="block text-xs font-semibold text-gray-700 mb-1.5">
-                    Phone number
-                  </label>
-                  <div className="flex border border-gray-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-[#0B4F6C]/25 focus-within:border-[#0B4F6C] transition-colors bg-gray-50">
-                    <div className="flex items-center justify-center px-3.5 bg-gray-100 border-r border-gray-200 text-sm font-medium text-gray-600 select-none">
-                      +60
-                    </div>
-                    <input
-                      id="reg-phone"
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => { setPhone(e.target.value); setError(''); }}
-                      placeholder="12-345 6789"
-                      autoComplete="tel"
-                      className="w-full pl-3 pr-4 py-2.5 text-sm text-gray-900 bg-transparent focus:outline-none placeholder-gray-300"
-                    />
-                  </div>
-                </div>
 
                 {/* Password */}
                 <div>
@@ -326,10 +346,10 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
           {step === 'mfa' && (
             <MfaVerification
               email={email}
-              phone={phone || undefined}
               onVerify={verifyOtp}
               onBack={() => setStep('details')}
               accentColor={ACCENT}
+              onResend={handleResendOtp}
             />
           )}
 

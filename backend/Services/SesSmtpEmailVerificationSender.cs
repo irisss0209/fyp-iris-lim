@@ -1,88 +1,77 @@
-using System.Net;
-using System.Net.Mail;
+using Amazon;
+using Amazon.SimpleEmail;
+using Amazon.SimpleEmail.Model;
+using Amazon.Runtime;
 
 namespace backend.Services
 {
-    public class SesSmtpEmailVerificationSender : IEmailVerificationSender
+    public class EmailService : IEmailVerificationSender
     {
-        private readonly IConfiguration _configuration;
-        private readonly ILogger<SesSmtpEmailVerificationSender> _logger;
-        private readonly IWebHostEnvironment _environment;
+        private readonly IConfiguration _config;
+        private readonly AmazonSimpleEmailServiceClient _client;
 
-        public SesSmtpEmailVerificationSender(
-            IConfiguration configuration,
-            ILogger<SesSmtpEmailVerificationSender> logger,
-            IWebHostEnvironment environment)
+        public EmailService(IConfiguration config)
         {
-            _configuration = configuration;
-            _logger = logger;
-            _environment = environment;
+            _config = config;
+
+            var accessKey = _config["AWS:AccessKey"];
+            var secretKey = _config["AWS:SecretKey"];
+            var region = _config["AWS:Region"] ?? "ap-southeast-1";
+
+            if (string.IsNullOrEmpty(accessKey) || string.IsNullOrEmpty(secretKey))
+            {
+                Console.WriteLine("[WARN] AWS Credentials not found in appsettings.json. Email sending will fail.");
+            }
+
+            var credentials = new BasicAWSCredentials(accessKey, secretKey);
+            var regionEndpoint = RegionEndpoint.GetBySystemName(region);
+
+            _client = new AmazonSimpleEmailServiceClient(credentials, regionEndpoint);
         }
 
-        public async Task<bool> SendLoginOtpAsync(string email, string userName, string code)
+        public async Task<bool> SendLoginOtpAsync(string email, string name, string code)
         {
-            var host = _configuration["SesSmtp:Host"];
-            var portRaw = _configuration["SesSmtp:Port"];
-            var username = _configuration["SesSmtp:Username"];
-            var password = _configuration["SesSmtp:Password"];
-            var from = _configuration["SesSmtp:FromEmail"];
-            var fromName = _configuration["SesSmtp:FromName"] ?? "Railly Security";
-            var useSslRaw = _configuration["SesSmtp:UseSsl"];
-
-            if (string.IsNullOrWhiteSpace(host) ||
-                string.IsNullOrWhiteSpace(portRaw) ||
-                string.IsNullOrWhiteSpace(username) ||
-                string.IsNullOrWhiteSpace(password) ||
-                string.IsNullOrWhiteSpace(from))
-            {
-                _logger.LogWarning(
-                    "SES SMTP not configured. Skipping send for {Email}. OTP (dev/log only): {Code}",
-                    email,
-                    code);
-                return _environment.IsDevelopment();
-            }
-
-            if (!int.TryParse(portRaw, out var port))
-            {
-                _logger.LogError("Invalid SesSmtp:Port value: {Port}", portRaw);
-                return false;
-            }
-
-            var useSsl = !string.IsNullOrWhiteSpace(useSslRaw) && bool.TryParse(useSslRaw, out var parsedSsl) && parsedSsl;
-
-            var subject = "Railly verification code";
-            var safeName = string.IsNullOrWhiteSpace(userName) ? "there" : userName;
-            var htmlBody =
-                $"<p>Hello {WebUtility.HtmlEncode(safeName)},</p>" +
-                "<p>Your Railly verification code is:</p>" +
-                $"<h2 style=\"letter-spacing: 4px;\">{WebUtility.HtmlEncode(code)}</h2>" +
-                "<p>This code expires in 5 minutes.</p>";
-
             try
             {
-                using var client = new SmtpClient(host, port)
+                var from = _config["Email:From"];
+
+                var request = new SendEmailRequest
                 {
-                    Credentials = new NetworkCredential(username, password),
-                    EnableSsl = useSsl
+                    Source = from,
+                    Destination = new Destination
+                    {
+                        ToAddresses = new List<string> { email }
+                    },
+                    Message = new Message
+                    {
+                        Subject = new Content("Railly OTP Verification"),
+                        Body = new Body
+                        {
+                            Html = new Content(
+                            $"<html><body>"
+                            + "<h2>Railly OTP Verification</h2>"
+                            + $"<p>Hi {name},</p>"
+                            + "<p>Here is your verification code:</p>"
+                            + $"<p style='font-size:24px; font-weight:bold; color:{ACCENT}; letter-spacing:2px;'>{code}</p>"
+                            + "<p>This code will expire in 5 minutes.</p>"
+                            + "<p>If you did not initiate this request, please ignore this email.</p>"
+                            + "<hr style='border:none; border-top:1px solid #eee; margin:20px 0;' />"
+                            + "<p style='color:#888; font-size:12px;'>Thank you,<br/>Railly Team</p>"
+                            + "</body></html>")
+                        }
+                    }
                 };
 
-                using var message = new MailMessage
-                {
-                    From = new MailAddress(from, fromName),
-                    Subject = subject,
-                    Body = htmlBody,
-                    IsBodyHtml = true
-                };
-                message.To.Add(new MailAddress(email));
-
-                await client.SendMailAsync(message);
+                await _client.SendEmailAsync(request);
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to send OTP email via SES SMTP to {Email}", email);
-                return _environment.IsDevelopment();
+                Console.WriteLine($"[EMAIL ERROR] {ex.Message}");
+                return false;
             }
         }
+
+        private const string ACCENT = "#0B4F6C";
     }
 }
