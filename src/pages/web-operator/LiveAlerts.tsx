@@ -2,15 +2,17 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   CameraIcon,
   ClockIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  AlertTriangleIcon,
   FilterIcon,
   RefreshCwIcon,
   XIcon,
   UserIcon,
 } from 'lucide-react';
 import { JustificationModal } from '../../components/JustificationModal';
+import { useTime } from "../../context/TimeContext";
+import { formatTime } from "../../utils/time";
+
+
+
 
 const API = 'http://localhost:5293/api/data';
 
@@ -100,6 +102,7 @@ export function LiveAlerts() {
   const [stats, setStats] = useState<StatsState>({ pending: 0, verified: 0, escalated: 0, enRoute: 0, resolved: 0, dismissed: 0 });
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const { format } = useTime();
 
   // ── UI state ──────────────────────────────────────────────────────────────────
   const [activeFilter, setActiveFilter] = useState<AlertStatus>('all');
@@ -207,10 +210,9 @@ export function LiveAlerts() {
 
     console.log(`[${pendingAction.type.toUpperCase()}] ${id}: ${comment}`);
 
-    const numericId = id.replace('ALT-', '').replace('RPT-', '');
     const token = JSON.parse(localStorage.getItem('user_session') || '{}')?.token;
 
-    await fetch(`${API}/indicent-alerts/${numericId}/status`, {
+    await fetch(`${API}/indicent-alerts/${id}/status`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -241,10 +243,9 @@ export function LiveAlerts() {
               Real-time gender compliance monitoring feed
               {!loading && (
                 <span className="ml-2 text-xs text-gray-400">
-                  · Last updated {lastRefresh.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' })}
-                </span>
+                  · Last updated {formatTime(lastRefresh.toISOString(), format)}
               )}
-            </p>
+                </p>
           </div>
           <button
             onClick={fetchAlerts}
@@ -365,7 +366,7 @@ export function LiveAlerts() {
       <div className="flex flex-1 overflow-hidden gap-2 p-2">
 
         {/* Alert List */}
-        <div className="flex-1 overflow-y-auto space-y-2 scrollbar-thin pr-1 transition-all duration-300" style={{ maxWidth: selectedAlert ? '60%' : '100%' }}>
+        <div className="flex-1 overflow-y-auto space-y-2 scrollbar-thin p-2 transition-all duration-300 " style={{ maxWidth: selectedAlert ? '60%' : '100%' }}>
 
           {loading && alerts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -376,7 +377,7 @@ export function LiveAlerts() {
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <FilterIcon size={32} className="text-gray-200 mb-3" />
               <p className="text-sm font-medium text-gray-400">
-                {alerts.length === 0 ? 'No alerts in the database yet.' : 'No alerts match your filters.'}
+                {alerts.length === 0 ? 'No alerts.' : 'No alerts match your filters.'}
               </p>
               {alerts.length > 0 && (
                 <p className="text-xs text-gray-300 mt-1">Try adjusting your filter criteria</p>
@@ -421,7 +422,7 @@ export function LiveAlerts() {
                           <div className="flex items-center gap-3 mt-2 flex-wrap">
                             <span className="text-xs text-gray-500">
                               <ClockIcon className="w-3 h-3 inline mr-1" />
-                              {alert.time}
+                              {formatTime(alert.date + "T" + alert.time, format)}
                             </span>
                             {alert.source === 'ai' ? (
                               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#FEF2F0] text-[#D34026]">
@@ -433,14 +434,7 @@ export function LiveAlerts() {
                               </span>
                             )}
                           </div>
-                          {alert.source === 'ai' && alert.confidence !== null && (
-                            <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden w-32">
-                              <div
-                                className="h-full rounded-full"
-                                style={{ width: `${alert.confidence}%`, backgroundColor: '#D34026' }}
-                              />
-                            </div>
-                          )}
+
                         </div>
                         <div className="flex flex-col items-end gap-2">
                           <span
@@ -553,7 +547,13 @@ export function LiveAlerts() {
                       { label: 'Coach ID', value: selectedAlert.coachId },
                       { label: 'Line', value: selectedAlert.line },
                       { label: 'Station', value: selectedAlert.station },
-                      { label: 'Time', value: selectedAlert.time },
+                      {
+                        label: 'Time',
+                        value: formatTime(
+                          selectedAlert.date + "T" + selectedAlert.time,
+                          format
+                        )
+                      },
                       ...(selectedAlert.source === 'ai'
                         ? [{ label: 'Device', value: selectedAlert.deviceId ?? '—' }]
                         : []),
@@ -622,13 +622,13 @@ export function LiveAlerts() {
                         className="w-full py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 flex items-center justify-center gap-2 transition-opacity"
                         style={{ backgroundColor: '#0B4F6C' }}
                       >
-                        <CheckCircleIcon className="w-4 h-4" /> Verify Alert
+                        Verify
                       </button>
                       <button
                         onClick={() => openModal('dismiss', selectedAlert.id)}
                         className="w-full py-2 text-sm font-medium hover:underline text-gray-500 transition-colors flex items-center justify-center gap-1"
                       >
-                        <XCircleIcon className="w-4 h-4 inline" /> Dismiss Alert
+                        Dismiss Alert
                       </button>
                     </div>
                   )}
@@ -654,7 +654,7 @@ export function LiveAlerts() {
                           className="w-full py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 flex items-center justify-center gap-2 transition-opacity"
                           style={{ backgroundColor: '#D34026' }}
                         >
-                          <AlertTriangleIcon className="w-4 h-4" /> Re-Escalate Alert
+                          Re-Escalate Alert
                         </button>
                         <p className="text-[10px] text-gray-400 text-center mt-1">No response received after 2 minutes</p>
                       </div>

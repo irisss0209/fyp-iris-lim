@@ -30,7 +30,7 @@ namespace backend.Controllers
             {
                 try
                 {
-                    var query = $"{station.StationName} Kuala Lumpur";
+                    var query =  $"{station.StationName} lrt station Malaysia";;
 
                     var url =
                         $"https://maps.googleapis.com/maps/api/geocode/json?address={Uri.EscapeDataString(query)}&key={apiKey}";

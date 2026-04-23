@@ -36,7 +36,7 @@ namespace backend.Controllers
 
             var recentReports = recentIncidents.Select(i => new
             {
-                id = "RPT-" + i.IncidentId.ToString("D3"),
+                id =  i.IncidentId,
                 line = i.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineName ?? "Unknown",
                 type = i.Source == IncidentSource.AI_DETECTION ? "AI Detection" : "Passenger Report",
                 time = GetTimeSince(i.CreatedAt),
@@ -108,7 +108,7 @@ namespace backend.Controllers
         }
 
         [HttpGet("indicent-alerts")]
-        public async Task<IActionResult> GetPoliceAlerts([FromQuery] string? assignedStationId = null)
+        public async Task<IActionResult> IncidentAlerts([FromQuery] string? assignedStationId = null)
         {
             // Preload all line→station mappings once (first station per line by sequence)
             var lineStations = await _context.LineStations
@@ -166,7 +166,7 @@ namespace backend.Controllers
 
                 return new
                 {
-                    id = "ALT-" + i.IncidentId.ToString("D3"),
+                    id = i.IncidentId,
                     coach = coachId ?? "Unknown",
                     line = lineName ?? "Unknown",
                     lineId = lineId ?? "Unknown",
@@ -190,9 +190,8 @@ namespace backend.Controllers
 [HttpPost("indicent-alerts/{id}/status")]
 public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateStatusRequest request)
 {
-    var incidentIdStr = id.Replace("ALT-", "").Replace("RPT-", "");
 
-    if (!int.TryParse(incidentIdStr, out var incidentId))
+    if (!int.TryParse(id, out var incidentId))
         return BadRequest();
 
     var incident = await _context.Incidents.FindAsync(incidentId);
@@ -331,7 +330,7 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
 
                 return new
                 {
-                    id = (inc.Source == IncidentSource.AI_DETECTION ? "ALT-" : "RPT-") + inc.IncidentId.ToString("D3"),
+                    id = inc.IncidentId,
                     coachId = coachId ?? "Unknown",
                     line    = lineName ?? "Unknown",
                     lineId  = lineId   ?? "Unknown",
@@ -441,7 +440,7 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
 
                 return new
                 {
-                    id         = (inc.Source == IncidentSource.AI_DETECTION ? "ALT-" : "RPT-") + inc.IncidentId.ToString("D3"),
+                    id         = inc.IncidentId,
                     coachId    = coachId    ?? "Unknown",
                     line       = lineName   ?? "Unknown",
                     lineId     = lineId     ?? "Unknown",
@@ -611,7 +610,7 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
 
                 return new
                 {
-                    id       = (i.Source == IncidentSource.AI_DETECTION ? "ALT-" : "RPT-") + i.IncidentId.ToString("D3"),
+                    id       =  i.IncidentId,
                     coach    = coachId,
                     line     = lineName,
                     lineId,
@@ -864,7 +863,47 @@ public async Task<IActionResult> ImportShifts([FromForm] IFormFile file)
 }
 
 
-    public class PatchUserStatusRequest
+        // ── Operator Settings ──────────────────────────────────────────────────────
+        private static readonly Dictionary<string, (string sound, string format)> _tempSettings = new();
+
+        [Authorize]
+        [HttpGet("operator/settings")]
+        public IActionResult GetOperatorSettings()
+        {
+            var userId = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+            if (userId == null) return Unauthorized();
+
+            if (!_tempSettings.TryGetValue(userId, out var settings))
+            {
+                settings = ("on", "24h");
+            }
+
+            return Ok(new
+            {
+                soundAlerts = settings.sound,
+                timeFormat = settings.format
+            });
+        }
+
+        [Authorize]
+        [HttpPost("operator/settings")]
+        public IActionResult SaveOperatorSettings([FromBody] OperatorSettingsRequest request)
+        {
+            var userId = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+            if (userId == null) return Unauthorized();
+
+            _tempSettings[userId] = (request.SoundAlerts, request.TimeFormat);
+
+            return Ok(new { success = true });
+        }
+
+        public class OperatorSettingsRequest
+        {
+            public string SoundAlerts { get; set; } = "on";
+            public string TimeFormat { get; set; } = "24h";
+        }
+
+        public class PatchUserStatusRequest
     {
         public string Status { get; set; } = null!;
     }

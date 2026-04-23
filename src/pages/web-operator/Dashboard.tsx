@@ -26,7 +26,7 @@ const RANGE_LABELS: Record<DateRange, string> = {
 };
 
 interface RecentAlert {
-  id: string;
+  id: number;
   coachId: string;
   line: string;
   lineId: string;

@@ -1,53 +1,15 @@
 import { useState, useEffect } from 'react';
-import {
-  ToggleLeftIcon,
-  ToggleRightIcon
-} from 'lucide-react';
+import { Clock, Bell } from 'lucide-react';
 
 const API = 'http://localhost:5293/api/data';
 
-// ── Toggle component ────────────────────────────────────────────────────────
-interface ToggleProps {
-  enabled: boolean;
-  onToggle: () => void;
-  label: string;
-  description?: string;
-}
-
-function Toggle({ enabled, onToggle, label, description }: ToggleProps) {
-  return (
-    <div className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
-      <div>
-        <div className="text-sm font-medium text-gray-900">{label}</div>
-        {description && (
-          <div className="text-xs mt-0.5 text-gray-500">{description}</div>
-        )}
-      </div>
-      <button onClick={onToggle}>
-        {enabled ? (
-          <ToggleRightIcon className="w-8 h-8 text-[#0B4F6C]" />
-        ) : (
-          <ToggleLeftIcon className="w-8 h-8 text-gray-300" />
-        )}
-      </button>
-    </div>
-  );
-}
-
 export function Settings() {
-  const [systemName, setSystemName] = useState('Railly Command Center');
-  const [timezone, setTimezone] = useState('Asia/Kuala_Lumpur');
-  const [language, setLanguage] = useState('English');
-  const [toggles, setToggles] = useState({
-    autoEscalate: true,
-    soundAlerts: true,
-    emailNotifications: false,
-    smsAlerts: true,
-    weeklyReport: true,
-  });
+  const [soundAlerts, setSoundAlerts] = useState('on');
+  const [timeFormat, setTimeFormat] = useState(format);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const session = JSON.parse(localStorage.getItem("session") || "{}");
+    const session = JSON.parse(localStorage.getItem("user_session") || "{}");
 
     fetch(`${API}/operator/settings`, {
       headers: {
@@ -57,22 +19,18 @@ export function Settings() {
       .then(res => res.json())
       .then(data => {
         if (data) {
-          if (data.systemName) setSystemName(data.systemName);
-          if (data.timezone) setTimezone(data.timezone);
-          if (data.language) setLanguage(data.language);
-          if (data.toggles) setToggles(data.toggles);
+          if (data.soundAlerts) setSoundAlerts(data.soundAlerts);
+          if (data.timeFormat) setTimeFormat(data.timeFormat);
         }
       })
       .catch(() => { });
   }, []);
 
-  const toggle = (key: keyof typeof toggles) => {
-    setToggles(prev => ({ ...prev, [key]: !prev[key] }));
-  };
-
   const handleSave = async () => {
+
+    setIsSaving(true);
     try {
-      const session = JSON.parse(localStorage.getItem("session") || "{}");
+      const session = JSON.parse(localStorage.getItem("user_session") || "{}");
 
       const res = await fetch(`${API}/operator/settings`, {
         method: 'POST',
@@ -81,18 +39,19 @@ export function Settings() {
           'Authorization': `Bearer ${session.token}`
         },
         body: JSON.stringify({
-          systemName,
-          timezone,
-          language,
-          toggles
+          soundAlerts,
+          timeFormat
         })
       });
 
       if (!res.ok) throw new Error();
-
+      localStorage.setItem("soundAlerts", soundAlerts);
+      localStorage.setItem("timeFormat", timeFormat);
       alert("Settings saved successfully");
     } catch {
       alert("Failed to save settings");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -100,111 +59,87 @@ export function Settings() {
     <div className="p-8 min-h-full" style={{ backgroundColor: '#FAF9F5' }}>
 
       {/* PAGE TITLE */}
-      <div>
+      <div className="mb-8">
         <h1 className="text-[28px] font-bold text-gray-900 leading-tight">Settings</h1>
-        <p className="text-sm text-gray-400 mt-1">Manage system configuration</p>
+        <p className="text-sm text-gray-400 mt-1">Manage system configuration and preferences</p>
       </div>
 
-      {/* GENERAL SETTINGS */}
-      <div className="space-y-5">
-        <h2 className="text-lg font-semibold text-gray-900">General</h2>
+      <div className="w-full space-y-4">
 
-        <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
-          <div>
-            <label className="text-xs font-semibold uppercase text-gray-500">System Name</label>
-            <input
-              value={systemName}
-              onChange={(e) => setSystemName(e.target.value)}
-              className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-            />
+        {/* SOUND ALERTS - DROPDOWN */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4 flex-1">
+            <div className="w-12 h-12 rounded-xl bg-[#0B4F6C]/10 flex items-center justify-center text-[#0B4F6C] flex-shrink-0">
+              <Bell className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Notification Sounds</h2>
+              <p className="text-sm text-gray-500">Choose how and when you want to be alerted about incoming incidents.</p>
+            </div>
           </div>
-
-          <div>
-            <label className="text-xs font-semibold uppercase text-gray-500">Timezone</label>
+          <div className="relative w-full md:w-72">
             <select
-              value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
-              className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              value={soundAlerts}
+              onChange={(e) => setSoundAlerts(e.target.value)}
+              className="appearance-none bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl focus:ring-[#0B4F6C] focus:border-[#0B4F6C] block w-full p-3 outline-none transition-all cursor-pointer"
             >
-              <option value="Asia/Kuala_Lumpur">Asia/Kuala_Lumpur (UTC+8)</option>
+              <option value="on">Turn On (Always Alert)</option>
+              <option value="off">Turn Off (Mute All)</option>
+              <option value="peak">Peak Hours Only</option>
             </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold uppercase text-gray-500">Language</label>
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="w-full mt-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-            >
-              <option value="English">English</option>
-              <option value="Bahasa Malaysia">Bahasa Malaysia</option>
-            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
+              <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>
+            </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <h3 className="text-sm font-semibold mb-3 text-gray-900">System Behaviour</h3>
+        {/* TIME FORMAT - TOGGLE */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4 flex-1">
+            <div className="w-12 h-12 rounded-xl bg-[#0B4F6C]/10 flex items-center justify-center text-[#0B4F6C] flex-shrink-0">
+              <Clock className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Time Format</h2>
+              <p className="text-sm text-gray-500">Choose your preferred time display format for timestamps across the platform.</p>
+            </div>
+          </div>
 
-          <Toggle
-            enabled={toggles.autoEscalate}
-            onToggle={() => toggle('autoEscalate')}
-            label="Auto-escalate to Police"
-          />
-
-          <Toggle
-            enabled={toggles.soundAlerts}
-            onToggle={() => toggle('soundAlerts')}
-            label="Sound Alerts"
-          />
-
-          <Toggle
-            enabled={toggles.emailNotifications}
-            onToggle={() => toggle('emailNotifications')}
-            label="Email Notifications"
-          />
+          <div className="flex bg-gray-100 p-1 rounded-xl w-full md:w-72">
+            <button
+              onClick={() => setTimeFormat('12h')}
+              className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all duration-200 ${timeFormat === '12h'
+                ? 'bg-white text-[#0B4F6C] shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+                }`}
+            >
+              12-Hour Format
+            </button>
+            <button
+              onClick={() => setTimeFormat('24h')}
+              className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all duration-200 ${timeFormat === '24h'
+                ? 'bg-white text-[#0B4F6C] shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+                }`}
+            >
+              24-Hour Format
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* NOTIFICATIONS */}
-      <div className="space-y-5">
-        <h2 className="text-lg font-semibold text-gray-900">Notifications</h2>
-
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <Toggle
-            enabled={toggles.soundAlerts}
-            onToggle={() => toggle('soundAlerts')}
-            label="In-App Sound Alerts"
-          />
-
-          <Toggle
-            enabled={toggles.emailNotifications}
-            onToggle={() => toggle('emailNotifications')}
-            label="Email Notifications"
-          />
-
-          <Toggle
-            enabled={toggles.smsAlerts}
-            onToggle={() => toggle('smsAlerts')}
-            label="SMS Alerts"
-          />
-
-          <Toggle
-            enabled={toggles.weeklyReport}
-            onToggle={() => toggle('weeklyReport')}
-            label="Weekly Report"
-          />
+        {/* SAVE BUTTON */}
+        <div className="pt-6 flex justify-end">
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className={`px-12 py-3.5 rounded-xl text-sm font-bold text-white transition-all duration-200 ${isSaving
+              ? 'bg-gray-400 cursor-not-allowed'
+              : 'bg-[#0B4F6C] hover:bg-[#094057] hover:shadow-lg hover:-translate-y-0.5'
+              }`}
+          >
+            {isSaving ? 'Saving Changes...' : 'Save Changes'}
+          </button>
         </div>
-      </div>
-
-      {/* SAVE BUTTON */}
-      <div>
-        <button
-          onClick={handleSave}
-          className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#0B4F6C]"
-        >
-          Save Changes
-        </button>
       </div>
 
     </div>

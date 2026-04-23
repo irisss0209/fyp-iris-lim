@@ -2,7 +2,7 @@ import "./index.css";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { registerSW } from "virtual:pwa-register";
-
+import { TimeProvider } from "@/context/TimeContext";
 // Register service worker – auto-updates silently.
 // Callbacks fire custom DOM events so UpdatePrompt can react without prop-drilling.
 const updateSW = registerSW({
@@ -24,4 +24,4 @@ const updateSW = registerSW({
 });
 
 const root = createRoot(document.getElementById("root")!);
-root.render(<App />);
+root.render(<TimeProvider><App /></TimeProvider>);

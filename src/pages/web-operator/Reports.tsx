@@ -60,7 +60,6 @@ interface IncidentRow {
   datetime: string;
   type: string;
   status: string;
-  handledBy: string;
 }
 
 interface ReportData {
@@ -76,11 +75,11 @@ interface ReportData {
 // ── Helpers ───────────────────────────────────────────────────────────────
 const statusColor = (status: string) => {
   const s = status.toLowerCase();
-  if (s === 'resolved')  return { bg: '#F0FBF6', text: '#2D7A5D' };
+  if (s === 'resolved') return { bg: '#F0FBF6', text: '#2D7A5D' };
   if (s === 'escalated') return { bg: '#FEF2F0', text: '#D34026' };
-  if (s === 'pending')   return { bg: '#FFF7ED', text: '#C05621' };
-  if (s === 'verified')  return { bg: '#EFF6FF', text: '#1D4ED8' };
-  if (s === 'en_route')  return { bg: '#EFF6FF', text: '#0B4F6C' };
+  if (s === 'pending') return { bg: '#FFF7ED', text: '#C05621' };
+  if (s === 'verified') return { bg: '#EFF6FF', text: '#1D4ED8' };
+  if (s === 'en_route') return { bg: '#EFF6FF', text: '#0B4F6C' };
   return { bg: '#F7FAFC', text: '#718096' };
 };
 
@@ -94,14 +93,14 @@ const fmtDelta = (v: number, invert = false) => {
 // ── Component ─────────────────────────────────────────────────────────────
 export function Reports() {
   const [activeTab, setActiveTab] = useState<ReportTab>('overview');
-  const [data, setData]           = useState<ReportData | null>(null);
-  const [months, setMonths]       = useState<MonthOption[]>([]);
+  const [data, setData] = useState<ReportData | null>(null);
+  const [months, setMonths] = useState<MonthOption[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<MonthOption | null>(null);
-  const [loading, setLoading]     = useState(true);
+  const [loading, setLoading] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
-  const [search, setSearch]       = useState('');
-  const [page, setPage]           = useState(1);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
 
   // ── Load available months first ──────────────────────────────────────
@@ -117,8 +116,10 @@ export function Reports() {
         } else {
           // fallback: use current month
           const now = new Date();
-          const cur = { year: now.getFullYear(), month: now.getMonth() + 1,
-            label: now.toLocaleDateString('en-MY', { month: 'short', year: 'numeric' }) };
+          const cur = {
+            year: now.getFullYear(), month: now.getMonth() + 1,
+            label: now.toLocaleDateString('en-MY', { month: 'short', year: 'numeric' })
+          };
           setMonths([cur]);
           setSelectedMonth(cur);
         }
@@ -129,14 +130,14 @@ export function Reports() {
         setLoading(false);
       }
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Re-fetch when month changes ──────────────────────────────────────
   const fetchReport = useCallback(async (m: MonthOption) => {
     setLoading(true);
     try {
-      const res  = await fetch(`${API}/operator/reports?year=${m.year}&month=${m.month}`);
+      const res = await fetch(`${API}/operator/reports?year=${m.year}&month=${m.month}`);
       const json = await res.json();
       setData(json);
       // also refresh months list
@@ -164,27 +165,26 @@ export function Reports() {
     return matchStatus && matchSearch;
   });
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // ── CSV export ───────────────────────────────────────────────────────
   const exportCSV = () => {
     const rows = [
-      ['Case ID', 'Coach', 'Line', 'Date/Time', 'Type', 'Status', 'Operator'],
-      ...allIncidents.map(i => [i.id, i.coach, i.line, i.datetime, i.type, i.status, i.handledBy]),
+      ['Case ID', 'Coach', 'Line', 'Date/Time', 'Type', 'Status'],
+      ...allIncidents.map(i => [i.id, i.coach, i.line, i.datetime, i.type, i.status]),
     ];
-    const csv  = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a'); a.href = url;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url;
     a.download = `incidents-${selectedMonth?.label ?? 'report'}.csv`; a.click();
     URL.revokeObjectURL(url);
   };
 
   // ── Tabs ─────────────────────────────────────────────────────────────
   const tabs: { id: ReportTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'overview',   label: 'Overview',         icon: <TrendingUpIcon className="w-4 h-4" /> },
-    { id: 'incidents',  label: 'Incident Reports',  icon: <FileTextIcon   className="w-4 h-4" /> },
-    { id: 'export',     label: 'Export',            icon: <DownloadIcon   className="w-4 h-4" /> },
+    { id: 'overview', label: 'Overview', icon: <TrendingUpIcon className="w-4 h-4" /> },
+    { id: 'incidents', label: 'Incident Reports', icon: <FileTextIcon className="w-4 h-4" /> },
   ];
 
   const stats = data?.stats;
@@ -222,11 +222,10 @@ export function Reports() {
                 <button
                   key={`${m.year}-${m.month}`}
                   onClick={() => { setSelectedMonth(m); setPickerOpen(false); setPage(1); }}
-                  className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                    selectedMonth?.year === m.year && selectedMonth?.month === m.month
-                      ? 'bg-[#EFF6FF] text-[#0B4F6C] font-semibold'
-                      : 'text-gray-700 hover:bg-gray-50'
-                  }`}
+                  className={`w-full text-left px-4 py-2 text-sm transition-colors ${selectedMonth?.year === m.year && selectedMonth?.month === m.month
+                    ? 'bg-[#EFF6FF] text-[#0B4F6C] font-semibold'
+                    : 'text-gray-700 hover:bg-gray-50'
+                    }`}
                 >
                   {m.label}
                 </button>
@@ -385,7 +384,7 @@ export function Reports() {
                   <div className="flex-1 space-y-2">
                     {data!.statusBreakdown.map(item => {
                       const total = data!.statusBreakdown.reduce((s, x) => s + x.value, 0);
-                      const pct   = total > 0 ? Math.round(item.value * 100 / total) : 0;
+                      const pct = total > 0 ? Math.round(item.value * 100 / total) : 0;
                       return (
                         <div key={item.name} className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full flex-shrink-0"
@@ -460,50 +459,6 @@ export function Reports() {
         </div>
       )}
 
-      {/* ════════════════════════════════════════════════════════════════════
-          EXPORT TAB
-      ════════════════════════════════════════════════════════════════════ */}
-      {!loading && activeTab === 'export' && (
-        <div className="max-w-lg">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-4">
-            <h3 className="font-semibold" style={{ color: '#1A202C' }}>Export Reports</h3>
-            <p className="text-xs" style={{ color: '#4A5568' }}>
-              Exporting data for <strong>{selectedMonth?.label ?? 'selected month'}</strong>
-              &nbsp;— {allIncidents.length} incident{allIncidents.length !== 1 ? 's' : ''}
-            </p>
-            <div className="space-y-3">
-              {[
-                {
-                  format: 'CSV Data',
-                  desc: 'Raw incident data for analysis',
-                  icon: '📊',
-                  action: exportCSV,
-                },
-              ].map(item => (
-                <div
-                  key={item.format}
-                  className="flex items-center justify-between p-4 border border-gray-100 rounded-xl hover:border-gray-200 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{item.icon}</span>
-                    <div>
-                      <div className="font-medium text-sm" style={{ color: '#1A202C' }}>{item.format}</div>
-                      <div className="text-xs" style={{ color: '#4A5568' }}>{item.desc}</div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={item.action}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-white"
-                    style={{ backgroundColor: '#0B4F6C' }}
-                  >
-                    <DownloadIcon className="w-4 h-4" /> Export
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -528,7 +483,7 @@ function IncidentTable({ incidents, title, showPagination, page = 1, totalPages 
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100">
-              {['Case ID', 'Coach', 'Line', 'Date/Time', 'Type', 'Status', 'Operator'].map(h => (
+              {['Incident ID', 'Coach', 'Line', 'Date/Time', 'Type', 'Status'].map(h => (
                 <th
                   key={h}
                   className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide"
@@ -563,7 +518,7 @@ function IncidentTable({ incidents, title, showPagination, page = 1, totalPages 
                       {inc.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-xs" style={{ color: '#4A5568' }}>{inc.handledBy}</td>
+
                 </tr>
               );
             })}
