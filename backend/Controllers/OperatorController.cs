@@ -62,6 +62,11 @@ namespace backend.Controllers
             // Helper to resolve lineId for an incident
             string? ResolveLineId(Incident inc)
             {
+                // Prioritize direct fields
+                if (inc.Detection?.LineId != null) return inc.Detection.LineId;
+                if (inc.UserReport?.LineId != null) return inc.UserReport.LineId;
+
+                // Fallback to train-asset link
                 if (inc.Source == IncidentSource.AI_DETECTION && inc.Detection?.Camera?.TrainCoach?.TrainAsset != null)
                     return inc.Detection.Camera.TrainCoach.TrainAsset.LineId;
                 if (inc.UserReport?.TrainCoach?.TrainAsset != null)
@@ -95,7 +100,7 @@ namespace backend.Controllers
                 lineSummary.Add(new
                 {
                     name = line.LineName,
-                    value = lineIncidents.Count
+                    value = lineIncidents.Count(i => i.Status == IncidentStatus.Resolved)
                 });
             }
 
@@ -292,7 +297,16 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.TrainCoach)
                         .ThenInclude(tc => tc!.TrainAsset)
+                .Include(i => i.Detection)
+                    .ThenInclude(d => d!.LineStation)
+                        .ThenInclude(ls => ls!.Station)
+                .Include(i => i.UserReport)
+                    .ThenInclude(r => r!.TrainCoach)
+                        .ThenInclude(tc => tc!.TrainAsset)
                             .ThenInclude(ta => ta.TrainLine)
+                .Include(i => i.UserReport)
+                    .ThenInclude(r => r!.LineStation)
+                        .ThenInclude(ls => ls!.Station)
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.User)
                 .OrderByDescending(i => i.CreatedAt)
@@ -307,26 +321,31 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
                 decimal? confidence = null;
                 string source;
 
-                if (inc.Source == IncidentSource.AI_DETECTION && inc.Detection?.Camera != null)
+                if (inc.Source == IncidentSource.AI_DETECTION && inc.Detection != null)
                 {
                     source = "ai";
                     confidence = inc.Detection.ConfidenceScore;
-                    coachId  = inc.Detection.Camera.CoachId;
-                    lineName = inc.Detection.Camera.TrainCoach?.TrainAsset?.TrainLine?.LineName;
-                    lineId   = inc.Detection.Camera.TrainCoach?.TrainAsset?.TrainLine?.LineId;
+                    coachId  = inc.Detection.Camera?.CoachId;
+                    lineName = inc.Detection.LineStation?.TrainLine?.LineName 
+                             ?? inc.Detection.Camera?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
+                    lineId   = inc.Detection.LineId 
+                             ?? inc.Detection.Camera?.TrainCoach?.TrainAsset?.TrainLine?.LineId;
                 }
                 else
                 {
                     source = "passenger";
                     coachId  = inc.UserReport?.CoachId;
-                    lineName = inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
-                    lineId   = inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineId;
+                    lineName = inc.UserReport?.LineStation?.TrainLine?.LineName 
+                             ?? inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
+                    lineId   = inc.UserReport?.LineId 
+                             ?? inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineId;
                 }
 
                 // Resolve station in-memory
-                var stationName = lineStations
-                    .FirstOrDefault(ls => ls.LineId == lineId)
-                    ?.Station?.StationName ?? "Unknown";
+                var stationName = inc.Detection?.LineStation?.Station?.StationName 
+                                ?? inc.UserReport?.LineStation?.Station?.StationName
+                                ?? lineStations.FirstOrDefault(ls => ls.LineId == lineId)?.Station?.StationName 
+                                ?? "Unknown";
 
                 return new
                 {
@@ -391,10 +410,22 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
                         .ThenInclude(c => c!.TrainCoach)
                             .ThenInclude(tc => tc.TrainAsset)
                                 .ThenInclude(ta => ta.TrainLine)
+                .Include(i => i.Detection)
+                    .ThenInclude(d => d!.LineStation)
+                        .ThenInclude(ls => ls!.TrainLine)
+                .Include(i => i.Detection)
+                    .ThenInclude(d => d!.LineStation)
+                        .ThenInclude(ls => ls!.Station)
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.TrainCoach)
                         .ThenInclude(tc => tc!.TrainAsset)
                             .ThenInclude(ta => ta.TrainLine)
+                .Include(i => i.UserReport)
+                    .ThenInclude(r => r!.LineStation)
+                        .ThenInclude(ls => ls!.TrainLine)
+                .Include(i => i.UserReport)
+                    .ThenInclude(r => r!.LineStation)
+                        .ThenInclude(ls => ls!.Station)
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.User)
                 .OrderByDescending(i => i.CreatedAt)
@@ -409,27 +440,36 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
                 decimal? confidence = null;
                 string source;
 
-                if (inc.Source == IncidentSource.AI_DETECTION && inc.Detection?.Camera != null)
+                if (inc.Source == IncidentSource.AI_DETECTION && inc.Detection != null)
                 {
                     source     = "ai";
                     confidence = inc.Detection.ConfidenceScore;
                     deviceId   = inc.Detection.CameraId;
-                    coachId    = inc.Detection.Camera.CoachId;
-                    lineName   = inc.Detection.Camera.TrainCoach?.TrainAsset?.TrainLine?.LineName;
-                    lineId     = inc.Detection.Camera.TrainCoach?.TrainAsset?.TrainLine?.LineId;
+                    coachId    = inc.Detection.Camera?.CoachId;
+                    lineName   = inc.Detection.LineStation?.TrainLine?.LineName 
+                                 ?? inc.Detection.Camera?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
+                    lineId     = inc.Detection.LineId 
+                                 ?? inc.Detection.Camera?.TrainCoach?.TrainAsset?.TrainLine?.LineId;
+                }
+                else if (inc.UserReport != null)
+                {
+                    source     = "passenger";
+                    coachId    = inc.UserReport.CoachId;
+                    lineName   = inc.UserReport.LineStation?.TrainLine?.LineName 
+                                 ?? inc.UserReport.TrainCoach?.TrainAsset?.TrainLine?.LineName;
+                    lineId     = inc.UserReport.LineId 
+                                 ?? inc.UserReport.TrainCoach?.TrainAsset?.TrainLine?.LineId;
                 }
                 else
                 {
-                    source     = "passenger";
-                    coachId    = inc.UserReport?.CoachId;
-                    lineName   = inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
-                    lineId     = inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineId;
+                    source = "unknown";
                 }
 
                 // Resolve station in-memory
-                var stationName = lineStations
-                    .FirstOrDefault(ls => ls.LineId == lineId)
-                    ?.Station?.StationName ?? "Unknown";
+                var stationName = inc.Detection?.LineStation?.Station?.StationName 
+                                ?? inc.UserReport?.LineStation?.Station?.StationName
+                                ?? lineStations.FirstOrDefault(ls => ls.LineId == lineId)?.Station?.StationName 
+                                ?? "Unknown";
 
                 // Pass status through exactly as stored (lowercase snake_case)
                 var mappedStatus = inc.Status.ToString().ToLower() switch
@@ -562,6 +602,13 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
             // ── Helper: resolve line name + lineId per incident ───────────────
             (string lineId, string lineName) ResolveLineInfo(Incident inc)
             {
+                // Direct fields
+                if (inc.Detection?.LineStation?.TrainLine != null)
+                    return (inc.Detection.LineId!, inc.Detection.LineStation.TrainLine.LineName);
+                if (inc.UserReport?.LineStation?.TrainLine != null)
+                    return (inc.UserReport.LineId!, inc.UserReport.LineStation.TrainLine.LineName);
+
+                // Fallback
                 if (inc.Source == IncidentSource.AI_DETECTION && inc.Detection?.Camera?.TrainCoach?.TrainAsset?.TrainLine != null)
                     return (inc.Detection.Camera.TrainCoach.TrainAsset.TrainLine.LineId,
                             inc.Detection.Camera.TrainCoach.TrainAsset.TrainLine.LineName);

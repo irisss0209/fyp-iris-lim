@@ -30,7 +30,7 @@ namespace backend.Controllers
             {
                 try
                 {
-                    var query =  $"{station.StationName} lrt station Malaysia";;
+                    var query =  $"{station.StationName} lrt station Malaysia";
 
                     var url =
                         $"https://maps.googleapis.com/maps/api/geocode/json?address={Uri.EscapeDataString(query)}&key={apiKey}";
@@ -68,5 +68,47 @@ namespace backend.Controllers
 
             return Ok("Geocoding completed");
         }
+
+        [HttpGet("stations/nearby")]
+        public async Task<IActionResult> GetNearbyStations([FromQuery] double lat, [FromQuery] double lng, [FromQuery] int count = 3)
+        {
+            var stations = await _context.Stations
+                .Include(s => s.LineStations)
+                    .ThenInclude(ls => ls.TrainLine)
+                .Where(s => s.Latitude != null && s.Longitude != null)
+                .ToListAsync();
+
+            var nearby = stations
+                .Select(s => new
+                {
+                    stationId = s.StationId,
+                    stationName = s.StationName,
+                    distance = CalculateDistance(lat, lng, s.Latitude!.Value, s.Longitude!.Value),
+                    lines = s.LineStations.Select(ls => new { 
+                        id = ls.LineId, 
+                        name = ls.TrainLine.LineName 
+                    }).ToList()
+                })
+                .OrderBy(s => s.distance)
+                .Take(count)
+                .ToList();
+
+            return Ok(nearby);
+        }
+
+        // Haversine formula to calculate distance in KM
+        private double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
+        {
+            var R = 6371; // Earth radius in km
+            var dLat = ToRadians(lat2 - lat1);
+            var dLon = ToRadians(lon2 - lon1);
+            var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                    Math.Cos(ToRadians(lat1)) * Math.Cos(ToRadians(lat2)) *
+                    Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+            var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+            return R * c;
+        }
+
+        private double ToRadians(double angle) => Math.PI * angle / 180.0;
     }
 }

@@ -111,10 +111,22 @@ public async Task<IActionResult> GetAuxiliaryShift([FromQuery] string userId)
                         .ThenInclude(c => c!.TrainCoach)
                             .ThenInclude(tc => tc!.TrainAsset)
                                 .ThenInclude(ta => ta.TrainLine)
+                .Include(i => i.Detection)
+                    .ThenInclude(d => d!.LineStation)
+                        .ThenInclude(ls => ls!.TrainLine)
+                .Include(i => i.Detection)
+                    .ThenInclude(d => d!.LineStation)
+                        .ThenInclude(ls => ls!.Station)
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.TrainCoach)
                         .ThenInclude(tc => tc!.TrainAsset)
                             .ThenInclude(ta => ta.TrainLine)
+                .Include(i => i.UserReport)
+                    .ThenInclude(r => r!.LineStation)
+                        .ThenInclude(ls => ls!.TrainLine)
+                .Include(i => i.UserReport)
+                    .ThenInclude(r => r!.LineStation)
+                        .ThenInclude(ls => ls!.Station)
                 .OrderByDescending(i => i.CreatedAt)
                 .Take(50)
                 .ToListAsync();
@@ -131,21 +143,29 @@ public async Task<IActionResult> GetAuxiliaryShift([FromQuery] string userId)
                 decimal? confidence = null;
                 string source;
 
-                if (inc.Source == IncidentSource.AI_DETECTION && inc.Detection?.Camera != null)
+                if (inc.Source == IncidentSource.AI_DETECTION && inc.Detection != null)
                 {
                     source     = "ai";
                     confidence = inc.Detection.ConfidenceScore;
                     deviceId   = inc.Detection.CameraId;
-                    coachId    = inc.Detection.Camera.CoachId;
-                    lineName   = inc.Detection.Camera.TrainCoach?.TrainAsset?.TrainLine?.LineName;
-                    lineId     = inc.Detection.Camera.TrainCoach?.TrainAsset?.TrainLine?.LineId;
+                    coachId    = inc.Detection.Camera?.CoachId;
+                    lineName   = inc.Detection.LineStation?.TrainLine?.LineName 
+                                 ?? inc.Detection.Camera?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
+                    lineId     = inc.Detection.LineId 
+                                 ?? inc.Detection.Camera?.TrainCoach?.TrainAsset?.TrainLine?.LineId;
+                }
+                else if (inc.UserReport != null)
+                {
+                    source     = "passenger";
+                    coachId    = inc.UserReport.CoachId;
+                    lineName   = inc.UserReport.LineStation?.TrainLine?.LineName 
+                                 ?? inc.UserReport.TrainCoach?.TrainAsset?.TrainLine?.LineName;
+                    lineId     = inc.UserReport.LineId 
+                                 ?? inc.UserReport.TrainCoach?.TrainAsset?.TrainLine?.LineId;
                 }
                 else
                 {
-                    source     = "passenger";
-                    coachId    = inc.UserReport?.CoachId;
-                    lineName   = inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
-                    lineId     = inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineId;
+                    source = "unknown";
                 }
 
                 // Map "en_route" correctly
@@ -164,7 +184,9 @@ public async Task<IActionResult> GetAuxiliaryShift([FromQuery] string userId)
                     deviceId,
                     line       = lineName   ?? "—",
                     lineId     = lineId  ,
-                    station    = stationName,
+                    station    = inc.Detection?.LineStation?.Station?.StationName 
+                                 ?? inc.UserReport?.LineStation?.Station?.StationName 
+                                 ?? stationName,
                     platform   = "—",
                     time       = inc.CreatedAt.ToString("HH:mm"),
                     date       = inc.CreatedAt.ToString("yyyy-MM-dd"),
@@ -261,6 +283,12 @@ elapsed = Math.Max(1, (int)(now - inc.CreatedAt).TotalMinutes),
                     .ThenInclude(d => d!.Camera)
                         .ThenInclude(c => c!.TrainCoach)
                             .ThenInclude(tc => tc!.TrainAsset)
+                .Include(i => i.Detection)
+                    .ThenInclude(d => d!.LineStation)
+                        .ThenInclude(ls => ls!.Station)
+                .Include(i => i.UserReport)
+                    .ThenInclude(r => r!.LineStation)
+                        .ThenInclude(ls => ls!.Station)
                 .Include(i => i.UserReport)
                 .Where(i =>
                     i.EnrouteBy == userId ||
@@ -279,18 +307,29 @@ elapsed = Math.Max(1, (int)(now - inc.CreatedAt).TotalMinutes),
             var history = incidentsList.Select(i =>
             {
                 string? lineId = null;
-                if (i.Source == IncidentSource.AI_DETECTION && i.Detection?.Camera?.TrainCoach?.TrainAsset != null)
+                if (i.Detection?.LineId != null)
+                {
+                    lineId = i.Detection.LineId;
+                }
+                else if (i.UserReport?.LineId != null)
+                {
+                    lineId = i.UserReport.LineId;
+                }
+                else if (i.Source == IncidentSource.AI_DETECTION && i.Detection?.Camera?.TrainCoach?.TrainAsset != null)
                 {
                     lineId = i.Detection.Camera.TrainCoach.TrainAsset.LineId;
                 }
                 
-                var stationName = lineStations.FirstOrDefault(ls => ls.LineId == lineId)?.Station?.StationName ?? "Unknown Station";
+                var resolvedStationName = i.Detection?.LineStation?.Station?.StationName 
+                                          ?? i.UserReport?.LineStation?.Station?.StationName
+                                          ?? lineStations.FirstOrDefault(ls => ls.LineId == lineId)?.Station?.StationName 
+                                          ?? "Unknown Station";
 
                 return new
                 {
                     id = i.IncidentId.ToString(),
                     caseId = $"INC-{i.IncidentId:D4}",
-                    station = stationName,
+                    station = resolvedStationName,
                     line = "—",
                     datetime = i.CreatedAt.ToString("dd MMM yyyy, HH:mm"),
                     outcome = i.Status == IncidentStatus.Resolved  ? "Resolved"  :

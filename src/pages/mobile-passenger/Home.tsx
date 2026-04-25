@@ -1,177 +1,214 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { detectNearbyLines } from '../../utils/location';
+
 import {
-  BarChart2Icon,
-  TrendingUpIcon,
+  AlertTriangleIcon,
+  MapPinIcon,
+  ChevronRightIcon,
   ShieldCheckIcon,
-  ClockIcon,
+  InfoIcon,
+  Loader2,
+  XCircleIcon
 } from 'lucide-react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from 'recharts';
 
-const ACCENT = '#0B4F6C';
-const RED = '#D34026';
-
-const LINES = ['All Lines', 'LRT Kelana Jaya', 'KTM Komuter', 'MRT Putrajaya', 'MRT Kajang'];
-
-export function Home() {
-  const [lineFilter, setLineFilter] = useState('All Lines');
-  const [trendDataMap, setTrendDataMap] = useState<Record<string, { day: string; count: number }[]>>({});
-  const [lineSummary, setLineSummary] = useState<any[]>([]);
-  const [recentReports, setRecentReports] = useState<any[]>([]);
-
-  useEffect(() => {
-    fetch('http://localhost:5293/api/data/home-stats')
-      .then(res => res.json())
-      .then(data => {
-        setTrendDataMap(data.trendData || {});
-        setLineSummary(data.lineSummary || []);
-        setRecentReports(data.recentReports || []);
-      })
-      .catch(err => {
-        console.error('Failed to fetch home stats', err);
-      });
-  }, []);
-
-
-
-function StatCard({ label, value, sub, color }: { label: string; value: string | number; sub: string; color: string }) {
-  return (
-    <div className="bg-white rounded-2xl p-4 flex-1 shadow-sm border border-gray-100">
-      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
-      <p className="text-2xl font-bold" style={{ color }}>{value}</p>
-      <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
-    </div>
-  );
+interface HomeProps {
+  onNavigate: (tab: any) => void;
 }
 
-  const data = trendDataMap[lineFilter] || [];
-  const total = data.reduce((s: any, d: any) => s + d.count, 0);
-  const peak = Math.max(...data.map(d => d.count));
-  const peakDay = data.find(d => d.count === peak)?.day ?? '-';
+export function Home({ onNavigate }: HomeProps) {
+  const [incidents, setIncidents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedLine, setSelectedLine] = useState('All Lines');
+  const [lines, setLines] = useState<string[]>(['All Lines']);
+
+  const [showLinePicker, setShowLinePicker] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+
+  const handleDetectLocation = () => {
+    if (selectedLine !== 'All Lines') {
+      setSelectedLine('All Lines');
+      return;
+    }
+
+    detectNearbyLines(
+      setIsLocating,
+      (foundLines) => {
+        if (foundLines.length > 0) {
+          setSelectedLine(foundLines[0]);
+        }
+      },
+      (msg) => alert(msg)
+    );
+  };
+
+  useEffect(() => {
+    fetch('http://localhost:5293/api/data/incident-near-me')
+      .then(res => res.json())
+      .then(data => {
+        setIncidents(data || []);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to fetch incidents', err);
+        setLoading(false);
+      });
+
+    fetch('http://localhost:5293/api/data/lines')
+      .then(res => res.json())
+      .then(data => {
+        const names = data.map((l: any) => l.lineName);
+        setLines(['All Lines', ...names]);
+      })
+      .catch(console.error);
+  }, []);
+
+  const filteredIncidents = selectedLine === 'All Lines'
+    ? incidents
+    : incidents.filter(i => i.line === selectedLine);
+
+  const activeIncident = filteredIncidents.find(i => i.status === 'Verified') || filteredIncidents[0];
 
   return (
-    <motion.div
-      key="trends"
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ duration: 0.2 }}
-      className="px-4 pt-5 pb-6 space-y-4"
+    <div
+
+      className="px-5 pt-0 pb-10 space-y-2"
     >
-      {/* Header row */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-bold text-gray-900">Violation Trends</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Last 7 days</p>
+      {/* ── 1. DASHBOARD: Curved Header Container ── */}
+      <div
+        className={`relative -mx-5 px-5 pt-5 pb-12 rounded-b-[300px] ${activeIncident ? 'bg-red-100' : 'bg-[#0B4F6C]/10'
+          } z-30 flex flex-col items-center shadow-sm mb-6`}
+      >
+        <div className="w-full max-w- flex flex-col items-center space-y-2">
+          {/* 1.1 Integrated Control Row */}
+          <div className={`relative w-full bg-[#FAF9F5]/100 backdrop-blur-md border border-[#FAF9F5]/40 transition-all  ${showLinePicker ? 'rounded-t-[8px] rounded-b-none' : 'rounded-[28px]'
+            }`}>
+            <div className="flex items-center gap-2 p-1">
+              {/* Action 1: Detect Location (Clean Transparent Style) */}
+              <button
+                onClick={handleDetectLocation}
+                disabled={isLocating}
+                className={`relative w-16 h-20 rounded-[32px] flex-shrink-0 flex flex-col items-center justify-center transition-all duration-300 ${isLocating ? 'text-gray-400' : 'text-[#0B4F6C] active:scale-90'} border-r border-white/20`}
+              >
+                <div className="relative z-10 flex flex-col items-center gap-2">
+                  <div className="relative">
+                    {isLocating ? (
+                      <Loader2 className="animate-spin" size={22} />
+                    ) : (
+                      <MapPinIcon size={22} />
+                    )}
+                  </div>
+                  <span className={`text-[10px] font-black uppercase tracking-[0.1em] ${isLocating ? 'text-gray-400' : 'text-[#0B4F6C]'}`}>
+                    {selectedLine === 'All Lines' ? 'All' : 'Near Me'}
+                  </span>
+                </div>
+              </button>
+
+              {/* Action 2: Line Trigger */}
+              <button
+                onClick={() => setShowLinePicker(!showLinePicker)}
+                className="flex-grow flex flex-col items-start text-left pl-3 pr-4 py-2 rounded-2xl hover:bg-white/10 active:scale-[0.98] transition-all"
+              >
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest leading-none mb-1.5">Showing results for</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-black text-gray-900 leading-none">{selectedLine}</span>
+                  <ChevronRightIcon size={14} className={`text-gray-400 transition-transform duration-300 ${showLinePicker ? 'rotate-90' : ''}`} />
+                </div>
+              </button>
+            </div>
+
+            {/* Floating Dropdown (Full-Width, Connected Style) */}
+            {showLinePicker && (
+              <div className="absolute top-[calc(100%-1px)] left-[-1px] right-[-1px] bg-[#FAF9F5]  rounded-b-[28px] border-x border-b border-white/20 shadow-2xl z-[100] overflow-hidden">
+                <div className="p-2 max-h-[280px] overflow-y-auto">
+                  {lines.map(l => (
+                    <button
+                      key={l}
+                      onClick={() => { setSelectedLine(l); setShowLinePicker(false); }}
+                      className={`w-full px-5 py-3.5 text-left text-sm font-bold transition-all flex items-center justify-between rounded-xl mb-1 last:mb-0 ${selectedLine === l ? 'text-[#0B4F6C] bg-[#0B4F6C]/10' : 'text-gray-700 hover:bg-gray-50'}`}
+                    >
+                      {l}
+                      {selectedLine === l && <div className="w-1.5 h-1.5 rounded-full bg-[#0B4F6C]" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 1.2 Status Display */}
+          <div className="flex flex-col items-center justify-center text-center py-1">
+            <h2 className={`text-[100px] font-black  ${activeIncident ? 'text-red-600' : 'text-[#0B4F6C]'}`}>
+              {filteredIncidents.length}
+            </h2>
+            <p className={`text-[15px] font-black uppercase tracking-[0.2em] ${activeIncident ? 'text-red-600' : 'text-[#0B4F6C]/40'}`}>
+              {filteredIncidents.length === 1 ? 'Active Report' : 'Active Reports'}
+            </p>
+          </div>
         </div>
-        <select
-          value={lineFilter}
-          onChange={e => setLineFilter(e.target.value)}
-          className="text-xs bg-gray-50 border border-gray-200 text-gray-700 py-1.5 px-2.5 rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/30"
+      </div>
+
+      {/* ── 2. ACTIONS: Main Content Area ── */}
+      <div className="space-y-4">
+        {/*
+        <button
+          onClick={() => onNavigate('incident')}
+          className={`w-full py-5 px-8 rounded-3xl flex items-center justify-between transition-all group ${activeIncident ? 'bg-white border-red-100' : 'bg-white border-[#0B4F6C]/20'} border shadow-sm active:scale-[0.98]`}
         >
-          {LINES.map(l => <option key={l}>{l}</option>)}
-        </select>
-      </div>
-
-      {/* Stat cards */}
-      <div className="flex gap-3">
-        <StatCard label="This Week" value={total} sub="incidents" color={ACCENT} />
-        <StatCard label="Peak Day" value={peakDay} sub={`${peak} incidents`} color={RED} />
-      </div>
-
-      {/* Bar chart */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#EBF4F8' }}>
-            <BarChart2Icon size={14} style={{ color: ACCENT }} />
+          <div className="flex flex-col items-start text-left">
+            <span className={`text-[10px] font-black uppercase tracking-widest ${activeIncident ? 'text-red-600' : 'text-[#0B4F6C]'}`}>
+              View Safety Details
+            </span>
+            <span className="text-[10px] font-medium text-gray-400">
+              {activeIncident ? `Tracking at ${activeIncident.stationName}` : "Monitoring all local lines"}
+            </span>
           </div>
-          <span className="text-sm font-semibold text-gray-800">Daily Breakdown</span>
-        </div>
-        <div className="h-[200px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 4, right: 0, left: -28, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-              <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} dy={6} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} />
-              <Tooltip
-                cursor={{ fill: '#F3F4F6', radius: 6 } as React.SVGProps<SVGRectElement> & { radius?: number }}
-                contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 12px rgb(0 0 0 / 0.08)', fontSize: 12 }}
-              />
-              <Bar dataKey="count" name="Incidents" radius={[5, 5, 0, 0]}>
-                {data.map((entry, i) => (
-                  <Cell key={i} fill={entry.day === 'Sat' || entry.day === 'Sun' ? RED : ACCENT} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="flex items-center gap-2 mt-3 bg-orange-50 border border-orange-100 rounded-xl px-3 py-2">
-          <TrendingUpIcon size={13} className="text-orange-500 flex-shrink-0" />
-          <p className="text-xs text-orange-700 font-medium">Violations peak on weekends — extra patrols are deployed.</p>
-        </div>
-      </div>
-
-      {/* Per-line summary */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#EBF4F8' }}>
-            <ShieldCheckIcon size={14} style={{ color: ACCENT }} />
+          <div className={`p-1.5 rounded-lg transition-transform group-hover:translate-x-1 ${activeIncident ? 'bg-red-100 text-red-600' : 'bg-[#0B4F6C]/10 text-[#0B4F6C]'}`}>
+            <ChevronRightIcon size={14} />
           </div>
-          <span className="text-sm font-semibold text-gray-800">By Line (weekly total)</span>
-        </div>
-        <div className="space-y-2.5">
-          {lineSummary.map((line: any) => (
-            <div key={line.name}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium text-gray-600">{line.name}</span>
-                <span className="text-xs font-semibold" style={{ color: line.color }}>
-                  {line.value} <span className="text-gray-400 font-normal">({line.pct})</span>
-                </span>
-              </div>
-              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{ width: `${line.value}%`, backgroundColor: line.color }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Recent reports */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#EBF4F8' }}>
-            <ClockIcon size={14} style={{ color: ACCENT }} />
-          </div>
-          <span className="text-sm font-semibold text-gray-800">Recent Reports</span>
-        </div>
-        {recentReports.map((r: any) => (
-          <div key={r.id} className="flex items-center justify-between py-2.5 border-b border-gray-50 last:border-0">
+        </button>
+*/}
+        {/* 2.2 Report Incident */}
+        <button
+          onClick={() => onNavigate('report')}
+          className="w-full rounded-[24px] p-5 text-left active:scale-[0.98] transition-transform shadow-sm"
+          style={{ backgroundColor: '#ad1a1a' }}
+        >
+          <div className="flex items-center gap-4 text-[#FAF9F5]">
+            <AlertTriangleIcon size={32} strokeWidth={2.5} />
             <div>
-              <p className="text-xs font-semibold text-gray-800">{r.type}</p>
-              <p className="text-xs text-gray-400">{r.line} · {r.time}</p>
+              <p className="text-sm font-black leading-none">Report Misuse of WOCs</p>
+              <p className="text-xs font-bold text-white/80 mt-1.5 tracking-widest">For immediate assistance</p>
             </div>
-            <div className="flex items-center">
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                r.status === 'Verified' ? 'bg-green-50 text-green-600' :
-                r.status === 'Pending' ? 'bg-yellow-50 text-yellow-600' :
-                'bg-gray-50 text-gray-400'
-              }`}>{r.status}</span>
+            <ChevronRightIcon size={24} className="text-white/60 ml-auto" />
+          </div>
+        </button>
+
+        {/* 2.3 Safety Guidance */}
+        <section
+          onClick={() => window.location.href = "tel:999"}
+          className="bg-[#0B4F6C]/5 rounded-[32px] p-6 border border-[#0B4F6C]/10 cursor-pointer active:scale-[0.98] transition-transform"
+        >
+          <div className="flex gap-4">
+            <div className="w-10 h-10 rounded-2xl bg-[#0B4F6C]/10 flex items-center justify-center text-[#0B4F6C] flex-shrink-0">
+              <InfoIcon size={20} />
+            </div>
+
+            <div className="text-left">
+              <h4 className="text-sm font-black text-[#0B4F6C] mb-1">
+                Emergency Assistance
+              </h4>
+
+              <p className="text-[12px] text-[#0B4F6C]/70 font-medium leading-relaxed">
+                If you feel your life is in immediate risk, please call 999.
+              </p>
+
+              <p className="text-[12px] text-[#0B4F6C]/60 underline mt-1 uppercase tracking-wide">
+                Tap to call emergency services
+              </p>
             </div>
           </div>
-        ))}
+        </section>
       </div>
-    </motion.div>
+    </div>
   );
 }

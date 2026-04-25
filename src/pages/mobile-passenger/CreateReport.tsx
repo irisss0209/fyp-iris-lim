@@ -4,8 +4,12 @@ import {
   CheckCircleIcon,
   CameraIcon,
   XIcon,
-  ArrowLeftIcon
+  ArrowLeftIcon,
+  MapPinIcon,
+  Loader2
 } from 'lucide-react';
+
+import { detectNearbyStations } from '../../utils/location';
 
 function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
@@ -19,20 +23,46 @@ function FieldLabel({ children, required }: { children: React.ReactNode; require
 export function CreateReport({ session, onBack }: { session: any, onBack: () => void }) {
   const [step, setStep] = useState<'form' | 'sent' | 'sending'>('form');
   const [line, setLine] = useState('');
+  const [station, setStation] = useState('');
   const [coach, setCoach] = useState('');
   const [type, setType] = useState('');
   const [desc, setDesc] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isLocating, setIsLocating] = useState(false);
+  const [nearbyStations, setNearbyStations] = useState<any[]>([]);
+  const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
 
   const [linesData, setLinesData] = useState<any[]>([]);
+  const [stationsData, setStationsData] = useState<any[]>([]);
+
+  const handleDetectLocation = () => {
+    setNearbyStations([]);
+    detectNearbyStations(
+      setIsLocating,
+      (data) => setNearbyStations(data),
+      (msg) => alert(msg)
+    );
+  };
 
   useEffect(() => {
     fetch('http://localhost:5293/api/data/lines')
       .then(res => res.json())
-      .then(data => setLinesData(data))
-      .catch(err => console.error('Failed to fetch lines', err));
+      .then(setLinesData)
+      .catch(console.error);
   }, []);
+
+  useEffect(() => {
+    if (selectedLineId) {
+      fetch(`http://localhost:5293/api/data/stations-by-line/${selectedLineId}`)
+        .then(res => res.json())
+        .then(setStationsData)
+        .catch(console.error);
+    } else {
+      setStationsData([]);
+    }
+  }, [selectedLineId]);
 
   const selectedLineData = linesData.find(l => l.lineName === line);
   const availableCoaches = selectedLineData?.coaches || [];
@@ -44,12 +74,13 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
     } text-gray-800 font-medium`;
 
   const validate = () => {
-    const e: Record<string, string> = {};
-    if (!line) e.line = 'Please select a train line.';
-    if (!coach) e.coach = 'Please select a coach.';
-    if (!desc.trim()) e.desc = 'Please describe the incident.';
-    setErrors(e);
-    return Object.keys(e).length === 0;
+    const newErrors: Record<string, string> = {};
+    if (!line) newErrors.line = 'Please select a line';
+    if (!station) newErrors.station = 'Please select a station';
+    if (!coach) newErrors.coach = 'Please enter coach ID (or "Unknown")';
+    if (!desc) newErrors.desc = 'Please describe what is happening';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async () => {
@@ -62,9 +93,12 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           line,
+          station,
           coach,
           type,
-          desc
+          desc,
+          lineId: selectedLineId,
+          stationId: selectedStationId
         })
       });
 
@@ -124,13 +158,59 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
         >
           <ArrowLeftIcon size={18} />
         </button>
-        <div>
+        <div className="flex-1">
           <h2 className="text-base font-bold text-gray-900">Report a Violation</h2>
           <p className="text-xs text-gray-400 mt-0.5">
             Fields marked with <span className="text-red-400">*</span> are required
           </p>
         </div>
+        <button
+          onClick={handleDetectLocation}
+          disabled={isLocating}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EBF4F8] text-[#0B4F6C] text-xs font-bold transition-all active:scale-95 disabled:opacity-50"
+        >
+          {isLocating ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <MapPinIcon size={14} />
+          )}
+          {isLocating ? 'Locating...' : 'Near Me'}
+        </button>
       </div>
+
+      {nearbyStations.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-[#EBF4F8] border border-[#0B4F6C]/10 rounded-2xl p-3.5"
+        >
+          <p className="text-[10px] font-bold text-[#0B4F6C] uppercase tracking-wider mb-2">Closest Stations</p>
+          <div className="flex flex-wrap gap-2">
+            {nearbyStations.map((s) => (
+              <button
+                key={s.stationId}
+                onClick={() => {
+                  if (s.lines && s.lines.length > 0) {
+                    const firstLine = s.lines[0];
+                    setLine(firstLine.name);
+                    setStation(s.stationName);
+                    setCoach('');
+                    setErrors(v => ({ ...v, line: '', station: '' }));
+                    
+                    // NEW: Track the specific station and line IDs
+                    setSelectedStationId(s.stationId);
+                    setSelectedLineId(firstLine.id);
+                  }
+                }}
+                className="bg-white border border-[#0B4F6C]/20 px-3 py-1.5 rounded-xl text-xs font-semibold text-[#0B4F6C] shadow-sm active:bg-[#0B4F6C] active:text-white transition-colors"
+              >
+                {s.stationName} <span className="text-[10px] font-normal opacity-60">({(s.distance).toFixed(1)}km)</span>
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-[#0B4F6C]/60 mt-2 italic">Tap to select the train line for this station.</p>
+        </motion.div>
+      )}
 
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
 
@@ -139,14 +219,39 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
           <FieldLabel required>Train Line</FieldLabel>
           <select
             value={line}
-            onChange={e => { setLine(e.target.value); setCoach(''); setErrors(v => ({ ...v, line: '' })); }}
+            onChange={e => { 
+              setLine(e.target.value); 
+              setCoach(''); 
+              setErrors(v => ({ ...v, line: '' }));
+              // Reset nearby IDs if manually choosing
+              setSelectedStationId(null);
+              setSelectedLineId(linesData.find(l => l.lineName === e.target.value)?.lineId || null);
+            }}
             className={inputClass('line')}
             disabled={linesData.length === 0}
           >
-            <option value="">{linesData.length === 0 ? 'Loading lines...' : 'Select line…'}</option>
+            <option value="">Select line</option>
             {linesData.map(l => <option key={l.lineId} value={l.lineName}>{l.lineName}</option>)}
           </select>
-          {errors.line && <p className="text-xs text-red-500 mt-1">{errors.line}</p>}
+          {errors.line && <p className="text-[10px] text-red-500 mt-1 font-medium">{errors.line}</p>}
+        </div>
+
+        <div>
+          <FieldLabel required>Station</FieldLabel>
+          <select
+            value={station}
+            onChange={e => {
+              setStation(e.target.value);
+              setErrors(v => ({ ...v, station: '' }));
+              setSelectedStationId(stationsData.find(s => s.stationName === e.target.value)?.stationId || null);
+            }}
+            className={inputClass('station')}
+            disabled={!line || stationsData.length === 0}
+          >
+            <option value="">Select station</option>
+            {stationsData.map(s => <option key={s.stationId} value={s.stationName}>{s.stationName}</option>)}
+          </select>
+          {errors.station && <p className="text-[10px] text-red-500 mt-1 font-medium">{errors.station}</p>}
         </div>
 
         {/* Coach */}

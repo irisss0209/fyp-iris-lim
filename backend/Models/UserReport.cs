@@ -30,12 +30,23 @@ namespace backend.Models
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        [Column("line_id")]
+        [MaxLength(50)]
+        public string? LineId { get; set; }
+
+        [Column("station_id")]
+        [MaxLength(50)]
+        public string? StationId { get; set; }
+
         // Navigation
         [ForeignKey(nameof(UserId))]
         public User User { get; set; } = null!;
 
         [ForeignKey(nameof(CoachId))]
         public TrainCoach? TrainCoach { get; set; }
+
+        [ForeignKey("LineId, StationId")]
+        public LineStation? LineStation { get; set; }
 
         public Incident? Incident { get; set; }
     }

@@ -37,14 +37,6 @@ export function Profile({ session, onLogout }: { session: UserSession, onLogout:
       })
       .catch(console.error);
   }, []);
-  fetch(`http://localhost:5293/api/data/profile?userId=${session.userId}`)
-    .then(res => res.json())
-    .then(data => {
-      setEmail(data.email);
-      setPhone(data.phone || '');
-      setStats({ reports: data.reports || 0, verified: data.verified || 0 });
-    })
-    .catch(console.error);
 
 
   const [currentPw, setCurrentPw] = useState('');
@@ -52,15 +44,45 @@ export function Profile({ session, onLogout }: { session: UserSession, onLogout:
   const [confirmPw, setConfirmPw] = useState('');
   const [showPw, setShowPw] = useState<Record<string, boolean>>({});
   const [saved, setSaved] = useState('');
+  const [error, setError] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
-  const doSave = (section: string, fn: () => void) => {
-    fn();
-    setSaved(section);
-    setTimeout(() => { setSaved(''); setOpenSection(null); }, 1500);
+  const handleUpdatePassword = async () => {
+    setError('');
+    setIsUpdating(true);
+
+    try {
+      const res = await fetch('http://localhost:5293/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: session.email || email,
+          currentPassword: currentPw,
+          newPassword: newPw
+        })
+      });
+
+      if (res.ok) {
+        setSaved('password');
+        setCurrentPw('');
+        setNewPw('');
+        setConfirmPw('');
+        setTimeout(() => { setSaved(''); setOpenSection(null); }, 2000);
+      } else {
+        const data = await res.json();
+        setError(data.error || 'Failed to update password');
+      }
+    } catch (err) {
+      setError('Network error. Please try again.');
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
-  const toggle = (p: ProfileSection) =>
+  const toggle = (p: ProfileSection) => {
     setOpenSection(prev => (prev === p ? null : p));
+    setError('');
+  };
 
   const inputBase =
     'w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/20 focus:border-[#0B4F6C] text-gray-800 font-medium transition-all';
@@ -175,17 +197,16 @@ export function Profile({ session, onLogout }: { session: UserSession, onLogout:
               {newPw && confirmPw && newPw !== confirmPw && (
                 <p className="text-xs text-red-500">Passwords do not match.</p>
               )}
+              {error && (
+                <p className="text-xs text-red-500 bg-red-50 p-2 rounded-lg border border-red-100">{error}</p>
+              )}
               <button
-                onClick={() =>
-                  doSave('password', () => {
-                    setCurrentPw(''); setNewPw(''); setConfirmPw('');
-                  })
-                }
-                disabled={!currentPw || !newPw || newPw !== confirmPw || newPw.length < 8}
+                onClick={handleUpdatePassword}
+                disabled={isUpdating || !currentPw || !newPw || newPw !== confirmPw || newPw.length < 8}
                 className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50"
                 style={{ backgroundColor: DARKBLUE }}
               >
-                {saved === 'password' ? 'Saved' : 'Update Password'}
+                {isUpdating ? 'Updating...' : saved === 'password' ? 'Saved!' : 'Update Password'}
               </button>
             </motion.div>
           )}
@@ -198,7 +219,7 @@ export function Profile({ session, onLogout }: { session: UserSession, onLogout:
       <button
         onClick={onLogout}
         className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold text-white shadow-lg active:scale-[0.98] transition-all"
-        style={{ background: `linear-gradient(135deg, ${RED} 0%, #E05A3A 100%)` }}
+        style={{ background: ` #ad1a1a` }}
       >
         Sign Out
       </button>

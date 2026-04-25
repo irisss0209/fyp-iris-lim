@@ -79,6 +79,20 @@ namespace backend.Data
             modelBuilder.Entity<Incident>()
                 .ToTable(t => t.HasCheckConstraint("chk_incident_source",
                     "detection_id IS NOT NULL OR report_id IS NOT NULL"));
+
+            // ── Detection: composite FK to Line_Station ─────────────────────────
+            modelBuilder.Entity<Detection>()
+                .HasOne(d => d.LineStation)
+                .WithMany()
+                .HasForeignKey(d => new { d.LineId, d.StationId })
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ── UserReport: composite FK to Line_Station ────────────────────────
+            modelBuilder.Entity<UserReport>()
+                .HasOne(r => r.LineStation)
+                .WithMany()
+                .HasForeignKey(r => new { r.LineId, r.StationId })
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

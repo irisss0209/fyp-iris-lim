@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
-import { AnimatePresence } from 'framer-motion';
-import { BarChart2Icon, AlertTriangleIcon, UserIcon, RadioIcon } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  HomeIcon,
+  AlertTriangleIcon,
+  MapPinIcon,
+  BarChart2Icon,
+  UserIcon
+} from 'lucide-react';
 import { Home } from './Home';
 import { Report } from './PassengerReport';
 import { Profile } from './PassengerProfile';
 import { IncidentNearMe } from './IncidentNearMe';
+import { Insights } from './Insights';
 import { UserSession } from '../../App';
 
 export interface PassengerInterface {
@@ -12,12 +19,13 @@ export interface PassengerInterface {
   onLogout: () => void;
 }
 
-type Tab = 'home' | 'report' | 'incident' | 'profile';
+type Tab = 'home' | 'report' | 'incident' | 'insights' | 'profile';
 
 const TABS: { id: Tab; icon: React.ElementType; label: string }[] = [
-  { id: 'home', icon: BarChart2Icon, label: 'Trends' },
-  { id: 'incident', icon: RadioIcon, label: 'Near Me' },
-  { id: 'report', icon: AlertTriangleIcon, label: 'Report' },
+  { id: 'incident', icon: MapPinIcon, label: 'Nearby' },
+  { id: 'report', icon: AlertTriangleIcon, label: 'Reports' },
+  { id: 'home', icon: HomeIcon, label: 'Home' },
+  { id: 'insights', icon: BarChart2Icon, label: 'Insights' },
   { id: 'profile', icon: UserIcon, label: 'Profile' },
 ];
 
@@ -27,7 +35,8 @@ export function PassengerInterface({ session, onLogout }: PassengerInterface) {
   return (
     <div className="flex flex-col h-full relative w-full sm:max-w-md mx-auto overflow-hidden sm:shadow-2xl sm:rounded-[40px] sm:border-[8px] sm:border-white sm:ring-1 sm:ring-gray-100 min-h-screen sm:min-h-[850px] sm:max-h-[850px]" style={{ backgroundColor: '#FAF9F5' }}>
 
-      {/* ── Top Header ── */}
+      {/* ── Top Header (Commented Out) ── */}
+      {/* 
       <div
         className="flex items-center justify-between px-5 pt-12 pb-4 flex-shrink-0"
         style={{ background: '#FAF9F5' }}
@@ -47,15 +56,16 @@ export function PassengerInterface({ session, onLogout }: PassengerInterface) {
             <p className="text-gray-400 text-xs mt-0.5">For Safer Transit</p>
           </div>
         </div>
-
-      </div>
+      </div> 
+      */}
 
       {/* ── Scrollable Content ── */}
       <div className="flex-1 overflow-y-auto pb-24">
         <AnimatePresence mode="wait">
-          {activeTab === 'home' && <Home key="home" />}
+          {activeTab === 'home' && <Home key="home" onNavigate={setActiveTab} />}
           {activeTab === 'incident' && <IncidentNearMe key="incident" />}
           {activeTab === 'report' && <Report key="report" session={session} />}
+          {activeTab === 'insights' && <Insights key="insights" />}
           {activeTab === 'profile' && <Profile key="profile" session={session} onLogout={onLogout} />}
         </AnimatePresence>
       </div>
@@ -64,17 +74,35 @@ export function PassengerInterface({ session, onLogout }: PassengerInterface) {
       <div className="absolute bottom-0 left-0 right-0 w-full bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] border-t border-gray-100 flex p-1.5 pb-4 sm:pb-1.5 z-20">
         {TABS.map(({ id, icon: Icon, label }) => {
           const active = activeTab === id;
+          const isHome = id === 'home';
+
           return (
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-2xl transition-all duration-200 ${active ? 'text-theme-passenger' : 'text-gray-400 hover:text-gray-600'
-                }`}
+              className={`relative flex-1 flex flex-col items-center justify-center transition-all duration-300 ${isHome ? '-mt-10' : 'py-3'
+                } ${active && !isHome ? 'text-[#0B4F6C]' : 'text-gray-400'}`}
             >
-              <Icon size={24} />
-              <span className="text-[10px] font-bold">
-                {label}
-              </span>
+              {isHome ? (
+                <div className="flex flex-col items-center gap-1.5">
+                  <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-500 shadow-lg ${active
+                    ? 'bg-[#0B4F6C] text-white scale-110 shadow-[#0B4F6C]/30'
+                    : 'bg-white text-gray-400 border border-gray-100'
+                    }`}>
+                    <Icon size={24} strokeWidth={active ? 2.5 : 2} />
+                  </div>
+                  <span className={`text-[10px] font-black uppercase tracking-tighter ${active ? 'text-[#0B4F6C]' : 'text-gray-400'}`}>
+                    {label}
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <Icon size={20} />
+                  <span className="text-[10px] font-bold">
+                    {label}
+                  </span>
+                </>
+              )}
             </button>
           );
         })}

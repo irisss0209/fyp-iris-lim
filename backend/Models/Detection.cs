@@ -25,9 +25,20 @@ namespace backend.Models
         [Column("detected_at")]
         public DateTime DetectedAt { get; set; } = DateTime.UtcNow;
 
+        [Column("line_id")]
+        [MaxLength(50)]
+        public string? LineId { get; set; }
+
+        [Column("station_id")]
+        [MaxLength(50)]
+        public string? StationId { get; set; }
+
         // Navigation
         [ForeignKey(nameof(CameraId))]
         public Camera? Camera { get; set; }
+
+        [ForeignKey("LineId, StationId")]
+        public LineStation? LineStation { get; set; }
 
         public Incident? Incident { get; set; }
     }

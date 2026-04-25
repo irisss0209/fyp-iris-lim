@@ -54,7 +54,9 @@ namespace backend.Controllers
                     UserId = userId,
                     CoachId = (req.Coach?.Trim().Equals("Unknown", StringComparison.OrdinalIgnoreCase) == true) ? null : req.Coach,
                     Description = req.Desc,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    LineId = req.LineId,
+                    StationId = req.StationId
                 };
 
                 _context.UserReports.Add(report);
@@ -119,10 +121,16 @@ namespace backend.Controllers
                         .ThenInclude(c => c!.TrainCoach)
                             .ThenInclude(tc => tc.TrainAsset)
                                 .ThenInclude(ta => ta.TrainLine)
+                .Include(i => i.Detection)
+                    .ThenInclude(d => d!.LineStation)
+                        .ThenInclude(ls => ls!.Station)
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.TrainCoach)
                         .ThenInclude(tc => tc!.TrainAsset)
                             .ThenInclude(ta => ta.TrainLine)
+                .Include(i => i.UserReport)
+                    .ThenInclude(r => r!.LineStation)
+                        .ThenInclude(ls => ls!.Station)
                 .Where(i => i.Status == IncidentStatus.Pending || i.Status == IncidentStatus.Verified || i.Status == IncidentStatus.En_Route || i.Status == IncidentStatus.Escalated)
                 .OrderByDescending(i => i.CreatedAt)
                 .Take(10)
@@ -131,21 +139,26 @@ namespace backend.Controllers
             var result = incidents.Select(inc =>
             {
                 string? lineName = null;
+                string? stationName = null;
                 string? coachId = null;
                 string? type = null;
                 string? imageUrl = null;
 
-                if (inc.Source == IncidentSource.AI_DETECTION && inc.Detection?.Camera != null)
+                if (inc.Source == IncidentSource.AI_DETECTION && inc.Detection != null)
                 {
-                    coachId = inc.Detection.Camera.CoachId;
-                    lineName = inc.Detection.Camera.TrainCoach?.TrainAsset?.TrainLine?.LineName;
+                    coachId = inc.Detection.Camera?.CoachId;
+                    lineName = inc.Detection.LineStation?.TrainLine?.LineName 
+                             ?? inc.Detection.Camera?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
+                    stationName = inc.Detection.LineStation?.Station?.StationName;
                     type = "AI Detection";
                     imageUrl = inc.Detection.ImageUrl;
                 }
                 else if (inc.UserReport != null)
                 {
                     coachId = inc.UserReport.CoachId;
-                    lineName = inc.UserReport.TrainCoach?.TrainAsset?.TrainLine?.LineName;
+                    lineName = inc.UserReport.LineStation?.TrainLine?.LineName 
+                             ?? inc.UserReport.TrainCoach?.TrainAsset?.TrainLine?.LineName;
+                    stationName = inc.UserReport.LineStation?.Station?.StationName;
                     type = inc.UserReport.Description;
                     imageUrl = inc.UserReport.ImageUrl;
                 }
@@ -154,6 +167,7 @@ namespace backend.Controllers
                 {
                     id = inc.IncidentId,
                     line = lineName ?? "Unknown",
+                    station = stationName ?? "On Train",
                     coach = coachId ?? "Unknown",
                     type = type ?? "Man in WOCs",
                     time = inc.CreatedAt.ToString("HH:mm"),
@@ -245,6 +259,23 @@ namespace backend.Controllers
             await _context.SaveChangesAsync();
             return Ok(new { success = true, status = incident.Status.ToString() });
         }
+
+        [HttpGet("stations-by-line/{lineId}")]
+        public async Task<IActionResult> GetStationsByLine(string lineId)
+        {
+            var stations = await _context.LineStations
+                .Where(ls => ls.LineId == lineId)
+                .Include(ls => ls.Station)
+                .OrderBy(ls => ls.SequenceOrder)
+                .Select(ls => new
+                {
+                    stationId = ls.StationId,
+                    stationName = ls.Station.StationName
+                })
+                .ToListAsync();
+
+            return Ok(stations);
+        }
     }
 
     public class SubmitReportRequest
@@ -252,6 +283,8 @@ namespace backend.Controllers
         public string Line { get; set; } = null!;
         public string Coach { get; set; } = null!;
         public string Desc { get; set; } = null!;
+        public string? LineId { get; set; }
+        public string? StationId { get; set; }
     }
 
     public class UpdatePassengerStatusRequest
