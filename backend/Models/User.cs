@@ -29,9 +29,6 @@ namespace backend.Models
         [Column("password_hash")]
         public string PasswordHash { get; set; } = null!;
 
-        [Column("previous_password_hash")]
-        public string? PreviousPasswordHash { get; set; }
-
         [Required]
         [Column("role")]
         public UserRole Role { get; set; }

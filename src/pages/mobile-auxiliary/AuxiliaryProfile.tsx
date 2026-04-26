@@ -1,19 +1,71 @@
-import { useState } from 'react';
-import { LogOutIcon, ShieldIcon, MailIcon, BadgeCheckIcon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { LogOutIcon, ShieldIcon, MailIcon, BadgeCheckIcon, LockIcon, ChevronRightIcon } from 'lucide-react';
 import { UserSession } from '../../App';
+
+const DARKBLUE = '#0B4F6C';
+
+type ProfileSection = null | 'email' | 'phone';
 
 interface AuxiliaryProfileProps {
   session: UserSession;
   onLogout: () => void;
+  onChangePassword: () => void;
 }
 
-export function AuxiliaryProfile({ session, onLogout }: AuxiliaryProfileProps) {
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+export function AuxiliaryProfile({ session, onLogout, onChangePassword }: AuxiliaryProfileProps) {
+  const [email, setEmail] = useState('');
+  const [stats, setStats] = useState({ assigned: 0, resolved: 0 });
+  const [openSection, setOpenSection] = useState<ProfileSection>(null);
 
-  const handleLogout = () => {
-    setIsLoggingOut(true);
-    setTimeout(onLogout, 1000);
-  };
+  useEffect(() => {
+    fetch(`http://localhost:5293/api/data/profile?userId=${session.userId}`)
+      .then(res => res.json())
+      .then(data => {
+        setEmail(data.email);
+        setStats({
+          assigned: data.reports || 0,
+          resolved: data.verified || 0
+        });
+      })
+      .catch(console.error);
+  }, [session.userId]);
+  function SectionHeader({
+    id,
+    icon: Icon,
+    label,
+    value,
+    onClick,
+  }: {
+    id?: ProfileSection;
+    icon: React.ElementType;
+    label: string;
+    value?: string;
+    onClick?: () => void;
+  }) {
+    return (
+      <button
+        onClick={onClick || (() => id && setOpenSection(prev => prev === id ? null : id))}
+        className="w-full flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100 shadow-sm active:bg-gray-50 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ backgroundColor: '#EBF4F8' }}
+          >
+            <Icon size={15} style={{ color: DARKBLUE }} />
+          </div>
+          <div className="text-left">
+            <p className="text-sm font-semibold text-gray-800">{label}</p>
+            {value && <p className="text-xs text-gray-400">{value}</p>}
+          </div>
+        </div>
+        <ChevronRightIcon
+          size={16}
+          className={`text-gray-300 transition-transform ${id && openSection === id ? 'rotate-90' : ''}`}
+        />
+      </button>
+    );
+  }
 
   return (
     <div className="px-4 py-6 space-y-6">
@@ -26,64 +78,44 @@ export function AuxiliaryProfile({ session, onLogout }: AuxiliaryProfileProps) {
           {session.userName.charAt(0)}
         </div>
         <h2 className="text-xl font-bold text-gray-900">{session.userName}</h2>
-        <p className="text-sm text-[#0B4F6C] font-semibold">{session.description || 'Auxiliary Police Officer'}</p>
+        <p className="text-sm text-[#0B4F6C] font-semibold">{email || session.email}</p>
+        <p className="text-sm text-gray-900 font-semibold">{session.employeeId || 'N/A'}</p>
+
       </div>
+
+      {/* Stats Cards */}
+      <div className="flex gap-4 mt-2 w-full">
+        <div className="flex-1 bg-white rounded-2xl p-4 border border-gray-100 shadow-sm text-center">
+          <p className="text-xl font-bold text-gray-900">{stats.assigned}</p>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Assigned</p>
+        </div>
+        <div className="flex-1 bg-white rounded-2xl p-4 border border-gray-100 shadow-sm text-center">
+          <p className="text-xl font-bold text-gray-900">{stats.resolved}</p>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Resolved</p>
+        </div>
+      </div>
+      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider px-1 pt-1">Account Settings</p>
 
       {/* Info Cards */}
       <div className="space-y-3">
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-[#0B4F6C]">
-            <BadgeCheckIcon size={20} />
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Employee ID</p>
-            <p className="text-sm font-bold text-gray-800">{session.employeeId || 'N/A'}</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
-            <MailIcon size={20} />
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Email Address</p>
-            <p className="text-sm font-bold text-gray-800">{session.email}</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600">
-            <ShieldIcon size={20} />
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Assigned Unit</p>
-            <p className="text-sm font-bold text-gray-800">Auxiliary Police Malaysia (APM)</p>
-          </div>
+        {/* Password */}
+        <div className="space-y-2">
+          <SectionHeader
+            icon={LockIcon}
+            label="Security"
+            value="Change your password"
+            onClick={onChangePassword}
+          />
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="pt-4">
-        <button
-          onClick={handleLogout}
-          disabled={isLoggingOut}
-          className="w-full bg-red-50 hover:bg-red-100 text-red-600 flex items-center justify-center gap-2 py-4 rounded-2xl font-bold transition-all active:scale-[0.98] disabled:opacity-50"
-        >
-          {isLoggingOut ? (
-            <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <>
-              <LogOutIcon size={18} />
-              Sign Out
-            </>
-          )}
-        </button>
-      </div>
-
-      <p className="text-center text-[10px] text-gray-400">
-        Railly Police Hub v1.2.4<br />
-        Connected to Secure Backend Gateway
-      </p>
+      <button
+        onClick={onLogout}
+        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold text-white shadow-lg active:scale-[0.98] transition-all"
+        style={{ background: ` #ad1a1a` }}
+      >
+        Sign Out
+      </button>
     </div>
   );
 }

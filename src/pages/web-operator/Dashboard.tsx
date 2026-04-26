@@ -29,7 +29,8 @@ const RANGE_LABELS: Record<DateRange, string> = {
 
 interface RecentAlert {
   id: number;
-  coachId: string;
+  trainId: number | string;
+  coachId: number | string;
   line: string;
   lineId: string;
   station: string;
@@ -310,7 +311,9 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold text-sm text-gray-900">{alert.coachId}</span>
+                            <span className="font-bold text-sm text-gray-900">
+                              T.{alert.trainId} · C.{alert.coachId}
+                            </span>
                             <span
                               className="text-xs px-2 py-0.5 rounded-full font-medium"
                               style={{ backgroundColor: lineColor + '18', color: lineColor }}

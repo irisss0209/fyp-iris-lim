@@ -10,47 +10,9 @@ import {
 import { JustificationModal } from '../../components/JustificationModal';
 import { useTime } from "../../context/TimeContext";
 import { formatTime } from "../../utils/Time";
+import { Alert, AlertStatus, fetchOperatorAlerts, updateAlertStatus } from '../../type/Alert';
 
 
-
-
-const API = 'http://localhost:5293/api/data';
-
-type AlertStatus = 'all' | 'pending' | 'verified' | 'escalated' | 'en_route' | 'resolved' | 'dismissed';
-type AlertSource = 'all' | 'ai' | 'passenger';
-
-interface Alert {
-  id: string;
-  coachId: string;
-  line: string;
-  lineId: string;
-  station: string;
-  time: string;
-  date: string;
-  elapsed: string;
-  status: 'pending' | 'verified' | 'escalated' | 'en_route' | 'resolved' | 'dismissed';
-  confidence: number | null;
-  deviceId: string | null;
-  source: 'ai' | 'passenger';
-  reportedBy?: string;
-  passengerComment?: string;
-  imageUrl?: string;
-  // audit trail
-  verifiedBy?: string | null;
-  verifiedAt?: string | null;
-  verifiedComment?: string | null;
-  escalatedBy?: string | null;
-  escalatedAt?: string | null;
-  escalatedComment?: string | null;
-  enrouteBy?: string | null;
-  enrouteAt?: string | null;
-  resolvedBy?: string | null;
-  resolvedAt?: string | null;
-  resolvedComment?: string | null;
-  dismissedBy?: string | null;
-  dismissedAt?: string | null;
-  dismissedComment?: string | null;
-}
 
 interface LineOption { lineId: string; lineName: string; }
 interface StationsByLine { lineId: string; stations: { stationId: string; stationName: string }[]; }
@@ -105,8 +67,8 @@ export function LiveAlerts() {
   const { format } = useTime();
 
   // ── UI state ──────────────────────────────────────────────────────────────────
-  const [activeFilter, setActiveFilter] = useState<AlertStatus>('all');
-  const [sourceFilter, setSourceFilter] = useState<AlertSource>('all');
+  const [activeFilter, setActiveFilter] = useState<AlertStatus | 'all'>('all');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'ai' | 'passenger'>('all');
   const [lineFilter, setLineFilter] = useState('all');
   const [stationFilter, setStationFilter] = useState('all');
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
@@ -118,8 +80,7 @@ export function LiveAlerts() {
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/operator/alerts`);
-      const data = await res.json();
+      const data = await fetchOperatorAlerts();
       setAlerts(data.alerts ?? []);
       setLines(data.lines ?? []);
       setStationsByLine(data.stationsByLine ?? []);
@@ -175,7 +136,7 @@ export function LiveAlerts() {
     return true;
   }), [alerts, activeFilter, sourceFilter, lineFilter, stationFilter]);
 
-  const statusTabs: { id: AlertStatus; label: string }[] = [
+  const statusTabs: { id: AlertStatus | 'all'; label: string }[] = [
     { id: 'all', label: 'All' },
     { id: 'pending', label: 'Pending' },
     { id: 'verified', label: 'Verified' },
@@ -212,14 +173,11 @@ export function LiveAlerts() {
 
     const token = JSON.parse(localStorage.getItem('user_session') || '{}')?.token;
 
-    await fetch(`${API}/indicent-alerts/${id}/status`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ status: newStatus, comment }),
-    });
+    try {
+      await updateAlertStatus(id, newStatus as AlertStatus, comment, token);
+    } catch (err) {
+      console.error('Failed to update status', err);
+    }
     setModalOpen(false);
     setPendingAction(null);
   };
@@ -307,7 +265,7 @@ export function LiveAlerts() {
               <FilterIcon size={13} className="text-gray-400 flex-shrink-0" />
               <select
                 value={sourceFilter}
-                onChange={e => setSourceFilter(e.target.value as AlertSource)}
+                onChange={e => setSourceFilter(e.target.value as any)}
                 className="w-full min-w-0 text-xs px-3 py-2 rounded-lg border border-gray-200 bg-gray-50"
               >
                 <option value="all">All Sources</option>
@@ -409,7 +367,9 @@ export function LiveAlerts() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold text-sm text-gray-900">{alert.coachId}</span>
+                            <span className="font-bold text-sm text-gray-900">
+                              T.{alert.trainId} · C.{alert.coachId}
+                            </span>
                             <span
                               className="text-xs px-2 py-0.5 rounded-full font-medium"
                               style={{ backgroundColor: lineColor + '18', color: lineColor }}
@@ -545,6 +505,7 @@ export function LiveAlerts() {
                   {/* Core info grid */}
                   <div className="grid grid-cols-3 gap-2">
                     {[
+                      { label: 'Train ID', value: selectedAlert.trainId },
                       { label: 'Coach ID', value: selectedAlert.coachId },
                       { label: 'Line', value: selectedAlert.line },
                       { label: 'Station', value: selectedAlert.station },

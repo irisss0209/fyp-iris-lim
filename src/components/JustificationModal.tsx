@@ -10,7 +10,7 @@ interface JustificationModalProps {
   isOpen: boolean;
   actionType: 'verify' | 'dismiss' | 'escalate' | 'en_route' | 'resolve';
   alertId: string;
-  alertCoach: string;
+  alertCoach: number | string;
   onConfirm: (comment: string) => void;
   onCancel: () => void;
   isOptional?: boolean;

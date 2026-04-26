@@ -30,6 +30,38 @@ namespace backend.Data
             modelBuilder.Entity<LineStation>()
                 .HasKey(ls => new { ls.LineId, ls.StationId });
 
+            // ── Train_Coach: composite primary key (train_id, coach_id) ──────────
+            modelBuilder.Entity<TrainCoach>()
+                .HasKey(tc => new { tc.TrainId, tc.CoachId });
+
+            modelBuilder.Entity<TrainCoach>()
+                .HasOne(tc => tc.TrainAsset)
+                .WithMany(ta => ta.TrainCoaches)
+                .HasForeignKey(tc => tc.TrainId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ── Train_Asset → Train_Line FK (uses explicit line_id column) ────────
+            modelBuilder.Entity<TrainAsset>()
+                .HasOne(ta => ta.TrainLine)
+                .WithMany(l => l.TrainAssets)
+                .HasForeignKey(ta => ta.LineId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ── Camera: composite FK → Train_Coach ───────────────────────────────
+            modelBuilder.Entity<Camera>()
+                .HasOne(c => c.TrainCoach)
+                .WithMany(tc => tc.Cameras)
+                .HasForeignKey(c => new { c.TrainId, c.CoachId })
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ── UserReport: composite FK → Train_Coach ───────────────────────────
+            modelBuilder.Entity<UserReport>()
+                .HasOne(r => r.TrainCoach)
+                .WithMany(tc => tc.UserReports)
+                .HasForeignKey(r => new { r.TrainId, r.CoachId })
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
             // ── Incident: multiple FKs to User need explicit relationship names ──
             modelBuilder.Entity<Incident>()
                 .HasOne(i => i.VerifiedByUser)

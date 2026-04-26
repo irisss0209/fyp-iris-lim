@@ -33,6 +33,10 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
   const [nearbyStations, setNearbyStations] = useState<any[]>([]);
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
+  const [selectedTrainId, setSelectedTrainId] = useState<number>(0);
+  const [selectedCoachId, setSelectedCoachId] = useState<number>(0);
+  const [trainNumber, setTrainNumber] = useState('');      // Car No. label e.g. "1303"
+  const [showSampleImage, setShowSampleImage] = useState(false);
 
   const [linesData, setLinesData] = useState<any[]>([]);
   const [stationsData, setStationsData] = useState<any[]>([]);
@@ -77,6 +81,7 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
     const newErrors: Record<string, string> = {};
     if (!line) newErrors.line = 'Please select a line';
     if (!station) newErrors.station = 'Please select a station';
+    if (!trainNumber.trim()) newErrors.trainNumber = 'Please enter the Car No. from the sticker';
     if (!coach) newErrors.coach = 'Please enter coach ID (or "Unknown")';
     if (!desc) newErrors.desc = 'Please describe what is happening';
     setErrors(newErrors);
@@ -95,6 +100,9 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
           line,
           station,
           coach,
+          trainNumber,
+          trainId: selectedTrainId,
+          coachId: selectedCoachId,
           type,
           desc,
           lineId: selectedLineId,
@@ -112,7 +120,7 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
         try {
           const errData = await response.json();
           errorMsg = errData.error || errorMsg;
-        } catch {}
+        } catch { }
         setErrors({ desc: errorMsg });
         setStep('form');
       }
@@ -152,7 +160,7 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
       className="px-4 pt-5 pb-6 space-y-4"
     >
       <div className="flex items-center gap-3">
-        <button 
+        <button
           onClick={onBack}
           className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200"
         >
@@ -196,10 +204,10 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
                     setStation(s.stationName);
                     setCoach('');
                     setErrors(v => ({ ...v, line: '', station: '' }));
-                    
-                    // NEW: Track the specific station and line IDs
                     setSelectedStationId(s.stationId);
                     setSelectedLineId(firstLine.id);
+                    setSelectedTrainId(firstLine.trainId ?? 0);
+                    setSelectedCoachId(0);
                   }
                 }}
                 className="bg-white border border-[#0B4F6C]/20 px-3 py-1.5 rounded-xl text-xs font-semibold text-[#0B4F6C] shadow-sm active:bg-[#0B4F6C] active:text-white transition-colors"
@@ -219,13 +227,15 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
           <FieldLabel required>Train Line</FieldLabel>
           <select
             value={line}
-            onChange={e => { 
-              setLine(e.target.value); 
-              setCoach(''); 
+            onChange={e => {
+              const selected = linesData.find(l => l.lineName === e.target.value);
+              setLine(e.target.value);
+              setCoach('');
               setErrors(v => ({ ...v, line: '' }));
-              // Reset nearby IDs if manually choosing
               setSelectedStationId(null);
-              setSelectedLineId(linesData.find(l => l.lineName === e.target.value)?.lineId || null);
+              setSelectedLineId(selected?.lineId || null);
+              setSelectedTrainId(selected?.trainId ?? 0);
+              setSelectedCoachId(0);
             }}
             className={inputClass('line')}
             disabled={linesData.length === 0}
@@ -254,18 +264,65 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
           {errors.station && <p className="text-[10px] text-red-500 mt-1 font-medium">{errors.station}</p>}
         </div>
 
+        {/* ── Train Number (Car No.) ── */}
+        <div>
+          <FieldLabel required>Train Number (Car No.)</FieldLabel>
+
+          {/* Hint banner */}
+          <button
+            type="button"
+            onClick={() => setShowSampleImage(v => !v)}
+            className="flex items-center gap-1.5 text-[10px] font-semibold text-[#0B4F6C] mb-2 hover:underline"
+          >
+            <span>Where do I find this?</span>
+            <span className="text-gray-400">{showSampleImage ? '▲ hide' : '▼ show'}</span>
+          </button>
+
+          {showSampleImage && (
+            <div className="mb-3 rounded-xl overflow-hidden border border-[#0B4F6C]/20 shadow-sm relative">
+              <img
+                src="/trainid_coachid_sample.png"
+                alt="Sample sticker showing Car No. and Door No. inside the train"
+                className="w-full object-cover max-h-44"
+              />
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2">
+                <p className="text-white text-[10px] font-semibold leading-tight">
+                  Look for this sticker on the wall above the door
+                </p>
+              </div>
+            </div>
+          )}
+
+          <input
+            type="text"
+            inputMode="numeric"
+            value={trainNumber}
+            onChange={e => {
+              setTrainNumber(e.target.value);
+              setErrors(v => ({ ...v, trainNumber: '' }));
+            }}
+            placeholder="e.g. 1303"
+            className={inputClass('trainNumber')}
+          />
+          {errors.trainNumber && <p className="text-[10px] text-red-500 mt-1 font-medium">{errors.trainNumber}</p>}
+        </div>
+
         {/* Coach */}
         <div>
           <FieldLabel required>Coach Number</FieldLabel>
           <select
             value={coach}
-            onChange={e => { setCoach(e.target.value); setErrors(v => ({ ...v, coach: '' })); }}
+            onChange={e => {
+              const val = e.target.value;
+              setCoach(val);
+              setSelectedCoachId(parseInt(val, 10));
+              setErrors(v => ({ ...v, coach: '' }));
+            }}
             className={inputClass('coach')}
             disabled={!line || availableCoaches.length === 0}
           >
             <option value="">{!line ? 'Select a line first…' : 'Select coach…'}</option>
-            <option value="Unknown">Unknown</option>
-            {availableCoaches.map((c: string) => <option key={c} value={c}>{c}</option>)}
+            {availableCoaches.map((c: number) => <option key={c} value={c}>{c}</option>)}
           </select>
           {errors.coach && <p className="text-xs text-red-500 mt-1">{errors.coach}</p>}
         </div>

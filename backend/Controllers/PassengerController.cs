@@ -29,7 +29,13 @@ namespace backend.Controllers
             {
                 lineId = l.LineId,
                 lineName = l.LineName,
-                coaches = l.TrainAssets.SelectMany(ta => ta.TrainCoaches).Select(c => c.CoachId).Distinct().ToList()
+                coaches = l.TrainAssets.SelectMany(ta => ta.TrainCoaches)
+                                       .Select(c => c.CoachId)
+                                       .Distinct()
+                                       .OrderBy(c => c)
+                                       .ToList(),
+                // Expose the integer train_id so the frontend can use it for the composite FK
+                trainId = l.TrainAssets.Select(ta => ta.TrainId).FirstOrDefault()
             });
 
             return Ok(result);
@@ -48,15 +54,20 @@ namespace backend.Controllers
 
             try
             {
-                // Create user report
+                // Parse composite FK values sent from the frontend
+                bool coachUnknown = req.Coach?.Trim().Equals("Unknown", StringComparison.OrdinalIgnoreCase) == true;
+                int trainId  = req.TrainId;
+                int coachId  = coachUnknown ? 0 : req.CoachId;
+
                 var report = new UserReport
                 {
-                    UserId = userId,
-                    CoachId = (req.Coach?.Trim().Equals("Unknown", StringComparison.OrdinalIgnoreCase) == true) ? null : req.Coach,
+                    UserId      = userId,
+                    TrainId     = trainId,
+                    CoachId     = coachId,
                     Description = req.Desc,
-                    CreatedAt = DateTime.UtcNow,
-                    LineId = req.LineId,
-                    StationId = req.StationId
+                    CreatedAt   = DateTime.UtcNow,
+                    LineId      = req.LineId,
+                    StationId   = req.StationId
                 };
 
                 _context.UserReports.Add(report);
@@ -65,9 +76,9 @@ namespace backend.Controllers
                 // Auto-create incident
                 var incident = new Incident
                 {
-                    Source = IncidentSource.USER_REPORT,
-                    ReportId = report.ReportId,
-                    Status = IncidentStatus.Pending,
+                    Source    = IncidentSource.USER_REPORT,
+                    ReportId  = report.ReportId,
+                    Status    = IncidentStatus.Pending,
                     CreatedAt = DateTime.UtcNow
                 };
 
@@ -85,10 +96,6 @@ namespace backend.Controllers
         [HttpGet("profile")]
         public async Task<IActionResult> GetProfile([FromQuery] string userId)
         {
-            try {
-                await _context.Database.ExecuteSqlRawAsync("ALTER TABLE \"User_Report\" DROP CONSTRAINT IF EXISTS \"User_Report_coach_id_fkey\";");
-                await _context.Database.ExecuteSqlRawAsync("ALTER TABLE \"User_Report\" ADD CONSTRAINT \"User_Report_coach_id_fkey\" FOREIGN KEY (coach_id) REFERENCES \"Train_Coach\"(coach_id) ON DELETE SET NULL;");
-            } catch {} // Ignore error if already modified
 
             if (string.IsNullOrWhiteSpace(userId))
                 return BadRequest(new { error = "userId query parameter is required." });
@@ -140,13 +147,15 @@ namespace backend.Controllers
             {
                 string? lineName = null;
                 string? stationName = null;
-                string? coachId = null;
+                int? coachId = null;
+                int? trainId = null;
                 string? type = null;
                 string? imageUrl = null;
 
                 if (inc.Source == IncidentSource.AI_DETECTION && inc.Detection != null)
                 {
                     coachId = inc.Detection.Camera?.CoachId;
+                    trainId = inc.Detection.Camera?.TrainCoach?.TrainId ?? inc.Detection.Camera?.TrainId;
                     lineName = inc.Detection.LineStation?.TrainLine?.LineName 
                              ?? inc.Detection.Camera?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
                     stationName = inc.Detection.LineStation?.Station?.StationName;
@@ -156,6 +165,7 @@ namespace backend.Controllers
                 else if (inc.UserReport != null)
                 {
                     coachId = inc.UserReport.CoachId;
+                    trainId = inc.UserReport.TrainCoach?.TrainId ?? inc.UserReport.TrainId;
                     lineName = inc.UserReport.LineStation?.TrainLine?.LineName 
                              ?? inc.UserReport.TrainCoach?.TrainAsset?.TrainLine?.LineName;
                     stationName = inc.UserReport.LineStation?.Station?.StationName;
@@ -168,7 +178,8 @@ namespace backend.Controllers
                     id = inc.IncidentId,
                     line = lineName ?? "Unknown",
                     station = stationName ?? "On Train",
-                    coach = coachId ?? "Unknown",
+                    trainId = trainId,
+                    coach = coachId.HasValue ? coachId.Value.ToString() : "Unknown",
                     type = type ?? "Man in WOCs",
                     time = inc.CreatedAt.ToString("HH:mm"),
                     status = inc.Status.ToString(),
@@ -211,7 +222,7 @@ namespace backend.Controllers
                 time = inc.CreatedAt.ToString("HH:mm"),
                 status = inc.Status.ToString(),
                 line = inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineName ?? "Unknown Line",
-                coach = inc.UserReport?.CoachId ?? "Unknown Coach",
+                coach = inc.UserReport?.CoachId.ToString() ?? "Unknown Coach",
                 description = inc.UserReport?.Description,
                 imageUrl = inc.UserReport?.ImageUrl
             });
@@ -280,10 +291,12 @@ namespace backend.Controllers
 
     public class SubmitReportRequest
     {
-        public string Line { get; set; } = null!;
-        public string Coach { get; set; } = null!;
-        public string Desc { get; set; } = null!;
-        public string? LineId { get; set; }
+        public string Line  { get; set; } = null!;
+        public string Coach { get; set; } = null!;  // display label (may be "Unknown")
+        public int    TrainId  { get; set; }         // integer FK
+        public int    CoachId  { get; set; }         // integer FK
+        public string Desc    { get; set; } = null!;
+        public string? LineId   { get; set; }
         public string? StationId { get; set; }
     }
 

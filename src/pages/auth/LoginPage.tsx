@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   EyeIcon,
   EyeOffIcon,
@@ -25,9 +24,18 @@ interface PendingMfaState {
 interface LoginPageProps {
   onLoginSuccess: (session: UserSession) => void;
   onNavigateSignup: () => void;
+  onNavigateSetupPassword: (email: string) => void;
+  initialMfaState?: PendingMfaState | null;
+  initialEmail?: string;
 }
 
-export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) {
+export function LoginPage({ 
+  onLoginSuccess, 
+  onNavigateSignup, 
+  onNavigateSetupPassword,
+  initialMfaState,
+  initialEmail 
+}: LoginPageProps) {
   const [step, setStep] = useState<AuthStep>('account');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -45,6 +53,18 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
       return () => clearTimeout(t);
     }
   }, [step, resolvedUser, onLoginSuccess]);
+
+  useEffect(() => {
+    if (initialMfaState) {
+      setPendingMfa(initialMfaState);
+      setEmail(initialEmail || initialMfaState.email);
+      if (initialMfaState.mfaMethod === 'google_authenticator' && initialMfaState.isSetup === false) {
+        setStep('mfa_setup');
+      } else {
+        setStep('mfa');
+      }
+    }
+  }, [initialMfaState, initialEmail]);
 
   const checkAccountAndContinue = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,6 +101,11 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
         return;
       }
 
+      if (data.requiresSetup) {
+        onNavigateSetupPassword(normalizedEmail);
+        return;
+      }
+
       setAccountRole(data.role ?? null);
       setStep('password');
     } catch {
@@ -110,6 +135,11 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
       const data = await response.json();
       if (!response.ok) {
         setError(data.error || 'Invalid login details.');
+        return;
+      }
+
+      if (data.requiresSetup) {
+        onNavigateSetupPassword(normalizedEmail);
         return;
       }
 
@@ -232,10 +262,7 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
 
   return (
     <div className="min-h-screen w-full bg-[#FAF9F5] flex flex-col items-center justify-center px-4 py-8 sm:py-12">
-      <motion.div
-        initial={{ opacity: 0, y: -12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
+      <div
         className="flex items-center gap-3 mb-6 sm:mb-8"
       >
         <div
@@ -252,22 +279,14 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
           <div className="text-lg sm:text-xl font-bold text-gray-900 leading-tight">Railly</div>
           <div className="text-xs text-gray-400">For Safer Commute</div>
         </div>
-      </motion.div>
+      </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: 'easeOut', delay: 0.05 }}
+      <div
         className="w-full max-w-sm sm:max-w-md bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden"
       >
-        <AnimatePresence mode="wait">
+        <>
           {step === 'account' && (
-            <motion.div
-              key="account"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.25, ease: 'easeInOut' }}
+            <div
               className="p-5 sm:p-8"
             >
               <div className="mb-5 sm:mb-7">
@@ -327,16 +346,11 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
                   </button>
                 </div>
               </form>
-            </motion.div>
+            </div>
           )}
 
           {step === 'password' && (
-            <motion.div
-              key="password"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.25, ease: 'easeInOut' }}
+            <div
               className="p-5 sm:p-8"
             >
               <div className="mb-6 sm:mb-8">
@@ -407,7 +421,7 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
                   </button>
                 </div>
               </form>
-            </motion.div>
+            </div>
           )}
 
           {step === 'mfa' && (
@@ -441,29 +455,22 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
           )}
 
           {step === 'success' && (
-            <motion.div
-              key="success"
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3, ease: 'easeOut' }}
+            <div
               className="p-8 flex flex-col items-center justify-center text-center py-12 sm:py-14"
             >
-              <motion.div
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.1, type: 'spring', stiffness: 260, damping: 20 }}
+              <div
                 className="w-16 h-16 rounded-full flex items-center justify-center mb-5"
                 style={{ backgroundColor: '#F0FBF6' }}
               >
                 <CheckCircleIcon size={32} style={{ color: '#2D7A5D' }} />
-              </motion.div>
+              </div>
               <h2 className="text-xl font-bold text-gray-900 mb-1">Identity Verified</h2>
               <p className="text-sm text-gray-400">
                 Launching {resolvedUser?.description ?? 'your dashboard'}...
               </p>
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
+        </>
 
         {step !== 'success' && (
           <div className="px-5 sm:px-8 py-3 sm:py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-center gap-1.5">
@@ -472,7 +479,7 @@ export function LoginPage({ onLoginSuccess, onNavigateSignup }: LoginPageProps) 
             </span>
           </div>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 }

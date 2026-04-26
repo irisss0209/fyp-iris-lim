@@ -1,31 +1,23 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-
 namespace backend.Models
 {
-    [Table("Train_Coach")]
-    public class TrainCoach
-    {
-        [Key]
-        [Column("coach_id")]
-        [MaxLength(50)]
-        public string CoachId { get; set; } = null!;
+[Table("Train_Coach")]
+public class TrainCoach
+{
+    [Column("train_id")]
+    public int TrainId { get; set; }
 
-        [Required]
-        [Column("train_id")]
-        [MaxLength(50)]
-        public string TrainId { get; set; } = null!;
+    [Column("coach_id")]
+    public int CoachId { get; set; }
 
-        // 'Womens_Only' | 'Mixed'
-        [Required]
-        [Column("coach_type")]
-        public CoachType CoachType { get; set; } = CoachType.Womens_Only;
+    [Required]
+    [Column("coach_type")]
+    public CoachType CoachType { get; set; } = CoachType.Womens_Only;
 
-        // Navigation
-        [ForeignKey(nameof(TrainId))]
-        public TrainAsset TrainAsset { get; set; } = null!;
+    public TrainAsset TrainAsset { get; set; } = null!;
 
-        public ICollection<Camera> Cameras { get; set; } = [];
-        public ICollection<UserReport> UserReports { get; set; } = [];
-    }
+    public ICollection<Camera> Cameras { get; set; } = [];
+    public ICollection<UserReport> UserReports { get; set; } = [];
+}
 }

@@ -56,7 +56,8 @@ interface MonthOption {
 
 interface IncidentRow {
   id: string;
-  coach: string;
+  trainId: number | string;
+  coach: number | string;
   line: string;
   lineId: string;
   datetime: string;
@@ -512,7 +513,7 @@ function IncidentTable({ incidents, title, showPagination, page = 1, totalPages 
               return (
                 <tr key={inc.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: '#0B4F6C' }}>{inc.id}</td>
-                  <td className="px-4 py-3 font-medium text-xs" style={{ color: '#1A202C' }}>{inc.coach}</td>
+                  <td className="px-4 py-3 font-medium text-xs" style={{ color: '#1A202C' }}>T.{inc.trainId} C.{inc.coach}</td>
                   <td className="px-4 py-3 text-xs" style={{ color: '#4A5568' }}>{inc.line}</td>
                   <td className="px-4 py-3 text-xs" style={{ color: '#4A5568' }}>
                     {formatDateTimeLabel(inc.datetime, format)}

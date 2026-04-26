@@ -4,5 +4,6 @@ namespace backend.Models.DTOs
     {
         public string Status { get; set; } = null!;
         public string? Comment { get; set; }
+        public string? UserId { get; set; }
     }
 }

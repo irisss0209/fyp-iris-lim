@@ -1,27 +1,21 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   BellIcon,
-  CameraIcon,
-  MapPinIcon,
-  TrainIcon,
-  DoorOpenIcon,
   ClockIcon,
-  ShieldAlertIcon,
+  ArrowRightIcon,
 } from 'lucide-react';
 import { JustificationModal } from '../../components/JustificationModal';
+import { Alert, AlertStatus, fetchAuxiliaryAlerts, updateAlertStatus } from '../../type/Alert';
+import { AlertDetailView } from './AlertDetailView';
 
 const ACCENT = '#0B4F6C';
 const RED = '#D34026';
 
-import { DetailAlert, AlertDetailView } from './AlertDetailView';
-
-type AlertStatus = 'pending' | 'dismissed' | 'resolved' | 'escalated' | 'en_route';
-
 const SUB_TABS: { id: AlertStatus; label: string }[] = [
   { id: 'pending', label: 'Pending' },
-  { id: 'escalated', label: 'Escalated' },
+  { id: 'verified', label: 'Verified' },
   { id: 'en_route', label: 'En Route' },
+  { id: 'escalated', label: 'Escalated' },
   { id: 'resolved', label: 'Resolved' },
   { id: 'dismissed', label: 'Dismissed' },
 ];
@@ -32,189 +26,184 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> =
   resolved: { bg: '#D1FAE5', text: '#065F46', dot: '#10B981' },
   escalated: { bg: '#FEE2E2', text: '#7F1D1D', dot: '#EF4444' },
   en_route: { bg: '#EFF6FF', text: '#1E3A8A', dot: '#3B82F6' },
+  verified: { bg: '#F0FBF6', text: '#2D7A5D', dot: '#4ADE80' },
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const s = STATUS_STYLES[status];
+  const s = STATUS_STYLES[status] || { bg: '#F3F4F6', text: '#6B7280', dot: '#9CA3AF' };
   return (
     <span
       className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
       style={{ backgroundColor: s.bg, color: s.text }}
     >
       <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.dot }} />
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+      {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
     </span>
   );
 }
 
-function PendingAlertCard({
+function AlertCard({
   alert,
   onAction,
   onClick,
 }: {
-  alert: DetailAlert;
+  alert: Alert;
   onAction: (id: string, action: AlertStatus) => void;
   onClick: () => void;
 }) {
   return (
-    <motion.div
+    <div
       onClick={onClick}
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -6 }}
-      transition={{ duration: 0.2 }}
-      className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
+      className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden active:bg-gray-50 transition-colors"
     >
-      {/* Alert header strip */}
-      <div
-        className="flex items-center justify-between px-4 py-2"
-        style={{ backgroundColor: alert.severity === 'high' ? '#FFF1F0' : '#FFFBEA' }}
-      >
-        <div className="flex items-center gap-2">
-          <span
-            className="w-2 h-2 rounded-full animate-pulse"
-            style={{ backgroundColor: alert.severity === 'high' ? RED : '#F59E0B' }}
-          />
-          <span
-            className="text-xs font-bold uppercase tracking-wide"
-            style={{ color: alert.severity === 'high' ? RED : '#92400E' }}
-          >
-            {alert.elapsed}m ago · {alert.severity.toUpperCase()}
-          </span>
-        </div>
-        <span className="text-xs font-mono text-gray-400">{alert.id}</span>
-      </div>
+      <div className="flex">
+        {/* Left status indicator */}
+        <div className="w-1.5 self-stretch" style={{ backgroundColor: STATUS_STYLES[alert.status]?.dot || '#E5E7EB' }} />
 
-      {/* Snapshot */}
-      <div className="relative h-40 bg-gray-900">
-        {alert.snapshotUrl ? (
-          <img
-            src={alert.snapshotUrl}
-            alt="CCTV snapshot"
-            className="w-full h-full object-cover opacity-80"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gray-800">
-            <CameraIcon size={32} className="text-gray-500" />
-          </div>
-        )}
-        {/* Overlay labels */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-        <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between">
-          <div>
-            <p className="text-white text-xs font-bold drop-shadow">{alert.type}</p>
-            <p className="text-white/70 text-[10px] mt-0.5">{alert.station} · {alert.time}</p>
-          </div>
-          <div className="flex items-center gap-1 bg-black/50 backdrop-blur rounded-lg px-2 py-1">
-            <CameraIcon size={10} className="text-white/60" />
-            <span className="text-white/60 text-[10px] font-medium">LIVE</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse ml-0.5" />
-          </div>
-        </div>
-      </div>
+        <div className="flex-1 p-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-sm text-gray-900">
+                  T.{alert.trainId} · C.{alert.coachId || alert.coach}
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-gray-100 text-gray-500 uppercase">
+                  {alert.station}
+                </span>
+              </div>
 
-      {/* Details */}
-      <div className="p-4">
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <div className="bg-gray-50 rounded-xl p-2.5">
-            <div className="flex items-center gap-1.5 mb-1">
-              <TrainIcon size={11} style={{ color: ACCENT }} />
-              <span className="text-[10px] uppercase tracking-wide font-semibold text-gray-400">Coach</span>
+              <div className="mt-2">
+                <p className="text-sm font-bold text-gray-800 leading-tight">{alert.type}</p>
+                <div className="flex items-center gap-3 mt-1.5">
+                  <span className="text-[10px] font-medium text-gray-400 flex items-center gap-1">
+                    <ClockIcon size={10} />
+                    {alert.time} ({alert.elapsed}m ago)
+                  </span>
+                  {alert.source === 'ai' ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FEF2F0] text-[#D34026]">
+                      AI Detected
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E]">
+                      Passenger Reported
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-            <p className="text-xs font-bold text-gray-800">{alert.coach}</p>
-          </div>
-          <div className="bg-gray-50 rounded-xl p-2.5">
-            <div className="flex items-center gap-1.5 mb-1">
-              <DoorOpenIcon size={11} style={{ color: ACCENT }} />
-              <span className="text-[10px] uppercase tracking-wide font-semibold text-gray-400">Door</span>
+
+            <div className="flex flex-col items-end gap-1">
+              <StatusBadge status={alert.status} />
             </div>
-            <p className="text-xs font-bold text-gray-800">{alert.door}</p>
           </div>
-        </div>
 
-        <div className="bg-gray-50 rounded-xl p-2.5 mb-3 flex items-center gap-2">
-          <MapPinIcon size={13} style={{ color: ACCENT }} />
-          <div>
-            <p className="text-xs font-bold text-gray-800">{alert.station}</p>
-            <p className="text-[10px] text-gray-400">{alert.line} · {alert.platform}</p>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex gap-2">
-          <button
-            onClick={(e) => { e.stopPropagation(); onAction(alert.id, 'en_route'); }}
-            className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5 transition-all active:scale-[0.97]"
-            style={{ backgroundColor: '#0B4F6C' }}
-          >
-            En Route
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onAction(alert.id, 'resolved'); }}
-            className="flex-1 py-2.5 rounded-xl text-xs font-bold text-gray-800 bg-green-100/50 border border-green-200 flex items-center justify-center gap-1.5 transition-all active:scale-[0.97]"
-          >
-            Resolve
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onAction(alert.id, 'dismissed'); }}
-            className="flex-1 py-2.5 rounded-xl text-xs font-bold text-gray-600 bg-gray-100 border border-gray-200 flex items-center justify-center gap-1.5 transition-all active:scale-[0.97]"
-          >
-            Dismiss
-          </button>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-function CompactAlertCard({ alert, onClick }: { alert: DetailAlert, onClick: () => void }) {
-  return (
-    <div onClick={onClick} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3 cursor-pointer active:scale-[0.98] transition-transform">
-      <div
-        className="w-1.5 self-stretch rounded-full flex-shrink-0"
-        style={{ backgroundColor: STATUS_STYLES[alert.status].dot }}
-      />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5">
-          <span className="text-xs font-mono font-bold" style={{ color: ACCENT }}>{alert.id}</span>
-          <StatusBadge status={alert.status} />
-        </div>
-        <p className="text-sm font-semibold text-gray-800 truncate">{alert.type}</p>
-        <p className="text-xs text-gray-400">{alert.station} · {alert.line}</p>
-        <div className="flex items-center gap-1 mt-1">
-          <ClockIcon size={10} className="text-gray-300" />
-          <span className="text-[10px] text-gray-400">{alert.time} · {alert.elapsed}m ago</span>
+          {/* Dynamic Actions based on status */}
+          {(() => {
+            if (alert.status === 'pending' || alert.status === 'verified' || alert.status === 'escalated') {
+              return (
+                <div className="flex gap-2 mt-4 pt-4 border-t border-gray-50">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onAction(alert.id, 'en_route'); }}
+                    className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: ACCENT }}
+                  >
+                    En Route
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onAction(alert.id, 'resolved'); }}
+                    className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: '#2D7A5D' }}
+                  >
+                    Resolve
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onAction(alert.id, 'dismissed'); }}
+                    className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: RED }}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              );
+            }
+            if (alert.status === 'en_route') {
+              return (
+                <div className="flex gap-2 mt-4 pt-4 border-t border-gray-50">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onAction(alert.id, 'resolved'); }}
+                    className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: '#2D7A5D' }}
+                  >
+                    Resolve
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onAction(alert.id, 'dismissed'); }}
+                    className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: RED }}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              );
+            }
+            return null;
+          })()}
         </div>
       </div>
     </div>
   );
 }
 
-export function RecentAlerts({ assignedStationId }: { assignedStationId?: string }) {
-  const [alerts, setAlerts] = useState<DetailAlert[]>([]);
-  const [activeStatus, setActiveStatus] = useState<string>('pending');
-  const [selectedAlert, setSelectedAlert] = useState<DetailAlert | null>(null);
+function CompactAlertCard({ alert, onClick }: { alert: Alert, onClick: () => void }) {
+  return (
+    <div
+      onClick={onClick}
+      className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4 cursor-pointer active:bg-gray-50 transition-all"
+    >
+      <div
+        className="w-1.5 h-10 rounded-full flex-shrink-0"
+        style={{ backgroundColor: STATUS_STYLES[alert.status].dot }}
+      />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-xs text-gray-900">T.{alert.trainId} C.{alert.coachId || alert.coach}</span>
+            <span className="text-[10px] font-bold text-gray-400 uppercase">{alert.station}</span>
+          </div>
+          <StatusBadge status={alert.status} />
+        </div>
+        <p className="text-sm font-bold text-gray-800 truncate">{alert.type}</p>
+        <div className="flex items-center gap-3 mt-1">
+          <span className="text-[10px] text-gray-400 flex items-center gap-1">
+            <ClockIcon size={10} />
+            {alert.time}
+          </span>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Line: {alert.line}</span>
+        </div>
+      </div>
+      <ArrowRightIcon size={16} className="text-gray-300 flex-shrink-0" />
+    </div>
+  );
+}
+
+export function RecentAlerts({ assignedStationId, userId, userName }: { assignedStationId?: string, userId: string, userName: string }) {
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [activeStatus, setActiveStatus] = useState<AlertStatus>('pending');
+  const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [modalConfig, setModalConfig] = useState<{
     isOpen: boolean;
     action: AlertStatus | null;
     alertId: string | null;
-    alertCoach: string;
+    alertCoach: number | string;
   }>({ isOpen: false, action: null, alertId: null, alertCoach: '' });
 
-  const [userId] = useState('user3');
-
   useEffect(() => {
-    const url = assignedStationId
-      ? `http://localhost:5293/api/data/auxiliary/alerts?stationId=${assignedStationId}`
-      : null;
-
-    if (!url) {
+    if (!assignedStationId) {
       setAlerts([]);
       return;
     }
 
-    fetch(url)
-      .then(res => res.json())
+    fetchAuxiliaryAlerts(assignedStationId)
       .then(data => { setAlerts(data); })
       .catch(err => { console.error('Failed to fetch alerts', err); });
   }, [assignedStationId]);
@@ -226,7 +215,7 @@ export function RecentAlerts({ assignedStationId }: { assignedStationId?: string
       isOpen: true,
       action,
       alertId: id,
-      alertCoach: alert.coachId || alert.coach
+      alertCoach: alert.coachId || alert.coach || ''
     });
   };
 
@@ -236,35 +225,74 @@ export function RecentAlerts({ assignedStationId }: { assignedStationId?: string
 
     setModalConfig(prev => ({ ...prev, isOpen: false }));
 
+    const localNow = new Date();
+    const datePart = localNow.toLocaleDateString('en-CA'); // YYYY-MM-DD
+    const timePart = localNow.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); // HH:mm
+    const now = `${datePart} ${timePart}`;
+
     // Optimistic update
-    setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, status: action } : a));
+    setAlerts(prev => prev.map(a => {
+      if (a.id === alertId) {
+        const update: Partial<Alert> = { status: action };
+        if (action === 'en_route') {
+          update.enrouteBy = userName;
+          update.enrouteAt = now;
+        } else if (action === 'resolved') {
+          update.resolvedBy = userName;
+          update.resolvedAt = now;
+          update.resolvedComment = comment;
+        } else if (action === 'dismissed') {
+          update.dismissedBy = userName;
+          update.dismissedAt = now;
+          update.dismissedComment = comment;
+        } else if (action === 'escalated') {
+          update.escalatedBy = userName;
+          update.escalatedAt = now;
+          update.escalatedComment = comment;
+        }
+        return { ...a, ...update };
+      }
+      return a;
+    }));
+
     if (selectedAlert?.id === alertId) {
-      setSelectedAlert({ ...selectedAlert, status: action, 
-        ...(action === 'resolved' ? { resolvedComment: comment } : {}),
-        ...(action === 'dismissed' ? { dismissedComment: comment } : {}),
-        ...(action === 'escalated' ? { escalatedComment: comment } : {})
+       const update: Partial<Alert> = { status: action };
+        if (action === 'en_route') {
+          update.enrouteBy = userName;
+          update.enrouteAt = now;
+        } else if (action === 'resolved') {
+          update.resolvedBy = userName;
+          update.resolvedAt = now;
+          update.resolvedComment = comment;
+        } else if (action === 'dismissed') {
+          update.dismissedBy = userName;
+          update.dismissedAt = now;
+          update.dismissedComment = comment;
+        } else if (action === 'escalated') {
+          update.escalatedBy = userName;
+          update.escalatedAt = now;
+          update.escalatedComment = comment;
+        }
+      setSelectedAlert({
+        ...selectedAlert,
+        ...update
       });
     }
 
     try {
-      await fetch(`http://localhost:5293/api/data/auxiliary/alerts/${alertId}/status`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: action, comment })
-      });
+      await updateAlertStatus(alertId, action, comment, undefined, userId);
     } catch (err) {
       console.error('Failed to update status', err);
     }
   };
 
-  const counts = {
+  const counts: Record<string, number> = {
     pending: alerts.filter(a => a.status === 'pending').length,
     escalated: alerts.filter(a => a.status === 'escalated').length,
     en_route: alerts.filter(a => a.status === 'en_route').length,
     resolved: alerts.filter(a => a.status === 'resolved').length,
     dismissed: alerts.filter(a => a.status === 'dismissed').length,
+    verified: alerts.filter(a => a.status === 'verified').length,
   };
 
   const filtered = alerts.filter(a => a.status === activeStatus);
@@ -274,9 +302,9 @@ export function RecentAlerts({ assignedStationId }: { assignedStationId?: string
       isOpen={modalConfig.isOpen}
       actionType={
         modalConfig.action === 'resolved' ? 'resolve' :
-        modalConfig.action === 'dismissed' ? 'dismiss' :
-        modalConfig.action === 'en_route' ? 'en_route' :
-        modalConfig.action === 'escalated' ? 'escalate' : 'verify'
+          modalConfig.action === 'dismissed' ? 'dismiss' :
+            modalConfig.action === 'en_route' ? 'en_route' :
+              modalConfig.action === 'escalated' ? 'escalate' : 'verify'
       }
       alertId={modalConfig.alertId || ''}
       alertCoach={modalConfig.alertCoach}
@@ -300,23 +328,14 @@ export function RecentAlerts({ assignedStationId }: { assignedStationId?: string
   }
 
   return (
-    <motion.div
-      key="alerts"
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ duration: 0.2 }}
+    <div
       className="pb-6"
     >
       {/* Section header */}
       <div className="px-4 pt-5 pb-3">
-        <div className="flex items-center gap-2 mb-0.5">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#EBF4F8' }}>
-            <ShieldAlertIcon size={14} style={{ color: ACCENT }} />
-          </div>
-          <h2 className="text-base font-bold text-gray-900">Alerts</h2>
-        </div>
-        <p className="text-xs text-gray-400 pl-9">Incoming violation alerts</p>
+
+        <h2 className="text-xl font-black text-gray-900 mb-1">Alerts</h2>
+        <p className="text-sm text-gray-500">Incoming violation alerts</p>
       </div>
 
       {/* Sub-tab pills */}
@@ -370,71 +389,54 @@ export function RecentAlerts({ assignedStationId }: { assignedStationId?: string
 
       {/* Content */}
       <div className="px-4 space-y-3">
-        <AnimatePresence mode="wait">
-          {!assignedStationId ? (
-            <motion.div
-              key="no-shift"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex flex-col items-center justify-center py-16 text-center"
+        {!assignedStationId ? (
+          <div
+            className="flex flex-col items-center justify-center py-16 text-center"
+          >
+            <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#F3F4F6' }}>
+              <BellIcon size={24} className="text-gray-400" />
+            </div>
+            <p className="text-sm font-semibold text-gray-600">No active shift</p>
+            <p className="text-xs text-gray-400 mt-1">Alerts will appear here once you are on duty at a station.</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div
+            className="flex flex-col items-center justify-center py-16 text-center"
+          >
+            <div
+              className="w-14 h-14 rounded-full flex items-center justify-center mb-3"
+              style={{ backgroundColor: '#EBF4F8' }}
             >
-              <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#F3F4F6' }}>
-                <BellIcon size={24} className="text-gray-400" />
-              </div>
-              <p className="text-sm font-semibold text-gray-600">No active shift</p>
-              <p className="text-xs text-gray-400 mt-1">Alerts will appear here once you are on duty at a station.</p>
-            </motion.div>
-          ) : filtered.length === 0 ? (
-            <motion.div
-              key="empty"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex flex-col items-center justify-center py-16 text-center"
-            >
-              <div
-                className="w-14 h-14 rounded-full flex items-center justify-center mb-3"
-                style={{ backgroundColor: '#EBF4F8' }}
-              >
-                <BellIcon size={24} style={{ color: ACCENT }} />
-              </div>
-              <p className="text-sm font-semibold text-gray-700">No {activeStatus} alerts</p>
-              <p className="text-xs text-gray-400 mt-1">
-                {activeStatus === 'pending'
-                  ? 'You\'re all caught up!'
-                  : `No alerts have been ${activeStatus} yet.`}
-              </p>
-            </motion.div>
-          ) : activeStatus === 'pending' ? (
-            <motion.div
-              key="pending-list"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="space-y-3"
-            >
-              {filtered.map(alert => (
-                <PendingAlertCard key={alert.id} alert={alert} onAction={handleAction} onClick={() => setSelectedAlert(alert)} />
-              ))}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="compact-list"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="space-y-2"
-            >
-              {filtered.map(alert => (
-                <CompactAlertCard key={alert.id} alert={alert} onClick={() => setSelectedAlert(alert)} />
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
+              <BellIcon size={24} style={{ color: ACCENT }} />
+            </div>
+            <p className="text-sm font-semibold text-gray-700">No {activeStatus} alerts</p>
+            <p className="text-xs text-gray-400 mt-1">
+              {activeStatus === 'pending'
+                ? 'You\'re all caught up!'
+                : `No alerts have been ${activeStatus} yet.`}
+            </p>
+          </div>
+        ) : (activeStatus === 'pending' || activeStatus === 'verified' || activeStatus === 'en_route' || activeStatus === 'escalated') ? (
+          <div
+            key="alert-list"
+            className="space-y-3"
+          >
+            {filtered.map(alert => (
+              <AlertCard key={alert.id} alert={alert} onAction={handleAction} onClick={() => setSelectedAlert(alert)} />
+            ))}
+          </div>
+        ) : (
+          <div
+            className="space-y-2"
+          >
+            {filtered.map(alert => (
+              <CompactAlertCard key={alert.id} alert={alert} onClick={() => setSelectedAlert(alert)} />
+            ))}
+          </div>
+        )}
       </div>
 
       {renderModal()}
-    </motion.div>
+    </div>
   );
 }

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCwIcon } from 'lucide-react';
 
 export interface MfaVerificationProps {
@@ -112,12 +111,7 @@ export function MfaVerification({
   );
 
   return (
-    <motion.div
-      key="mfa"
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      transition={{ duration: 0.25, ease: 'easeInOut' }}
+    <div
       className="p-5 sm:p-8"
     >
       <div className="mb-5 sm:mb-7">
@@ -161,18 +155,13 @@ export function MfaVerification({
         ))}
       </div>
 
-      <AnimatePresence>
-        {otpError && (
-          <motion.p
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-4 text-center"
-          >
-            {otpError}
-          </motion.p>
-        )}
-      </AnimatePresence>
+      {otpError && (
+        <p
+          className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-4 text-center"
+        >
+          {otpError}
+        </p>
+      )}
 
       <button
         onClick={() => handleOtpSubmit()}
@@ -212,6 +201,6 @@ export function MfaVerification({
         </button>
 
       </div>
-    </motion.div>
+    </div>
   );
 }

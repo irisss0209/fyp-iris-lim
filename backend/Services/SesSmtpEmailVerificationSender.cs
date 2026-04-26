@@ -17,12 +17,6 @@ namespace backend.Services
             var accessKey = _config["AWS:AccessKey"];
             var secretKey = _config["AWS:SecretKey"];
             var region = _config["AWS:Region"] ?? "ap-southeast-1";
-
-            if (string.IsNullOrEmpty(accessKey) || string.IsNullOrEmpty(secretKey))
-            {
-                Console.WriteLine("[WARN] AWS Credentials not found in appsettings.json. Email sending will fail.");
-            }
-
             var credentials = new BasicAWSCredentials(accessKey, secretKey);
             var regionEndpoint = RegionEndpoint.GetBySystemName(region);
 

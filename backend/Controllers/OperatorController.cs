@@ -151,19 +151,22 @@ namespace backend.Controllers
             {
                 string? lineId = null;
                 string? lineName = null;
-                string? coachId = null;
+                int? coachId = null;
+                int? trainId = null;
                 string? snapshotUrl = null;
 
                 if (i.Source == IncidentSource.AI_DETECTION && i.Detection?.Camera != null)
                 {
                     coachId = i.Detection.Camera.CoachId;
+                    trainId = i.Detection.Camera.TrainId;
                     lineName = i.Detection.Camera.TrainCoach?.TrainAsset?.TrainLine?.LineName;
                     lineId   = i.Detection.Camera.TrainCoach?.TrainAsset?.TrainLine?.LineId;
                     snapshotUrl = i.Detection.ImageUrl;
                 }
                 else if (i.UserReport != null)
                 {
-                    coachId = i.UserReport.CoachId;
+                    coachId = i.UserReport.TrainCoach?.CoachId ?? i.UserReport.CoachId;
+                    trainId = i.UserReport.TrainCoach?.TrainId ?? i.UserReport.TrainId;
                     lineName = i.UserReport.TrainCoach?.TrainAsset?.TrainLine?.LineName;
                     lineId   = i.UserReport.TrainCoach?.TrainAsset?.TrainLine?.LineId;
                     snapshotUrl = i.UserReport.ImageUrl;
@@ -172,7 +175,11 @@ namespace backend.Controllers
                 return new
                 {
                     id = i.IncidentId,
-                    coach = coachId ?? "Unknown",
+                    trainId = trainId?.ToString() ?? "—",
+                    coachId = coachId?.ToString() ?? "—",
+                    // Adding snake_case just in case
+                    train_id = trainId,
+                    coach_id = coachId,
                     line = lineName ?? "Unknown",
                     lineId = lineId ?? "Unknown",
                     station = lineStations.FirstOrDefault(ls => ls.LineId == lineId)?.Station?.StationName ?? "Unknown",
@@ -223,30 +230,30 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
     {
         case IncidentStatus.Verified:
             incident.VerifiedBy      = userId;
-            incident.VerifiedAt      = DateTime.UtcNow;
+            incident.VerifiedAt      = DateTime.Now;
             incident.VerifiedComment = request.Comment;
             break;
 
         case IncidentStatus.Escalated:
             incident.EscalatedBy      = userId;
-            incident.EscalatedAt      = DateTime.UtcNow;
+            incident.EscalatedAt      = DateTime.Now;
             incident.EscalatedComment = request.Comment;
             break;
 
         case IncidentStatus.En_Route:
             incident.EnrouteBy = userId;
-            incident.EnrouteAt = DateTime.UtcNow;
+            incident.EnrouteAt = DateTime.Now;
             break;
 
         case IncidentStatus.Resolved:
             incident.ResolvedBy      = userId;
-            incident.ResolvedAt      = DateTime.UtcNow;
+            incident.ResolvedAt      = DateTime.Now;
             incident.ResolvedComment = request.Comment;
             break;
 
         case IncidentStatus.Dismissed:
             incident.DismissedBy      = userId;
-            incident.DismissedAt      = DateTime.UtcNow;
+            incident.DismissedAt      = DateTime.Now;
             incident.DismissedComment = request.Comment;
             break;
     }
@@ -317,7 +324,8 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
             {
                 string? lineName = null;
                 string? lineId   = null;
-                string? coachId  = null;
+                int? coachId     = null;
+                int? trainId     = null;
                 decimal? confidence = null;
                 string source;
 
@@ -326,6 +334,7 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
                     source = "ai";
                     confidence = inc.Detection.ConfidenceScore;
                     coachId  = inc.Detection.Camera?.CoachId;
+                    trainId  = inc.Detection.Camera?.TrainCoach?.TrainId ?? inc.Detection.Camera?.TrainId;
                     lineName = inc.Detection.LineStation?.TrainLine?.LineName 
                              ?? inc.Detection.Camera?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
                     lineId   = inc.Detection.LineId 
@@ -334,7 +343,8 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
                 else
                 {
                     source = "passenger";
-                    coachId  = inc.UserReport?.CoachId;
+                    coachId = inc.UserReport?.TrainCoach?.CoachId ?? inc.UserReport?.CoachId;
+                    trainId = inc.UserReport?.TrainCoach?.TrainId ?? inc.UserReport?.TrainId;                    
                     lineName = inc.UserReport?.LineStation?.TrainLine?.LineName 
                              ?? inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
                     lineId   = inc.UserReport?.LineId 
@@ -350,7 +360,10 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
                 return new
                 {
                     id = inc.IncidentId,
-                    coachId = coachId ?? "Unknown",
+                    trainId = trainId?.ToString() ?? "—",
+                    coachId = coachId?.ToString() ?? "—",
+                    train_id = trainId,
+                    coach_id = coachId,
                     line    = lineName ?? "Unknown",
                     lineId  = lineId   ?? "Unknown",
                     station = stationName,
@@ -435,7 +448,8 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
             {
                 string? lineName   = null;
                 string? lineId     = null;
-                string? coachId    = null;
+                int? coachId       = null;
+                int? trainId       = null;
                 string? deviceId   = null;
                 decimal? confidence = null;
                 string source;
@@ -446,6 +460,7 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
                     confidence = inc.Detection.ConfidenceScore;
                     deviceId   = inc.Detection.CameraId;
                     coachId    = inc.Detection.Camera?.CoachId;
+                    trainId    = inc.Detection.Camera?.TrainCoach?.TrainId ?? inc.Detection.Camera?.TrainId;
                     lineName   = inc.Detection.LineStation?.TrainLine?.LineName 
                                  ?? inc.Detection.Camera?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
                     lineId     = inc.Detection.LineId 
@@ -454,7 +469,8 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
                 else if (inc.UserReport != null)
                 {
                     source     = "passenger";
-                    coachId    = inc.UserReport.CoachId;
+                    coachId    = inc.UserReport.TrainCoach?.CoachId ?? inc.UserReport.CoachId;
+                    trainId    = inc.UserReport.TrainCoach?.TrainId ?? inc.UserReport.TrainId;
                     lineName   = inc.UserReport.LineStation?.TrainLine?.LineName 
                                  ?? inc.UserReport.TrainCoach?.TrainAsset?.TrainLine?.LineName;
                     lineId     = inc.UserReport.LineId 
@@ -481,7 +497,10 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
                 return new
                 {
                     id         = inc.IncidentId,
-                    coachId    = coachId    ?? "Unknown",
+                    trainId    = trainId?.ToString() ?? "—",
+                    coachId    = coachId?.ToString() ?? "—",
+                    train_id   = trainId,
+                    coach_id   = coachId,
                     line       = lineName   ?? "Unknown",
                     lineId     = lineId     ?? "Unknown",
                     station    = stationName,
@@ -651,14 +670,23 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
             var incidentList = incidents.Select(i =>
             {
                 var (lineId, lineName) = ResolveLineInfo(i);
-                string coachId = i.Source == IncidentSource.AI_DETECTION
-                    ? (i.Detection?.Camera?.CoachId ?? "Unknown")
-                    : (i.UserReport?.CoachId ?? "Unknown");
+                var coachIdRaw = i.Source == IncidentSource.AI_DETECTION
+                    ? (i.Detection?.Camera?.TrainCoach?.CoachId ?? i.Detection?.Camera?.CoachId)
+                    : (i.UserReport?.TrainCoach?.CoachId ?? i.UserReport?.CoachId);
+                var trainIdRaw = i.Source == IncidentSource.AI_DETECTION
+                    ? (i.Detection?.Camera?.TrainCoach?.TrainId ?? i.Detection?.Camera?.TrainId)
+                    : (i.UserReport?.TrainCoach?.TrainId ?? i.UserReport?.TrainId);
+                var coachId = coachIdRaw.HasValue ? coachIdRaw.Value.ToString() : "Unknown";
+                var trainId = trainIdRaw.HasValue ? trainIdRaw.Value.ToString() : "Unknown";
 
                 return new
                 {
                     id       =  i.IncidentId,
-                    coach    = coachId,
+                    trainId  = trainIdRaw?.ToString() ?? "—",
+                    coachId  = coachIdRaw?.ToString() ?? "—",
+                    coach    = coachIdRaw?.ToString() ?? "—",
+                    train_id = trainIdRaw,
+                    coach_id = coachIdRaw,
                     line     = lineName,
                     lineId,
                     datetime = i.CreatedAt.ToString("d MMM yyyy, HH:mm"),

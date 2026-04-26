@@ -65,6 +65,7 @@ namespace backend.Controllers
         {
             public string Email { get; set; } = string.Empty;
             public string Code { get; set; } = string.Empty;
+            public string? ChallengeId { get; set; }
         }
 
         public class ChangePasswordRequest
@@ -109,7 +110,8 @@ namespace backend.Controllers
             {
                 exists = true,
                 role = MapFrontendRole(user.Role),
-                isActive = user.Status == UserStatus.Active
+                isActive = user.Status == UserStatus.Active,
+                requiresSetup = (user.Role == UserRole.Auxiliary || user.Role == UserRole.Operator) && string.IsNullOrWhiteSpace(user.PasswordHash)
             });
         }
 
@@ -123,7 +125,30 @@ namespace backend.Controllers
 
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
 
-            if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+            if (user == null)
+            {
+                return Unauthorized(new { error = "Invalid email or password. Please try again." });
+            }
+
+            // Check if staff (Auxiliary/Operator) has never logged in (no password set yet)
+            if (string.IsNullOrWhiteSpace(user.PasswordHash))
+            {
+                if (user.Role == UserRole.Auxiliary || user.Role == UserRole.Operator)
+                {
+                    return Ok(new
+                    {
+                        requiresSetup = true,
+                        email = user.Email,
+                        role = MapFrontendRole(user.Role),
+                        message = "First-time login detected. Please set up your password."
+                    });
+                }
+                
+                // If it's a passenger with no password (shouldn't happen with signup, but for safety)
+                return Unauthorized(new { error = "Account not fully configured. Please contact support." });
+            }
+
+            if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             {
                 return Unauthorized(new { error = "Invalid email or password. Please try again." });
             }
@@ -187,7 +212,8 @@ namespace backend.Controllers
                 return Unauthorized(new { error = "Invalid login attempt." });
             }
 
-            var isVerified = false;
+            string? pendingPasswordHash = null;
+            bool isVerified = false;
             if (user.Role == UserRole.Operator)
             {
                 if (!user.IsMfaEnabled || string.IsNullOrWhiteSpace(user.MfaSecret))
@@ -203,12 +229,23 @@ namespace backend.Controllers
                 {
                     return BadRequest(new { error = "Challenge ID is required for OTP verification." });
                 }
-                isVerified = _challengeStore.VerifyAndConsume(request.ChallengeId, user.UserId, request.Code.Trim());
+                var result = _challengeStore.VerifyAndConsume(request.ChallengeId, user.UserId, request.Code.Trim());
+                isVerified = result.IsValid;
+                pendingPasswordHash = result.Metadata;
             }
 
             if (!isVerified)
             {
                 return Unauthorized(new { error = "Invalid or expired verification code." });
+            }
+
+            // If this was a setup-password flow (Auxiliary or first-time setup), update the password now
+            if (!string.IsNullOrEmpty(pendingPasswordHash))
+            {
+                user.PasswordHash = pendingPasswordHash;
+                user.Status = UserStatus.Active;
+                _context.Users.Update(user); // Explicitly mark as updated
+                await _context.SaveChangesAsync();
             }
 
             var frontendRole = MapFrontendRole(user.Role);
@@ -262,10 +299,69 @@ namespace backend.Controllers
                 return BadRequest(new { error = "Invalid verification code." });
             }
 
+            // If this is the initial activation (Operator), update the password now
+            if (!string.IsNullOrEmpty(request.ChallengeId))
+            {
+                var pendingPasswordHash = _challengeStore.GetMetadata(request.ChallengeId);
+                if (!string.IsNullOrEmpty(pendingPasswordHash))
+                {
+                    user.PasswordHash = pendingPasswordHash;
+                    user.Status = UserStatus.Active;
+                    _context.Users.Update(user);
+                }
+            }
+
             user.IsMfaEnabled = true;
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Google Authenticator activated successfully." });
+        }
+
+        [HttpPost("setup-password")]
+        public async Task<IActionResult> SetupPassword([FromBody] LoginRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+            {
+                return BadRequest(new { error = "Email and password are required." });
+            }
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
+            if (user == null) return NotFound(new { error = "User not found." });
+
+            if (!string.IsNullOrWhiteSpace(user.PasswordHash))
+            {
+                return BadRequest(new { error = "Password has already been set for this account." });
+            }
+
+            // Validate new password strength
+            var missing = ValidatePasswordStrength(request.Password);
+            if (missing.Any())
+            {
+                return BadRequest(new { error = $"Password must contain: {string.Join(", ", missing)}." });
+            }
+
+            var hashedPassword = BCrypt.Net.BCrypt.HashPassword(request.Password);
+            var frontendRole = MapFrontendRole(user.Role);
+
+            // Store hashed password in a challenge instead of DB
+            var challenge = _challengeStore.Create(user.UserId, TimeSpan.FromMinutes(15), hashedPassword);
+
+            // Operator: lead to MFA setup
+            if (user.Role == UserRole.Operator)
+            {
+                return Ok(new
+                {
+                    requiresMfa = true,
+                    mfaMethod = "google_authenticator",
+                    isSetup = false,
+                    challengeId = challenge.ChallengeId,
+                    email = user.Email,
+                    role = frontendRole
+                });
+            }
+
+            // Auxiliary: lead to Email OTP
+            return await StartEmailOtpForUser(user, frontendRole, challenge.ChallengeId, challenge.Code);
         }
 
         [HttpPost("change-password")]
@@ -294,14 +390,8 @@ namespace backend.Controllers
             {
                 return BadRequest(new { error = "New password cannot be the same as your current password." });
             }
-            // Cannot be the previous password
-            if (!string.IsNullOrEmpty(user.PreviousPasswordHash) && BCrypt.Net.BCrypt.Verify(request.NewPassword, user.PreviousPasswordHash))
-            {
-                return BadRequest(new { error = "New password cannot be the same as your previous password." });
-            }
 
-            // 4. Update password and history
-            user.PreviousPasswordHash = user.PasswordHash;
+            // 4. Update password
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
             await _context.SaveChangesAsync();
 
@@ -351,8 +441,8 @@ namespace backend.Controllers
         public async Task<IActionResult> SignupComplete([FromBody] SignupCompleteRequest request)
         {
             // 1. Verify OTP
-            var isValid = _challengeStore.VerifyAndConsume(request.ChallengeId, request.Email, request.Code.Trim());
-            if (!isValid)
+            var result = _challengeStore.VerifyAndConsume(request.ChallengeId, request.Email, request.Code.Trim());
+            if (!result.IsValid)
             {
                 return Unauthorized(new { error = "Invalid or expired verification code." });
             }
@@ -459,11 +549,28 @@ namespace backend.Controllers
             return $"{prefix}***{suffix}";
         }
 
-        private async Task<IActionResult> StartEmailOtpForUser(User user, string frontendRole)
+        private async Task<IActionResult> StartEmailOtpForUser(User user, string frontendRole, string? challengeId = null, string? existingCode = null)
         {
-            var challenge = _challengeStore.Create(user.UserId, TimeSpan.FromMinutes(5));
-            var sent = await _emailVerificationSender.SendLoginOtpAsync(user.Email, user.UserName, challenge.Code);
-            if (!sent)
+            string finalChallengeId;
+            string code;
+            int expiresInSeconds;
+
+            if (challengeId != null && existingCode != null)
+            {
+                finalChallengeId = challengeId;
+                code = existingCode;
+                expiresInSeconds = 900; // 15 mins for setup
+            }
+            else
+            {
+                var challenge = _challengeStore.Create(user.UserId, TimeSpan.FromMinutes(5));
+                finalChallengeId = challenge.ChallengeId;
+                code = challenge.Code;
+                expiresInSeconds = (int)(challenge.ExpiresAtUtc - DateTime.UtcNow).TotalSeconds;
+            }
+
+            var sent = await _emailVerificationSender.SendLoginOtpAsync(user.Email, user.UserName, code);
+            if (!sent && !_environment.IsDevelopment())
             {
                 return StatusCode(500, new { error = "Unable to send verification code. Please try again." });
             }
@@ -472,10 +579,10 @@ namespace backend.Controllers
             {
                 requiresMfa = true,
                 mfaMethod = "email_otp",
-                challengeId = challenge.ChallengeId,
+                challengeId = finalChallengeId,
                 maskedDestination = MaskEmail(user.Email),
-                expiresInSeconds = (int)(challenge.ExpiresAtUtc - DateTime.UtcNow).TotalSeconds,
-                debugOtp = _environment.IsDevelopment() ? challenge.Code : null,
+                expiresInSeconds = expiresInSeconds,
+                debugOtp = _environment.IsDevelopment() ? code : null,
                 email = user.Email,
                 role = frontendRole
             });

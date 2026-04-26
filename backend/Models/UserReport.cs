@@ -4,50 +4,49 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace backend.Models
 {
     [Table("User_Report")]
-    public class UserReport
-    {
-        [Key]
-        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-        [Column("report_id")]
-        public int ReportId { get; set; }
+public class UserReport
+{
+    [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    [Column("report_id")]
+    public int ReportId { get; set; }
 
-        [Required]
-        [Column("user_id")]
-        [MaxLength(50)]
-        public string UserId { get; set; } = null!;
+    [Required]
+    [Column("user_id")]
+    [MaxLength(50)]
+    public string UserId { get; set; } = null!;
 
-        [Column("coach_id")]
-        [MaxLength(50)]
-        public string? CoachId { get; set; }
+    [Column("train_id")]
+    public int TrainId { get; set; }
 
-        [Column("description")]
-        public string? Description { get; set; }
+    [Column("coach_id")]
+    public int CoachId { get; set; }
 
-        [Column("image_url")]
-        [MaxLength(255)]
-        public string? ImageUrl { get; set; }
+    [Column("description")]
+    public string? Description { get; set; }
 
-        [Column("created_at")]
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    [Column("image_url")]
+    [MaxLength(255)]
+    public string? ImageUrl { get; set; }
 
-        [Column("line_id")]
-        [MaxLength(50)]
-        public string? LineId { get; set; }
+    [Column("created_at")]
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        [Column("station_id")]
-        [MaxLength(50)]
-        public string? StationId { get; set; }
+    [Column("line_id")]
+    [MaxLength(50)]
+    public string? LineId { get; set; }
 
-        // Navigation
-        [ForeignKey(nameof(UserId))]
-        public User User { get; set; } = null!;
+    [Column("station_id")]
+    [MaxLength(50)]
+    public string? StationId { get; set; }
 
-        [ForeignKey(nameof(CoachId))]
-        public TrainCoach? TrainCoach { get; set; }
+    // Navigation
+    public User User { get; set; } = null!;
 
-        [ForeignKey("LineId, StationId")]
-        public LineStation? LineStation { get; set; }
+    public TrainCoach? TrainCoach { get; set; }
 
-        public Incident? Incident { get; set; }
-    }
+    public LineStation? LineStation { get; set; }
+
+    public Incident? Incident { get; set; }
+}
 }

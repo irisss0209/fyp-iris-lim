@@ -1,34 +1,28 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-
 namespace backend.Models
 {
-    [Table("Camera")]
-    public class Camera
-    {
-        [Key]
-        [Column("camera_id")]
-        [MaxLength(50)]
-        public string CameraId { get; set; } = null!;
+[Table("Camera")]
+public class Camera
+{
+    [Key]
+    [Column("camera_id")]
+    public string CameraId { get; set; } = null!;
 
-        [Required]
-        [Column("coach_id")]
-        [MaxLength(50)]
-        public string CoachId { get; set; } = null!;
+    [Column("train_id")]
+    public int TrainId { get; set; }
 
-        [Column("stream_url")]
-        [MaxLength(255)]
-        public string? StreamUrl { get; set; }
+    [Column("coach_id")]
+    public int CoachId { get; set; }
 
-        // 'Active' | 'Inactive' | 'Faulty'
-        [Required]
-        [Column("status")]
-        public CameraStatus Status { get; set; } = CameraStatus.Active;
+    [Column("stream_url")]
+    public string? StreamUrl { get; set; }
 
-        // Navigation
-        [ForeignKey(nameof(CoachId))]
-        public TrainCoach TrainCoach { get; set; } = null!;
+    [Column("status")]
+    public CameraStatus Status { get; set; } = CameraStatus.Active;
 
-        public ICollection<Detection> Detections { get; set; } = [];
-    }
+    public TrainCoach TrainCoach { get; set; } = null!;
+
+    public ICollection<Detection> Detections { get; set; } = [];
+}
 }

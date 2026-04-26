@@ -17,48 +17,69 @@ namespace backend.Controllers
         }
 
         [HttpGet("auxiliary/shift")]
-public async Task<IActionResult> GetAuxiliaryShift([FromQuery] string userId)
-{
-    if (string.IsNullOrWhiteSpace(userId))
-        return BadRequest(new { error = "userId query parameter is required." });
+        public async Task<IActionResult> GetAuxiliaryShift([FromQuery] string userId)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+                return BadRequest(new { error = "userId query parameter is required." });
 
-    // Convert UTC → MYT properly
-    var now = DateTime.Now;
-    var today = DateTime.SpecifyKind(now.Date, DateTimeKind.Utc);
-    var nowTime = now.TimeOfDay;
+            var now = DateTime.Now;
+            var today = now.Date;
+            var nowTime = now.TimeOfDay;
 
-    var shift = await _context.AuxiliaryShifts
-        .Include(s => s.Station)
-        .Where(s => s.UserId == userId && s.ShiftDate.Date == today)
-        .OrderBy(s => s.StartTime)
-        .FirstOrDefaultAsync();
+            // 1. Try today's shift
+            var shift = await _context.AuxiliaryShifts
+                .Include(s => s.Station)
+                .Where(s => s.UserId == userId && s.ShiftDate.Date == today)
+                .OrderBy(s => s.StartTime)
+                .FirstOrDefaultAsync();
 
-    if (shift == null)
-        return Ok(new { active = false });
+            // 2. If no shift today, try upcoming shift
+            if (shift == null)
+            {
+                shift = await _context.AuxiliaryShifts
+                    .Include(s => s.Station)
+                    .Where(s => s.UserId == userId && s.ShiftDate.Date > today)
+                    .OrderBy(s => s.ShiftDate)
+                    .ThenBy(s => s.StartTime)
+                    .FirstOrDefaultAsync();
+            }
 
-    // ✅ Handle overnight shift properly
-    bool isOnDuty;
-    if (shift.EndTime > shift.StartTime)
-    {
-        isOnDuty = shift.StartTime <= nowTime && shift.EndTime > nowTime;
-    }
-    else
-    {
-        isOnDuty = nowTime >= shift.StartTime || nowTime < shift.EndTime;
-    }
+            // 3. If still no shift, try most recent past shift
+            if (shift == null)
+            {
+                shift = await _context.AuxiliaryShifts
+                    .Include(s => s.Station)
+                    .Where(s => s.UserId == userId && s.ShiftDate.Date < today)
+                    .OrderByDescending(s => s.ShiftDate)
+                    .ThenByDescending(s => s.StartTime)
+                    .FirstOrDefaultAsync();
+            }
 
-    return Ok(new
-    {
-        active = true,
-        onDuty = isOnDuty,
-        shiftId = shift.ShiftId,
-        station = shift.Station.StationName,
-        stationId = shift.StationId,
-        shiftStart = shift.StartTime.ToString(@"hh\:mm"),
-        shiftEnd = shift.EndTime.ToString(@"hh\:mm"),
-        shiftDate = shift.ShiftDate.ToString("yyyy-MM-dd")
-    });
-}
+            if (shift == null)
+                return Ok(new { active = false });
+
+            // Calculate isOnDuty only for today's shifts
+            bool isOnDuty = false;
+            if (shift.ShiftDate.Date == today)
+            {
+                if (shift.EndTime > shift.StartTime)
+                    isOnDuty = shift.StartTime <= nowTime && shift.EndTime > nowTime;
+                else
+                    isOnDuty = nowTime >= shift.StartTime || nowTime < shift.EndTime;
+            }
+
+            return Ok(new
+            {
+                active = true,
+                onDuty = isOnDuty,
+                shiftId = shift.ShiftId,
+                station = shift.Station.StationName,
+                stationId = shift.StationId,
+                shiftStart = shift.StartTime.ToString(@"hh\:mm"),
+                shiftEnd = shift.EndTime.ToString(@"hh\:mm"),
+                shiftDate = shift.ShiftDate.ToString("yyyy-MM-dd")
+            });
+        }
 
         
 
@@ -138,7 +159,8 @@ public async Task<IActionResult> GetAuxiliaryShift([FromQuery] string userId)
             {
                 string? lineName   = null;
                 string? lineId     = null;
-                string? coachId    = null;
+                int? coachId       = null;
+                int? trainId       = null;
                 string? deviceId   = null;
                 decimal? confidence = null;
                 string source;
@@ -149,6 +171,7 @@ public async Task<IActionResult> GetAuxiliaryShift([FromQuery] string userId)
                     confidence = inc.Detection.ConfidenceScore;
                     deviceId   = inc.Detection.CameraId;
                     coachId    = inc.Detection.Camera?.CoachId;
+                    trainId    = inc.Detection.Camera?.TrainCoach?.TrainId ?? inc.Detection.Camera?.TrainId;
                     lineName   = inc.Detection.LineStation?.TrainLine?.LineName 
                                  ?? inc.Detection.Camera?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
                     lineId     = inc.Detection.LineId 
@@ -158,6 +181,7 @@ public async Task<IActionResult> GetAuxiliaryShift([FromQuery] string userId)
                 {
                     source     = "passenger";
                     coachId    = inc.UserReport.CoachId;
+                    trainId    = inc.UserReport.TrainCoach?.TrainId ?? inc.UserReport.TrainId;
                     lineName   = inc.UserReport.LineStation?.TrainLine?.LineName 
                                  ?? inc.UserReport.TrainCoach?.TrainAsset?.TrainLine?.LineName;
                     lineId     = inc.UserReport.LineId 
@@ -178,8 +202,11 @@ public async Task<IActionResult> GetAuxiliaryShift([FromQuery] string userId)
                 return new
                 {
                     id         = (inc.Source == IncidentSource.AI_DETECTION ? "ALT-" : "RPT-") + inc.IncidentId.ToString("D3"),
-                    coach      = coachId    ?? "Unknown", // keeping property coach to not break existing frontend, but also passing coachId
-                    coachId    = coachId    ?? "Unknown",
+                    trainId    = trainId?.ToString() ?? "—",
+                    coach      = coachId?.ToString() ?? "—",
+                    coachId    = coachId?.ToString() ?? "—",
+                    train_id   = trainId,
+                    coach_id   = coachId,
                     door       = deviceId   ?? "—",
                     deviceId,
                     line       = lineName   ?? "—",
@@ -251,19 +278,23 @@ elapsed = Math.Max(1, (int)(now - inc.CreatedAt).TotalMinutes),
                switch (parsedStatus)
             {
                 case IncidentStatus.En_Route:
-                    incident.EnrouteAt = DateTime.UtcNow;
+                    incident.EnrouteAt = DateTime.Now;
+                    incident.EnrouteBy = req.UserId;
                     break;
                 case IncidentStatus.Resolved:
-                    incident.ResolvedAt = DateTime.UtcNow;
+                    incident.ResolvedAt = DateTime.Now;
                     incident.ResolvedComment = req.Comment;
+                    incident.ResolvedBy = req.UserId;
                     break;
                 case IncidentStatus.Dismissed:
-                    incident.DismissedAt = DateTime.UtcNow;
+                    incident.DismissedAt = DateTime.Now;
                     incident.DismissedComment = req.Comment;
+                    incident.DismissedBy = req.UserId;
                     break;
                 case IncidentStatus.Escalated:
-                    incident.EscalatedAt = DateTime.UtcNow;
+                    incident.EscalatedAt = DateTime.Now;
                     incident.EscalatedComment = req.Comment;
+                    incident.EscalatedBy = req.UserId;
                     break;
             }
 
@@ -282,14 +313,14 @@ elapsed = Math.Max(1, (int)(now - inc.CreatedAt).TotalMinutes),
                 .Include(i => i.Detection)
                     .ThenInclude(d => d!.Camera)
                         .ThenInclude(c => c!.TrainCoach)
-                            .ThenInclude(tc => tc!.TrainAsset)
                 .Include(i => i.Detection)
                     .ThenInclude(d => d!.LineStation)
                         .ThenInclude(ls => ls!.Station)
                 .Include(i => i.UserReport)
+                    .ThenInclude(r => r!.TrainCoach)
+                .Include(i => i.UserReport)
                     .ThenInclude(r => r!.LineStation)
                         .ThenInclude(ls => ls!.Station)
-                .Include(i => i.UserReport)
                 .Where(i =>
                     i.EnrouteBy == userId ||
                     i.ResolvedBy == userId ||
@@ -325,6 +356,13 @@ elapsed = Math.Max(1, (int)(now - inc.CreatedAt).TotalMinutes),
                                           ?? lineStations.FirstOrDefault(ls => ls.LineId == lineId)?.Station?.StationName 
                                           ?? "Unknown Station";
 
+                var coachIdRaw = i.Source == IncidentSource.AI_DETECTION
+                    ? i.Detection?.Camera?.CoachId
+                    : i.UserReport?.CoachId;
+                var trainIdRaw = i.Source == IncidentSource.AI_DETECTION
+                    ? (i.Detection?.Camera?.TrainCoach?.TrainId ?? i.Detection?.Camera?.TrainId)
+                    : (i.UserReport?.TrainCoach?.TrainId ?? i.UserReport?.TrainId);
+
                 return new
                 {
                     id = i.IncidentId.ToString(),
@@ -339,7 +377,10 @@ elapsed = Math.Max(1, (int)(now - inc.CreatedAt).TotalMinutes),
                         : i.DismissedAt.HasValue
                             ? $"{(int)(i.DismissedAt.Value - i.CreatedAt).TotalMinutes} min"
                             : "—",
-                    coachId = i.Detection != null ? i.Detection.Camera!.CoachId : "—",
+                    trainId = trainIdRaw?.ToString() ?? "—",
+                    coachId = coachIdRaw?.ToString() ?? "—",
+                    train_id = trainIdRaw,
+                    coach_id = coachIdRaw,
                     description = i.Source == IncidentSource.AI_DETECTION
                         ? "Male detected in women-only coach"
                         : "Passenger-reported incident",

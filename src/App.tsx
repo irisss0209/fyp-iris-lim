@@ -4,6 +4,7 @@ import { PassengerInterface } from './pages/mobile-passenger/PassengerInterface'
 import { AuxiliaryInterface } from './pages/mobile-auxiliary/AuxiliaryInterface';
 import { LoginPage } from './pages/auth/LoginPage';
 import { SignupPage } from './pages/auth/SignupPage';
+import { SetupPasswordPage } from './pages/auth/SetupPasswordPage';
 import { UpdatePrompt } from './components/UpdatePrompt';
 
 export type UserRole = 'operator' | 'passenger' | 'auxiliary';
@@ -19,7 +20,7 @@ export interface UserSession {
   description?: string;
 }
 
-type AuthView = 'login' | 'signup';
+type AuthView = 'login' | 'signup' | 'setup-password';
 
 export function App() {
   const [session, setSession] = useState<UserSession | null>(() => {
@@ -31,6 +32,8 @@ export function App() {
     }
   });
   const [authView, setAuthView] = useState<AuthView>('login');
+  const [setupEmail, setSetupEmail] = useState('');
+  const [pendingMfa, setPendingMfa] = useState<any>(null);
 
   useEffect(() => {
     if (session) {
@@ -52,8 +55,17 @@ export function App() {
 
         {authView === 'login' && (
           <LoginPage
-            onLoginSuccess={(s) => setSession(s)}
+            onLoginSuccess={(s) => {
+              setSession(s);
+              setPendingMfa(null);
+            }}
             onNavigateSignup={() => setAuthView('signup')}
+            onNavigateSetupPassword={(email) => {
+              setSetupEmail(email);
+              setAuthView('setup-password');
+            }}
+            initialMfaState={pendingMfa}
+            initialEmail={setupEmail}
           />
         )}
 
@@ -61,6 +73,16 @@ export function App() {
           <SignupPage
             onSignupSuccess={(s) => setSession(s)}
             onNavigateLogin={() => setAuthView('login')}
+          />
+        )}
+
+        {authView === 'setup-password' && (
+          <SetupPasswordPage
+            email={setupEmail}
+            onSuccess={(session) => {
+              setSession(session);
+            }}
+            onBack={() => setAuthView('login')}
           />
         )}
       </>

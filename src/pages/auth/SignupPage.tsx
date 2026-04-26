@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   EyeIcon,
   EyeOffIcon,
@@ -162,10 +161,7 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
   return (
     <div className="min-h-screen w-full bg-[#FAF9F5] flex flex-col items-center justify-center px-4 py-8 sm:py-12">
       {/* Logo */}
-      <motion.div
-        initial={{ opacity: 0, y: -12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
+      <div
         className="flex items-center gap-3 mb-6 sm:mb-8"
       >
         <div
@@ -182,25 +178,17 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
           <div className="text-lg sm:text-xl font-bold text-gray-900 leading-tight">Railly</div>
           <div className="text-xs text-gray-400">Integrated Transit Safety</div>
         </div>
-      </motion.div>
+      </div>
 
       {/* Card */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: 'easeOut', delay: 0.05 }}
+      <div
         className="w-full max-w-sm sm:max-w-md bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden"
       >
-        <AnimatePresence mode="wait">
+        <>
 
           {/* ── STEP 1: Details ── */}
           {step === 'details' && (
-            <motion.div
-              key="details"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.25, ease: 'easeInOut' }}
+            <div
               className="p-5 sm:p-8"
             >
               <div className="mb-5 sm:mb-7">
@@ -301,19 +289,14 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
                 </div>
 
                 {/* Error */}
-                <AnimatePresence>
-                  {error && (
-                    <motion.p
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2"
-                      role="alert"
-                    >
-                      {error}
-                    </motion.p>
-                  )}
-                </AnimatePresence>
+                {error && (
+                  <p
+                    className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2"
+                    role="alert"
+                  >
+                    {error}
+                  </p>
+                )}
 
                 {/* Submit */}
                 <button
@@ -339,7 +322,7 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
                   </button>
                 </div>
               </form>
-            </motion.div>
+            </div>
           )}
 
           {/* ── STEP 2: MFA ── */}
@@ -355,40 +338,31 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
 
           {/* ── STEP 3: Success ── */}
           {step === 'success' && (
-            <motion.div
-              key="success"
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3, ease: 'easeOut' }}
+            <div
               className="p-8 flex flex-col items-center justify-center text-center py-12 sm:py-14"
             >
-              <motion.div
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.1, type: 'spring', stiffness: 260, damping: 20 }}
+              <div
                 className="w-16 h-16 rounded-full flex items-center justify-center mb-5"
                 style={{ backgroundColor: '#F0FBF6' }}
               >
                 <CheckCircleIcon size={32} style={{ color: '#2D7A5D' }} />
-              </motion.div>
+              </div>
               <h2 className="text-xl font-bold text-gray-900 mb-1">Account Created</h2>
               <p className="text-sm text-gray-400">
                 Launching passenger safety app…
               </p>
               <div className="mt-6 flex gap-1">
                 {[0, 1, 2].map((i) => (
-                  <motion.div
+                  <div
                     key={i}
-                    className="w-1.5 h-1.5 rounded-full"
-                    style={{ backgroundColor: ACCENT }}
-                    animate={{ opacity: [0.3, 1, 0.3] }}
-                    transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+                    className="w-1.5 h-1.5 rounded-full animate-pulse"
+                    style={{ backgroundColor: ACCENT, animationDelay: `${i * 200}ms` }}
                   />
                 ))}
               </div>
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
+        </>
 
         {/* Footer */}
         {step !== 'success' && (
@@ -399,7 +373,7 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
             </span>
           </div>
         )}
-      </motion.div>
+      </div>
 
       {/* Step indicator */}
       {step !== 'success' && (

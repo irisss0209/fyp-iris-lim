@@ -22,7 +22,8 @@ interface Case {
   datetime: string;
   outcome: 'Resolved' | 'Escalated' | 'No Action';
   duration: string;
-  coachId: string;
+  trainId: number | string;
+  coachId: number | string;
   description: string;
   notes: string;
 }
@@ -108,6 +109,10 @@ export function AlertsHistory({ userId }: { userId: string }) {
             <div className="flex items-center gap-2 text-sm">
               <ClockIcon className="w-4 h-4 flex-shrink-0 text-gray-400" />
               <span className="text-gray-900">{selectedCase.datetime}</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-xs font-medium text-gray-400">Train:</span>
+              <span className="text-sm font-medium text-gray-900">{selectedCase.trainId}</span>
             </div>
             <div className="flex items-center gap-2 text-sm">
               <span className="text-xs font-medium text-gray-400">Coach:</span>

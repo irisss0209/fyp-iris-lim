@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import {
   HomeIcon,
   AlertTriangleIcon,
@@ -12,6 +12,7 @@ import { Report } from './PassengerReport';
 import { Profile } from './PassengerProfile';
 import { IncidentNearMe } from './IncidentNearMe';
 import { Insights } from './Insights';
+import { ChangePasswordPage } from '../auth/ChangePasswordPage';
 import { UserSession } from '../../App';
 
 export interface PassengerInterface {
@@ -31,6 +32,7 @@ const TABS: { id: Tab; icon: React.ElementType; label: string }[] = [
 
 export function PassengerInterface({ session, onLogout }: PassengerInterface) {
   const [activeTab, setActiveTab] = useState<Tab>('home');
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   return (
     <div className="flex flex-col h-full relative w-full sm:max-w-md mx-auto overflow-hidden sm:shadow-2xl sm:rounded-[40px] sm:border-[8px] sm:border-white sm:ring-1 sm:ring-gray-100 min-h-screen sm:min-h-[850px] sm:max-h-[850px]" style={{ backgroundColor: '#FAF9F5' }}>
@@ -66,7 +68,22 @@ export function PassengerInterface({ session, onLogout }: PassengerInterface) {
           {activeTab === 'incident' && <IncidentNearMe key="incident" />}
           {activeTab === 'report' && <Report key="report" session={session} />}
           {activeTab === 'insights' && <Insights key="insights" />}
-          {activeTab === 'profile' && <Profile key="profile" session={session} onLogout={onLogout} />}
+          {activeTab === 'profile' && (
+            showChangePassword ? (
+              <ChangePasswordPage 
+                key="change-password" 
+                session={session} 
+                onBack={() => setShowChangePassword(false)} 
+              />
+            ) : (
+              <Profile 
+                key="profile" 
+                session={session} 
+                onLogout={onLogout} 
+                onChangePassword={() => setShowChangePassword(true)}
+              />
+            )
+          )}
         </AnimatePresence>
       </div>
 

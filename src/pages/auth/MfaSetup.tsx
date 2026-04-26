@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, Copy, Check, ArrowRight } from 'lucide-react';
 
 interface MfaSetupProps {
@@ -8,6 +7,7 @@ interface MfaSetupProps {
   onActivate: () => void;
   onBack: () => void;
   accentColor?: string;
+  challengeId?: string;
 }
 
 export function MfaSetup({
@@ -15,6 +15,7 @@ export function MfaSetup({
   onActivate,
   onBack,
   accentColor = '#0B4F6C',
+  challengeId,
 }: MfaSetupProps) {
   const [setupData, setSetupData] = useState<{ secret: string; qrCodeUri: string } | null>(null);
   const [code, setCode] = useState(['', '', '', '', '', '']);
@@ -73,7 +74,7 @@ export function MfaSetup({
       const response = await fetch('http://localhost:5293/api/auth/mfa/activate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code: fullCode }),
+        body: JSON.stringify({ email, code: fullCode, challengeId }),
       });
 
       if (response.ok) {
@@ -90,9 +91,7 @@ export function MfaSetup({
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
+    <div
       className="p-6 sm:p-8"
     >
       <div className="mb-6">
@@ -105,13 +104,9 @@ export function MfaSetup({
         </p>
       </div>
 
-      <AnimatePresence mode="wait">
+      <>
         {step === 'qr' ? (
-          <motion.div
-            key="qr-step"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
+          <div
             className="space-y-6"
           >
             <div className="bg-gray-50 rounded-2xl p-6 flex flex-col items-center justify-center border border-gray-100">
@@ -153,13 +148,9 @@ export function MfaSetup({
             >
               I've scanned the code <ArrowRight size={18} />
             </button>
-          </motion.div>
+          </div>
         ) : (
-          <motion.div
-            key="verify-step"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
+          <div
             className="space-y-6"
           >
             <div className="space-y-4">
@@ -204,9 +195,9 @@ export function MfaSetup({
                 Back to QR Code
               </button>
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      </>
 
       <div className="mt-8 pt-6 border-t border-gray-100">
         <button
@@ -216,6 +207,6 @@ export function MfaSetup({
           Cancel Setup
         </button>
       </div>
-    </motion.div>
+    </div>
   );
 }
