@@ -11,6 +11,9 @@ import {
 } from 'lucide-react';
 import { useTime } from '../../context/TimeContext';
 import { formatDateTimeLabel } from '../../utils/Time';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import '../../Operator.css';
 
 const API = 'http://localhost:5293/api/data';
 const ACCENT = '#0B4F6C';
@@ -39,13 +42,13 @@ interface ReportStats {
 }
 
 interface StatusSlice { name: string; value: number; color: string; }
-interface LineInfo    { lineId: string; lineName: string; }
+interface LineInfo { lineId: string; lineName: string; }
 interface MonthOption { year: number; month: number; label: string; }
 
 interface IncidentRow {
   id: string;
-  trainId: number | string;
-  coachId: number | string;
+  trainId: number;
+  coachId: number;
   line: string;
   lineId: string;
   datetime: string;
@@ -54,11 +57,11 @@ interface IncidentRow {
   source: string;
   reportedBy?: string;
   // Status timeline
-  verifiedBy?: string;      verifiedAt?: string;   verifiedComment?: string;
-  enrouteBy?: string;       enrouteAt?: string;
-  resolvedBy?: string;      resolvedAt?: string;   resolvedComment?: string;
-  escalatedBy?: string;     escalatedAt?: string;  escalatedComment?: string;
-  dismissedBy?: string;     dismissedAt?: string;  dismissedComment?: string;
+  verifiedBy?: string; verifiedAt?: string; verifiedComment?: string;
+  enrouteBy?: string; enrouteAt?: string;
+  resolvedBy?: string; resolvedAt?: string; resolvedComment?: string;
+  escalatedBy?: string; escalatedAt?: string; escalatedComment?: string;
+  dismissedBy?: string; dismissedAt?: string; dismissedComment?: string;
 }
 
 interface ReportData {
@@ -74,11 +77,11 @@ interface ReportData {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const statusColor = (status: string) => {
   const s = status?.toLowerCase() ?? '';
-  if (s === 'resolved')  return { bg: '#F0FBF6', text: '#2D7A5D' };
+  if (s === 'resolved') return { bg: '#F0FBF6', text: '#2D7A5D' };
   if (s === 'escalated') return { bg: '#FEF2F0', text: '#D34026' };
-  if (s === 'pending')   return { bg: '#FFF7ED', text: '#C05621' };
-  if (s === 'verified')  return { bg: '#EFF6FF', text: '#1D4ED8' };
-  if (s === 'en_route')  return { bg: '#EFF6FF', text: '#0B4F6C' };
+  if (s === 'pending') return { bg: '#FFF7ED', text: '#C05621' };
+  if (s === 'verified') return { bg: '#EFF6FF', text: '#1D4ED8' };
+  if (s === 'en_route') return { bg: '#EFF6FF', text: '#0B4F6C' };
   if (s === 'dismissed') return { bg: '#F7FAFC', text: '#4A5568' };
   return { bg: '#F7FAFC', text: '#718096' };
 };
@@ -91,34 +94,36 @@ const fmtDelta = (v: number, invertGood = false) => {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function Reports() {
-  const [activeTab, setActiveTab]           = useState<ReportTab>('overview');
-  const [data, setData]                     = useState<ReportData | null>(null);
-  const [months, setMonths]                 = useState<MonthOption[]>([]);
-  const [selectedMonth, setSelectedMonth]   = useState<MonthOption | null>(null);
-  const [loading, setLoading]               = useState(true);
-  const [pickerOpen, setPickerOpen]         = useState(false);
+  const [activeTab, setActiveTab] = useState<ReportTab>('overview');
+  const [data, setData] = useState<ReportData | null>(null);
+  const [months, setMonths] = useState<MonthOption[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<MonthOption | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   // Incidents-tab filters
   const [statusFilter, setStatusFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
-  const [lineFilter, setLineFilter]     = useState('');
-  const [search, setSearch]             = useState('');
-  const [page, setPage]                 = useState(1);
+  const [lineFilter, setLineFilter] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
 
   // ── Data fetching ──────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
       try {
-        const res  = await fetch(`${API}/operator/reports`);
+        const res = await fetch(`${API}/operator/reports`);
         const json = await res.json();
         if (json.months?.length > 0) {
           setMonths(json.months);
           setSelectedMonth(json.months[0]);
         } else {
           const now = new Date();
-          const cur = { year: now.getFullYear(), month: now.getMonth() + 1,
-            label: now.toLocaleDateString('en-MY', { month: 'short', year: 'numeric' }) };
+          const cur = {
+            year: now.getFullYear(), month: now.getMonth() + 1,
+            label: now.toLocaleDateString('en-MY', { month: 'short', year: 'numeric' })
+          };
           setMonths([cur]);
           setSelectedMonth(cur);
         }
@@ -134,7 +139,7 @@ export function Reports() {
   const fetchReport = useCallback(async (m: MonthOption) => {
     setLoading(true);
     try {
-      const res  = await fetch(`${API}/operator/reports?year=${m.year}&month=${m.month}`);
+      const res = await fetch(`${API}/operator/reports?year=${m.year}&month=${m.month}`);
       const json = await res.json();
       setData(json);
       if (json.months?.length > 0) setMonths(json.months);
@@ -148,7 +153,7 @@ export function Reports() {
   useEffect(() => { if (selectedMonth) fetchReport(selectedMonth); }, [selectedMonth, fetchReport]);
 
   const allIncidents = data?.incidents ?? [];
-  const stats        = data?.stats;
+  const stats = data?.stats;
 
   // ── Derived analytics ──────────────────────────────────────────────────────
 
@@ -169,15 +174,15 @@ export function Reports() {
 
   // AI vs Passenger split
   const sourceSplit = useMemo(() => {
-    const ai     = allIncidents.filter(i => i.type === 'AI Detection').length;
+    const ai = allIncidents.filter(i => i.type === 'AI Detection').length;
     const report = allIncidents.filter(i => i.type === 'Passenger Report').length;
     return [
-      { name: 'AI Detection',     value: ai,     color: '#0B4F6C' },
-      { name: 'Passenger Report', value: report,  color: '#D34026' },
+      { name: 'AI Detection', value: ai, color: '#0B4F6C' },
+      { name: 'Passenger Report', value: report, color: '#D34026' },
     ].filter(s => s.value > 0);
   }, [allIncidents]);
 
-  const resolvedCount  = useMemo(() =>
+  const resolvedCount = useMemo(() =>
     allIncidents.filter(i => i.status?.toLowerCase() === 'resolved').length, [allIncidents]);
   const resolutionRate = stats?.total ? Math.round(resolvedCount * 100 / stats.total) : 0;
 
@@ -192,24 +197,24 @@ export function Reports() {
     const topTrain = byTrain[0];
 
     const dayTotals = (data?.dailyData ?? []).map(d => ({
-      day:   d.day as string,
+      day: d.day as string,
       total: Object.entries(d)
-               .filter(([k]) => k !== 'day')
-               .reduce((s, [, v]) => s + (Number(v) || 0), 0),
+        .filter(([k]) => k !== 'day')
+        .reduce((s, [, v]) => s + (Number(v) || 0), 0),
     }));
     const peakDay = [...dayTotals].sort((a, b) => b.total - a.total)[0];
 
     return [
       topLine
-        ? { Icon: MapPinIcon,        color: '#7B5EA7', label: 'Most Affected Line',  value: topLine[0],    sub: `${topLine[1]} incidents` }
+        ? { Icon: MapPinIcon, color: '#7B5EA7', label: 'Most Affected Line', value: topLine[0], sub: `${topLine[1]} incidents` }
         : null,
       topTrain
-        ? { Icon: AlertTriangleIcon, color: '#D34026', label: 'Highest Risk Train',  value: topTrain.train, sub: `${topTrain.count} incidents` }
+        ? { Icon: AlertTriangleIcon, color: '#D34026', label: 'Highest Risk Train', value: topTrain.train, sub: `${topTrain.count} incidents` }
         : null,
       peakDay?.total > 0
-        ? { Icon: CalendarIcon,      color: '#B45309', label: 'Peak Day of Week',    value: peakDay.day,   sub: `${peakDay.total} incidents` }
+        ? { Icon: CalendarIcon, color: '#B45309', label: 'Peak Day of Week', value: peakDay.day, sub: `${peakDay.total} incidents` }
         : null,
-      { Icon: CheckCircleIcon,       color: '#2D7A5D', label: 'Resolution Rate',     value: `${resolutionRate}%`, sub: `${resolvedCount} of ${stats?.total ?? 0} resolved` },
+      { Icon: CheckCircleIcon, color: '#2D7A5D', label: 'Resolution Rate', value: `${resolutionRate}%`, sub: `${resolvedCount} of ${stats?.total ?? 0} resolved` },
     ].filter(Boolean) as { Icon: React.ElementType; color: string; label: string; value: string; sub: string }[];
   }, [allIncidents, byTrain, data, resolutionRate, resolvedCount, stats]);
 
@@ -219,7 +224,7 @@ export function Reports() {
     return allIncidents.filter(inc => {
       const matchStatus = !statusFilter || inc.status?.toLowerCase() === statusFilter;
       const matchSource = !sourceFilter || inc.type === sourceFilter;
-      const matchLine   = !lineFilter   || inc.lineId === lineFilter;
+      const matchLine = !lineFilter || inc.lineId === lineFilter;
       const matchSearch = !q
         || inc.id?.toLowerCase().includes(q)
         || String(inc.trainId).includes(q)
@@ -230,107 +235,179 @@ export function Reports() {
   }, [allIncidents, statusFilter, sourceFilter, lineFilter, search]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // CSV export (exports current filtered set)
   const exportCSV = () => {
     const rows = [
-      ['Case ID', 'Train', 'Coach', 'Line', 'Date/Time', 'Source', 'Status', 'Handled By'],
-      ...filtered.map(i => [i.id, `T.${i.trainId}`, `C.${i.coachId}`, i.line, i.datetime, i.type, i.status, i.verifiedBy ?? i.resolvedBy ?? i.escalatedBy ?? i.dismissedBy ?? '']),
+      [
+        'Case ID',
+        'Train',
+        'Coach',
+        'Line',
+        'Type',
+
+        'Reported At',
+        'Reported By',
+
+        'Verified At',
+        'Verified By',
+        'Verification Comment',
+
+        'En Route At',
+        'En Route By',
+
+        'Resolved At',
+        'Resolved By',
+        'Resolution Comment',
+
+        'Escalated At',
+        'Escalated By',
+        'Escalation Comment',
+
+        'Dismissed At',
+        'Dismissed By',
+        'Dismissal Comment',
+
+
+      ],
+
+      ...filtered.map(i => [
+        i.id,
+        i.trainId,
+        i.coachId,
+        i.line,
+        i.type,
+
+        i.datetime,
+        i.reportedBy ?? '',
+
+        i.verifiedAt ?? '',
+        i.verifiedBy ?? '',
+        i.verifiedComment ?? '',
+
+        i.enrouteAt ?? '',
+        i.enrouteBy ?? '',
+
+        i.resolvedAt ?? '',
+        i.resolvedBy ?? '',
+        i.resolvedComment ?? '',
+
+        i.escalatedAt ?? '',
+        i.escalatedBy ?? '',
+        i.escalatedComment ?? '',
+
+        i.dismissedAt ?? '',
+        i.dismissedBy ?? '',
+        i.dismissedComment ?? '',
+
+      ])
     ];
-    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+
+    const csv = rows
+      .map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+
     const blob = new Blob([csv], { type: 'text/csv' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
     a.href = url;
-    a.download = `incidents-${selectedMonth?.label ?? 'report'}.csv`;
+    a.download = `incidents-full-${selectedMonth?.label ?? 'report'}.csv`;
     a.click();
+
     URL.revokeObjectURL(url);
   };
-
   // ── PDF export ────────────────────────────────────────────────────────────
-  const downloadPDF = () => {
-    const win = window.open('', '_blank');
-    if (!win) return;
 
-    const fmtDate = (d?: string | null) =>
-      d ? new Date(d).toLocaleString('en-MY', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
-    const kpiRows = [
-      ['Total Incidents',  String(stats?.total ?? 0),         stats?.totalDelta ? `${stats.totalDelta > 0 ? '↑' : '↓'} ${Math.abs(stats.totalDelta)}% vs last month` : ''],
-      ['Resolution Rate',  `${resolutionRate}%`,              `${resolvedCount} of ${stats?.total ?? 0} resolved`],
-      ['Avg Response',     stats?.avgResponseMinutes ? `${stats.avgResponseMinutes}m` : 'N/A', 'to first verification'],
-      ['False Alarm Rate', `${stats?.falseAlarmRate ?? 0}%`,  'dismissed incidents'],
-    ];
+  const downloadPDF = async () => {
+    const element = document.getElementById('report-export');
+    if (!element) return;
 
-    const trainRows = byTrain.map(t => [t.train, String(t.count), String(t.resolved), t.count > 0 ? `${Math.round(t.resolved * 100 / t.count)}%` : '0%', t.line]);
-    const statusRows = (data?.statusBreakdown ?? []).map(s => {
-      const total = data!.statusBreakdown.reduce((a, x) => a + x.value, 0);
-      return [s.name, String(s.value), total > 0 ? `${Math.round(s.value * 100 / total)}%` : '0%'];
-    });
+    try {
+      document.body.style.cursor = 'wait';
 
-    const tableStyle = 'width:100%;border-collapse:collapse;margin-bottom:24px;font-size:12px';
-    const thStyle    = 'background:#0B4F6C;color:#fff;padding:8px 10px;text-align:left;font-weight:600';
-    const tdStyle    = 'padding:7px 10px;border-bottom:1px solid #E2E8F0;color:#1A202C';
-    const tdAlt      = 'padding:7px 10px;border-bottom:1px solid #E2E8F0;color:#1A202C;background:#F8FAFC';
+      // ✅ 1. Clone the element
+      const clone = element.cloneNode(true) as HTMLElement;
 
-    const makeTable = (headers: string[], rows: string[][], title: string) => `
-      <h3 style="font-size:13px;font-weight:700;color:#0B4F6C;margin:0 0 8px">${title}</h3>
-      <table style="${tableStyle}">
-        <thead><tr>${headers.map(h => `<th style="${thStyle}">${h}</th>`).join('')}</tr></thead>
-        <tbody>${rows.map((r, i) => `<tr>${r.map(c => `<td style="${i % 2 === 0 ? tdStyle : tdAlt}">${c}</td>`).join('')}</tr>`).join('')}</tbody>
-      </table>`;
+      // ✅ 2. Force styles for PDF
+      clone.style.width = '1200px';
+      clone.style.minWidth = '1200px';
+      clone.style.maxWidth = '1200px';
+      clone.style.margin = '0 auto';
+      clone.style.background = 'white';
+      clone.style.padding = '32px';
+      clone.style.paddingBottom = '100px';
+      clone.style.boxSizing = 'border-box';
+      // ✅ 3. Show header ONLY in clone
+      const header = clone.querySelector('.pdf-header') as HTMLElement;
+      if (header) header.style.display = 'block';
+      clone.querySelectorAll('.grid').forEach((el) => {
+        const e = el as HTMLElement;
 
-    const incidentTableRows = allIncidents.slice(0, 50).map((inc, i) => {
-      const sc = inc.status?.toLowerCase();
-      const statusColor = sc === 'resolved' ? '#2D7A5D' : sc === 'escalated' ? '#D34026' : sc === 'dismissed' ? '#4A5568' : '#B45309';
-      return `<tr>
-        <td style="${i % 2 === 0 ? tdStyle : tdAlt};font-family:monospace;color:#0B4F6C">${inc.id}</td>
-        <td style="${i % 2 === 0 ? tdStyle : tdAlt}">T.${inc.trainId} C.${inc.coachId}</td>
-        <td style="${i % 2 === 0 ? tdStyle : tdAlt}">${inc.line}</td>
-        <td style="${i % 2 === 0 ? tdStyle : tdAlt}">${fmtDate(inc.datetime)}</td>
-        <td style="${i % 2 === 0 ? tdStyle : tdAlt}">${inc.type}</td>
-        <td style="${i % 2 === 0 ? tdStyle : tdAlt};color:${statusColor};font-weight:600">${inc.status}</td>
-        <td style="${i % 2 === 0 ? tdStyle : tdAlt}">${inc.verifiedBy ?? inc.resolvedBy ?? inc.dismissedBy ?? inc.escalatedBy ?? '—'}</td>
-      </tr>`;
-    }).join('');
+        if (e.className.includes('grid-cols-4')) {
+          e.style.gridTemplateColumns = 'repeat(4, 1fr)';
+        }
 
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-      <title>Railly Reports – ${selectedMonth?.label ?? ''}</title>
-      <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: system-ui, -apple-system, sans-serif; color: #1A202C; background: #fff; padding: 32px 40px; }
-        @media print { body { padding: 16px 20px; } @page { margin: 16mm; } }
-      </style>
-    </head><body>
-      <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #0B4F6C;padding-bottom:12px;margin-bottom:24px">
-        <div>
-          <div style="font-size:22px;font-weight:800;color:#0B4F6C">Railly Command Center</div>
-          <div style="font-size:13px;color:#4A5568;margin-top:2px">Reports &amp; Analytics — ${selectedMonth?.label ?? ''}</div>
-        </div>
-        <div style="font-size:11px;color:#718096">Generated ${new Date().toLocaleString('en-MY')}</div>
-      </div>
+        if (e.className.includes('grid-cols-3')) {
+          e.style.gridTemplateColumns = 'repeat(3, 1fr)';
+        }
 
-      ${makeTable(['Metric', 'Value', 'Note'], kpiRows, 'Key Performance Indicators')}
-      ${makeTable(['Status', 'Count', 'Share'], statusRows, 'Resolution Status Breakdown')}
-      ${makeTable(['Train', 'Incidents', 'Resolved', 'Resolution Rate', 'Top Line'], trainRows, 'Incidents by Train (Top 10)')}
+        if (e.className.includes('grid-cols-2')) {
+          e.style.gridTemplateColumns = 'repeat(2, 1fr)';
+        }
+      });
+      clone.querySelectorAll('[class*="rounded-xl"]').forEach((el) => {
+        const e = el as HTMLElement;
+        e.style.width = '100%';
+      });
+      document.body.appendChild(clone);
 
-      <h3 style="font-size:13px;font-weight:700;color:#0B4F6C;margin:0 0 8px">Incident Report (${allIncidents.length} total, showing first 50)</h3>
-      <table style="${tableStyle}">
-        <thead><tr>${['Case ID','Train · Coach','Line','Date/Time','Source','Status','Handled By'].map(h => `<th style="${thStyle}">${h}</th>`).join('')}</tr></thead>
-        <tbody>${incidentTableRows}</tbody>
-      </table>
-    </body></html>`;
+      // ✅ 4. Capture clone (not real UI)
+      const canvas = await html2canvas(clone, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      });
 
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    setTimeout(() => win.print(), 400);
+      const imgData = canvas.toDataURL('image/png');
+
+      const pdf = new jsPDF('p', 'mm', 'a4');
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      let position = 0;
+      let heightLeft = imgHeight;
+
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pdfHeight;
+
+      while (heightLeft > 0) {
+        position = - (imgHeight - heightLeft); // ✅ KEY FIX
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+
+      pdf.save(`railly-report-${selectedMonth?.label ?? 'report'}.pdf`);
+
+      document.body.removeChild(clone);
+
+    } catch (err) {
+      console.error('PDF export failed:', err);
+    } finally {
+      document.body.style.cursor = 'default';
+    }
   };
 
   const tabs = [
-    { id: 'overview'   as ReportTab, label: 'Overview',          icon: <TrendingUpIcon className="w-4 h-4" /> },
-    { id: 'incidents'  as ReportTab, label: 'Incident Reports',  icon: <FileTextIcon   className="w-4 h-4" /> },
+    { id: 'overview' as ReportTab, label: 'Overview', icon: <TrendingUpIcon className="w-4 h-4" /> },
+    { id: 'incidents' as ReportTab, label: 'Incident Reports', icon: <FileTextIcon className="w-4 h-4" /> },
   ];
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -362,11 +439,10 @@ export function Reports() {
                 <button
                   key={`${m.year}-${m.month}`}
                   onClick={() => { setSelectedMonth(m); setPickerOpen(false); setPage(1); }}
-                  className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                    selectedMonth?.year === m.year && selectedMonth?.month === m.month
-                      ? 'bg-[#EFF6FF] text-[#0B4F6C] font-semibold'
-                      : 'text-gray-700 hover:bg-gray-50'
-                  }`}
+                  className={`w-full text-left px-4 py-2 text-sm transition-colors ${selectedMonth?.year === m.year && selectedMonth?.month === m.month
+                    ? 'bg-[#EFF6FF] text-[#0B4F6C] font-semibold'
+                    : 'text-gray-700 hover:bg-gray-50'
+                    }`}
                 >
                   {m.label}
                 </button>
@@ -414,44 +490,85 @@ export function Reports() {
           OVERVIEW TAB
       ══════════════════════════════════════════════════════════════════════ */}
       {!loading && activeTab === 'overview' && (
-        <div className="space-y-5">
+        <div
+          id="report-export"
+          className="space-y-5"
 
+        >
+          <div
+            className="pdf-header"
+            style={{
+              display: 'none', // still hidden normally
+              textAlign: 'center',
+              marginBottom: '24px'
+            }}
+          >
+            <h1 style={{
+              fontSize: '24px',
+              fontWeight: '800',
+              color: '#0B4F6C'
+            }}>
+              Railly Safety Analytics Report
+            </h1>
+
+            <p style={{ fontSize: '12px', color: '#4A5568' }}>
+              {selectedMonth?.label}
+            </p>
+
+            <p style={{ fontSize: '11px', color: '#718096' }}>
+              Generated on {new Date().toLocaleString('en-MY')}
+            </p>
+          </div>
           {/* ── KPI stat cards ── */}
           <div className="grid grid-cols-4 gap-4">
             {([
               {
                 label: 'Total Incidents',
                 value: stats?.total ?? 0,
-                fmt:   (v: number) => String(v),
+                fmt: (v: number) => String(v),
                 delta: stats ? fmtDelta(stats.totalDelta) : null,
-                Icon:  AlertTriangleIcon,
+                Icon: AlertTriangleIcon,
                 iconColor: '#D34026',
                 sub: 'vs last month',
               },
               {
                 label: 'Resolution Rate',
                 value: resolutionRate,
-                fmt:   (v: number) => `${v}%`,
+                fmt: (v: number) => `${v}%`,
                 delta: null,
-                Icon:  CheckCircleIcon,
+                Icon: CheckCircleIcon,
                 iconColor: '#2D7A5D',
                 sub: `${resolvedCount} of ${stats?.total ?? 0} resolved`,
               },
               {
                 label: 'Avg Response Time',
                 value: stats?.avgResponseMinutes ?? 0,
-                fmt:   (v: number) => v === 0 ? 'N/A' : `${v}m`,
+                fmt: (v: number) => {
+                  if (v === 0) return 'N/A';
+
+                  if (v < 60) {
+                    return `${v} min`;
+                  }
+
+                  if (v < 1440) {
+                    const hours = (v / 60).toFixed(1);
+                    return `${hours} hr`;
+                  }
+
+                  const days = (v / 1440).toFixed(1);
+                  return `${days} day`;
+                },
                 delta: null,
-                Icon:  ClockIcon,
+                Icon: ClockIcon,
                 iconColor: '#0B4F6C',
                 sub: stats?.avgResponseMinutes === 0 ? 'No verified incidents' : 'to first verification',
               },
               {
                 label: 'False Alarm Rate',
                 value: stats?.falseAlarmRate ?? 0,
-                fmt:   (v: number) => `${v}%`,
+                fmt: (v: number) => `${v}%`,
                 delta: stats ? fmtDelta(stats.falseAlarmDelta, true) : null,
-                Icon:  ZapIcon,
+                Icon: ZapIcon,
                 iconColor: '#B45309',
                 sub: 'dismissed incidents',
               },
@@ -767,20 +884,20 @@ function IncidentTable({ incidents, title, showPagination, page = 1, totalPages 
                 <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-400">No incidents found</td>
               </tr>
             ) : incidents.map(inc => {
-              const sc    = statusColor(inc.status);
-              const isAI  = inc.type === 'AI Detection';
-              const open  = expandedId === inc.id;
+              const sc = statusColor(inc.status);
+              const isAI = inc.type === 'AI Detection';
+              const open = expandedId === inc.id;
 
               // Build timeline steps from non-null status fields
               const steps: { label: string; by?: string; at?: string; comment?: string; color: string }[] = [
-                { label: 'Reported',  by: inc.reportedBy, at: inc.datetime, color: '#4A5568' },
+                { label: 'Reported', by: inc.reportedBy, at: inc.datetime, color: '#4A5568' },
               ];
               if (inc.verifiedBy || inc.verifiedAt)
-                steps.push({ label: 'Verified',  by: inc.verifiedBy,  at: inc.verifiedAt,  comment: inc.verifiedComment,  color: '#1D4ED8' });
+                steps.push({ label: 'Verified', by: inc.verifiedBy, at: inc.verifiedAt, comment: inc.verifiedComment, color: '#1D4ED8' });
               if (inc.enrouteBy || inc.enrouteAt)
-                steps.push({ label: 'En Route',  by: inc.enrouteBy,   at: inc.enrouteAt,                                  color: '#0B4F6C' });
+                steps.push({ label: 'En Route', by: inc.enrouteBy, at: inc.enrouteAt, color: '#0B4F6C' });
               if (inc.resolvedBy || inc.resolvedAt)
-                steps.push({ label: 'Resolved',  by: inc.resolvedBy,  at: inc.resolvedAt,  comment: inc.resolvedComment,  color: '#2D7A5D' });
+                steps.push({ label: 'Resolved', by: inc.resolvedBy, at: inc.resolvedAt, comment: inc.resolvedComment, color: '#2D7A5D' });
               if (inc.escalatedBy || inc.escalatedAt)
                 steps.push({ label: 'Escalated', by: inc.escalatedBy, at: inc.escalatedAt, comment: inc.escalatedComment, color: '#D34026' });
               if (inc.dismissedBy || inc.dismissedAt)
@@ -802,8 +919,8 @@ function IncidentTable({ incidents, title, showPagination, page = 1, totalPages 
                     </td>
                     <td className="px-4 py-3 font-mono text-xs font-semibold" style={{ color: ACCENT }}>{inc.id}</td>
                     <td className="px-4 py-3">
-                      <span className="text-xs font-semibold text-gray-800">T.{inc.trainId}</span>
-                      <span className="text-xs text-gray-400 ml-1">C.{inc.coachId}</span>
+                      <span className="text-xs font-semibold text-gray-800">{inc.trainId}'('</span>
+                      <span className="text-xs text-gray-400 ml-1">{inc.coachId}</span>
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500">{inc.line}</td>
                     <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">
@@ -868,7 +985,7 @@ function IncidentTable({ incidents, title, showPagination, page = 1, totalPages 
         <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100">
           <span className="text-xs text-gray-400">Page {page} of {totalPages}</span>
           <div className="flex gap-1">
-            <button disabled={page <= 1}      onClick={() => onPageChange?.(page - 1)} className="px-3 py-1 text-xs rounded border border-gray-200 disabled:opacity-40 hover:bg-gray-50">←</button>
+            <button disabled={page <= 1} onClick={() => onPageChange?.(page - 1)} className="px-3 py-1 text-xs rounded border border-gray-200 disabled:opacity-40 hover:bg-gray-50">←</button>
             <button disabled={page >= totalPages} onClick={() => onPageChange?.(page + 1)} className="px-3 py-1 text-xs rounded border border-gray-200 disabled:opacity-40 hover:bg-gray-50">→</button>
           </div>
         </div>
