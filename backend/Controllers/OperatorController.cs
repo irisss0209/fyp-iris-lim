@@ -5,7 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using System.IdentityModel.Tokens.Jwt;
 using backend.Models.DTOs;
-
+using backend.Services;
+using OfficeOpenXml;
 namespace backend.Controllers
 {
     [ApiController]
@@ -13,10 +14,12 @@ namespace backend.Controllers
     public class OperatorController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly IAlertService _alertService;
 
-        public OperatorController(AppDbContext context)
+        public OperatorController(AppDbContext context, IAlertService alertService)
         {
             _context = context;
+            _alertService = alertService;
         }
 
         [HttpGet("home-stats")]
@@ -26,37 +29,31 @@ namespace backend.Controllers
 
             // Recent reports from DB
             var recentIncidents = await _context.Incidents
+                .AsNoTracking()
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.TrainCoach)
-                        .ThenInclude(c => c!.TrainAsset)
-                            .ThenInclude(a => a.TrainLine)
                 .OrderByDescending(i => i.CreatedAt)
                 .Take(5)
                 .ToListAsync();
 
-            var recentReports = recentIncidents.Select(i => new
-            {
-                id =  i.IncidentId,
-                line = i.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineName ?? "Unknown",
-                type = i.Source == IncidentSource.AI_DETECTION ? "AI Detection" : "Passenger Report",
-                time = GetTimeSince(i.CreatedAt),
-                status = i.Status,
-                elapsed = (int)(DateTime.UtcNow - i.CreatedAt).TotalMinutes
-            }).ToList();
+            var now = DateTime.UtcNow;
+
+            var recentReports = recentIncidents
+                .Select(i => _alertService.MapToAlertDTO(i, now))
+                .ToList();
 
             // Real trend data: incidents grouped by day of week (last 30 days)
             var dayNames = new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
             var since = DateTime.UtcNow.AddDays(-30);
 
             var allIncidents = await _context.Incidents
+                .AsNoTracking()
                 .Where(i => i.CreatedAt >= since)
                 .Include(i => i.Detection)
                     .ThenInclude(d => d!.Camera)
                         .ThenInclude(c => c!.TrainCoach)
-                            .ThenInclude(tc => tc.TrainAsset)
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.TrainCoach)
-                        .ThenInclude(tc => tc!.TrainAsset)
                 .ToListAsync();
 
             // Helper to resolve lineId for an incident
@@ -112,7 +109,7 @@ namespace backend.Controllers
             });
         }
 
-        [HttpGet("indicent-alerts")]
+        [HttpGet("incident-alerts")]
         public async Task<IActionResult> IncidentAlerts([FromQuery] string? assignedStationId = null)
         {
             // Preload all line→station mappings once (first station per line by sequence)
@@ -132,139 +129,104 @@ namespace backend.Controllers
             }
 
             var incidentsQuery = _context.Incidents
+                .AsNoTracking()
                 .Include(i => i.Detection)
                     .ThenInclude(d => d!.Camera)
                         .ThenInclude(c => c!.TrainCoach)
-                            .ThenInclude(tc => tc.TrainAsset)
-                                .ThenInclude(ta => ta.TrainLine)
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.TrainCoach)
-                        .ThenInclude(c => c!.TrainAsset)
-                            .ThenInclude(a => a.TrainLine)
                 .AsQueryable();
 
             var incidents = await incidentsQuery
                 .OrderByDescending(i => i.CreatedAt)
                 .ToListAsync();
 
-            var alerts = incidents.Select(i =>
-            {
-                string? lineId = null;
-                string? lineName = null;
-                int? coachId = null;
-                int? trainId = null;
-                string? snapshotUrl = null;
+            var now = DateTime.UtcNow;
 
-                if (i.Source == IncidentSource.AI_DETECTION && i.Detection?.Camera != null)
-                {
-                    coachId = i.Detection.Camera.CoachId;
-                    trainId = i.Detection.Camera.TrainId;
-                    lineName = i.Detection.Camera.TrainCoach?.TrainAsset?.TrainLine?.LineName;
-                    lineId   = i.Detection.Camera.TrainCoach?.TrainAsset?.TrainLine?.LineId;
-                    snapshotUrl = i.Detection.ImageUrl;
-                }
-                else if (i.UserReport != null)
-                {
-                    coachId = i.UserReport.TrainCoach?.CoachId ?? i.UserReport.CoachId;
-                    trainId = i.UserReport.TrainCoach?.TrainId ?? i.UserReport.TrainId;
-                    lineName = i.UserReport.TrainCoach?.TrainAsset?.TrainLine?.LineName;
-                    lineId   = i.UserReport.TrainCoach?.TrainAsset?.TrainLine?.LineId;
-                    snapshotUrl = i.UserReport.ImageUrl;
-                }
-
-                return new
-                {
-                    id = i.IncidentId,
-                    trainId = trainId?.ToString() ?? "—",
-                    coachId = coachId?.ToString() ?? "—",
-                    // Adding snake_case just in case
-                    train_id = trainId,
-                    coach_id = coachId,
-                    line = lineName ?? "Unknown",
-                    lineId = lineId ?? "Unknown",
-                    station = lineStations.FirstOrDefault(ls => ls.LineId == lineId)?.Station?.StationName ?? "Unknown",
-                    time = i.CreatedAt.ToString("HH:mm"),
-                    elapsed = Math.Max(1, (int)(DateTime.UtcNow - i.CreatedAt).TotalMinutes),
-                    severity = i.Source == IncidentSource.AI_DETECTION ? "high" : "medium",
-                    status = i.Status.ToString().ToLower(),
-                    type = i.Source == IncidentSource.AI_DETECTION ? "AI Detection" : "Passenger Report",
-                    snapshotUrl
-                };
-            })
+            var alerts = incidents
+                .Select(i => _alertService.MapToAlertDTO(i, now))
+                .ToList();
+            
             // Filter by allowed lines if station is assigned
-            .Where(a => allowedLines == null || allowedLines.Contains(a.lineId))
-            .ToList();
+            if (allowedLines != null)
+            {
+                alerts = alerts
+                    .Where(a => allowedLines.Contains(a.LineId))
+                    .ToList();
+            }
 
             return Ok(alerts);
         }
 
         [Authorize]
-[HttpPost("indicent-alerts/{id}/status")]
-public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateStatusRequest request)
-{
+        [HttpPost("incident-alerts/{id}/status")]
+        public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateStatusRequest request)
+        {
+            if (!int.TryParse(id, out var incidentId))
+                return BadRequest();
 
-    if (!int.TryParse(id, out var incidentId))
-        return BadRequest();
+            var incident = await _context.Incidents.FindAsync(incidentId);
+            if (incident == null)
+                return NotFound();
 
-    var incident = await _context.Incidents.FindAsync(incidentId);
-    if (incident == null)
-        return NotFound();
+            // Accept frontend aliases (e.g. "resolve" → "Resolved", "en_route" → "En_Route")
+            var normalizedStatus = request.Status?.ToLower() switch
+            {
+                "resolve"  => "Resolved",
+                "resolved" => "Resolved",
+                "en_route" => "En_Route",
+                "verified" => "Verified",
+                "escalated"=> "Escalated",
+                "dismissed"=> "Dismissed",
+                _          => null
+            };
 
-    // Accept frontend aliases (e.g. "resolve" → "Resolved", "en_route" → "En_Route")
-    var normalizedStatus = request.Status?.Trim() switch
-    {
-        "resolve"  => "Resolved",
-        "en_route" => "En_Route",
-        { } s      => char.ToUpper(s[0]) + s[1..],  // capitalise first letter
-        null       => null
-    };
+            if (normalizedStatus == null || !Enum.TryParse<IncidentStatus>(normalizedStatus, true, out var parsedStatus))
+                return BadRequest("Invalid status");
 
-    if (!Enum.TryParse<IncidentStatus>(normalizedStatus, true, out var parsedStatus))
-        return BadRequest("Invalid status");
+            incident.Status = parsedStatus;
 
-    incident.Status = parsedStatus;
+            var userId = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
 
-    var userId = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+            switch (parsedStatus)
+            {
+                case IncidentStatus.Verified:
+                    incident.VerifiedBy      = userId;
+                    incident.VerifiedAt      = DateTime.UtcNow;
+                    incident.VerifiedComment = request.Comment;
+                    break;
 
-    switch (parsedStatus)
-    {
-        case IncidentStatus.Verified:
-            incident.VerifiedBy      = userId;
-            incident.VerifiedAt      = DateTime.Now;
-            incident.VerifiedComment = request.Comment;
-            break;
+                case IncidentStatus.Escalated:
+                    incident.EscalatedBy      = userId;
+                    incident.EscalatedAt      = DateTime.UtcNow;
+                    incident.EscalatedComment = request.Comment;
+                    break;
 
-        case IncidentStatus.Escalated:
-            incident.EscalatedBy      = userId;
-            incident.EscalatedAt      = DateTime.Now;
-            incident.EscalatedComment = request.Comment;
-            break;
+                case IncidentStatus.En_Route:
+                    incident.EnrouteBy = userId;
+                    incident.EnrouteAt = DateTime.UtcNow;
+                    break;
 
-        case IncidentStatus.En_Route:
-            incident.EnrouteBy = userId;
-            incident.EnrouteAt = DateTime.Now;
-            break;
+                case IncidentStatus.Resolved:
+                    incident.ResolvedBy      = userId;
+                    incident.ResolvedAt      = DateTime.UtcNow;
+                    incident.ResolvedComment = request.Comment;
+                    break;
 
-        case IncidentStatus.Resolved:
-            incident.ResolvedBy      = userId;
-            incident.ResolvedAt      = DateTime.Now;
-            incident.ResolvedComment = request.Comment;
-            break;
+                case IncidentStatus.Dismissed:
+                    incident.DismissedBy      = userId;
+                    incident.DismissedAt      = DateTime.UtcNow;
+                    incident.DismissedComment = request.Comment;
+                    break;
+            }
 
-        case IncidentStatus.Dismissed:
-            incident.DismissedBy      = userId;
-            incident.DismissedAt      = DateTime.Now;
-            incident.DismissedComment = request.Comment;
-            break;
-    }
-
-    await _context.SaveChangesAsync();
-    return Ok(new
-    {
-        incidentId = incident.IncidentId,
-        status     = incident.Status.ToString().ToLower()
-    });
-}
+            await _context.SaveChangesAsync();
+            return Ok(new
+            {
+                incidentId = incident.IncidentId,
+                status     = incident.Status.ToString().ToLower()
+            });
+        }
 
         [HttpGet("operator/dashboard")]
         public async Task<IActionResult> GetOperatorDashboard()
@@ -280,6 +242,7 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
 
             // Average response time (verified_at - created_at) for incidents that have been verified
             var verifiedIncidents = await _context.Incidents
+                .AsNoTracking()
                 .Where(i => i.VerifiedAt != null)
                 .Select(i => new { i.CreatedAt, i.VerifiedAt })
                 .ToListAsync();
@@ -296,21 +259,15 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
 
             // Recent alerts (last 4)
             var incidents = await _context.Incidents
+                .AsNoTracking()
                 .Include(i => i.Detection)
                     .ThenInclude(d => d!.Camera)
                         .ThenInclude(c => c!.TrainCoach)
-                            .ThenInclude(tc => tc.TrainAsset)
-                                .ThenInclude(ta => ta.TrainLine)
-                .Include(i => i.UserReport)
-                    .ThenInclude(r => r!.TrainCoach)
-                        .ThenInclude(tc => tc!.TrainAsset)
                 .Include(i => i.Detection)
                     .ThenInclude(d => d!.LineStation)
                         .ThenInclude(ls => ls!.Station)
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.TrainCoach)
-                        .ThenInclude(tc => tc!.TrainAsset)
-                            .ThenInclude(ta => ta.TrainLine)
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.LineStation)
                         .ThenInclude(ls => ls!.Station)
@@ -320,59 +277,11 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
                 .Take(4)
                 .ToListAsync();
 
-            var recentAlerts = incidents.Select(inc =>
-            {
-                string? lineName = null;
-                string? lineId   = null;
-                int? coachId     = null;
-                int? trainId     = null;
-                decimal? confidence = null;
-                string source;
+            var now = DateTime.UtcNow;
 
-                if (inc.Source == IncidentSource.AI_DETECTION && inc.Detection != null)
-                {
-                    source = "ai";
-                    confidence = inc.Detection.ConfidenceScore;
-                    coachId  = inc.Detection.Camera?.CoachId;
-                    trainId  = inc.Detection.Camera?.TrainCoach?.TrainId ?? inc.Detection.Camera?.TrainId;
-                    lineName = inc.Detection.LineStation?.TrainLine?.LineName 
-                             ?? inc.Detection.Camera?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
-                    lineId   = inc.Detection.LineId 
-                             ?? inc.Detection.Camera?.TrainCoach?.TrainAsset?.TrainLine?.LineId;
-                }
-                else
-                {
-                    source = "passenger";
-                    coachId = inc.UserReport?.TrainCoach?.CoachId ?? inc.UserReport?.CoachId;
-                    trainId = inc.UserReport?.TrainCoach?.TrainId ?? inc.UserReport?.TrainId;                    
-                    lineName = inc.UserReport?.LineStation?.TrainLine?.LineName 
-                             ?? inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
-                    lineId   = inc.UserReport?.LineId 
-                             ?? inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineId;
-                }
-
-                // Resolve station in-memory
-                var stationName = inc.Detection?.LineStation?.Station?.StationName 
-                                ?? inc.UserReport?.LineStation?.Station?.StationName
-                                ?? lineStations.FirstOrDefault(ls => ls.LineId == lineId)?.Station?.StationName 
-                                ?? "Unknown";
-
-                return new
-                {
-                    id = inc.IncidentId,
-                    trainId = trainId?.ToString() ?? "—",
-                    coachId = coachId?.ToString() ?? "—",
-                    train_id = trainId,
-                    coach_id = coachId,
-                    line    = lineName ?? "Unknown",
-                    lineId  = lineId   ?? "Unknown",
-                    station = stationName,
-                    time    = GetTimeSince(inc.CreatedAt),
-                    status  = inc.Status.ToString().ToLower(),
-                    confidence = confidence != null ? (int)confidence : (int?)null,
-                    source
-                };
-            }).ToList();
+            var recentAlerts = incidents
+                .Select(i => _alertService.MapToAlertDTO(i, now))
+                .ToList();
 
             return Ok(new
             {
@@ -418,11 +327,10 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
 
             // All incidents
             var incidents = await _context.Incidents
+                .AsNoTracking()
                 .Include(i => i.Detection)
                     .ThenInclude(d => d!.Camera)
                         .ThenInclude(c => c!.TrainCoach)
-                            .ThenInclude(tc => tc.TrainAsset)
-                                .ThenInclude(ta => ta.TrainLine)
                 .Include(i => i.Detection)
                     .ThenInclude(d => d!.LineStation)
                         .ThenInclude(ls => ls!.TrainLine)
@@ -431,8 +339,6 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
                         .ThenInclude(ls => ls!.Station)
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.TrainCoach)
-                        .ThenInclude(tc => tc!.TrainAsset)
-                            .ThenInclude(ta => ta.TrainLine)
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.LineStation)
                         .ThenInclude(ls => ls!.TrainLine)
@@ -444,102 +350,59 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
                 .OrderByDescending(i => i.CreatedAt)
                 .ToListAsync();
 
-            var alerts = incidents.Select(inc =>
+            var now = DateTime.UtcNow;
+
+            var alerts = incidents.Select(i =>
             {
-                string? lineName   = null;
-                string? lineId     = null;
-                int? coachId       = null;
-                int? trainId       = null;
-                string? deviceId   = null;
-                decimal? confidence = null;
-                string source;
-
-                if (inc.Source == IncidentSource.AI_DETECTION && inc.Detection != null)
-                {
-                    source     = "ai";
-                    confidence = inc.Detection.ConfidenceScore;
-                    deviceId   = inc.Detection.CameraId;
-                    coachId    = inc.Detection.Camera?.CoachId;
-                    trainId    = inc.Detection.Camera?.TrainCoach?.TrainId ?? inc.Detection.Camera?.TrainId;
-                    lineName   = inc.Detection.LineStation?.TrainLine?.LineName 
-                                 ?? inc.Detection.Camera?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
-                    lineId     = inc.Detection.LineId 
-                                 ?? inc.Detection.Camera?.TrainCoach?.TrainAsset?.TrainLine?.LineId;
-                }
-                else if (inc.UserReport != null)
-                {
-                    source     = "passenger";
-                    coachId    = inc.UserReport.TrainCoach?.CoachId ?? inc.UserReport.CoachId;
-                    trainId    = inc.UserReport.TrainCoach?.TrainId ?? inc.UserReport.TrainId;
-                    lineName   = inc.UserReport.LineStation?.TrainLine?.LineName 
-                                 ?? inc.UserReport.TrainCoach?.TrainAsset?.TrainLine?.LineName;
-                    lineId     = inc.UserReport.LineId 
-                                 ?? inc.UserReport.TrainCoach?.TrainAsset?.TrainLine?.LineId;
-                }
-                else
-                {
-                    source = "unknown";
-                }
-
-                // Resolve station in-memory
-                var stationName = inc.Detection?.LineStation?.Station?.StationName 
-                                ?? inc.UserReport?.LineStation?.Station?.StationName
-                                ?? lineStations.FirstOrDefault(ls => ls.LineId == lineId)?.Station?.StationName 
-                                ?? "Unknown";
-
-                // Pass status through exactly as stored (lowercase snake_case)
-                var mappedStatus = inc.Status.ToString().ToLower() switch
-                {
-                    "en_route" => "en_route",
-                    var other  => other
-                };
+                var dto = _alertService.MapToAlertDTO(i, now);
 
                 return new
                 {
-                    id         = inc.IncidentId,
-                    trainId    = trainId?.ToString() ?? "—",
-                    coachId    = coachId?.ToString() ?? "—",
-                    train_id   = trainId,
-                    coach_id   = coachId,
-                    line       = lineName   ?? "Unknown",
-                    lineId     = lineId     ?? "Unknown",
-                    station    = stationName,
-                    time       = inc.CreatedAt.ToString("HH:mm:ss"),
-                    date       = inc.CreatedAt.ToString("yyyy-MM-dd"),
-                    elapsed    = GetTimeSince(inc.CreatedAt),
-                    status     = mappedStatus,
-                    confidence = confidence != null ? (int)confidence : (int?)null,
-                    deviceId,
-                    source,
-                    passengerComment = inc.UserReport?.Description,
-                    imageUrl   = inc.Source == IncidentSource.AI_DETECTION
-                        ? inc.Detection?.ImageUrl
-                        : inc.UserReport?.ImageUrl,
-                    // ── Audit trail ──
-                    verifiedBy      = inc.VerifiedBy,
-                    verifiedAt      = inc.VerifiedAt?.ToString("yyyy-MM-dd HH:mm"),
-                    verifiedComment = inc.VerifiedComment,
-                    escalatedBy      = inc.EscalatedBy,
-                    escalatedAt      = inc.EscalatedAt?.ToString("yyyy-MM-dd HH:mm"),
-                    escalatedComment = inc.EscalatedComment,
-                    enrouteBy  = inc.EnrouteBy,
-                    enrouteAt  = inc.EnrouteAt?.ToString("yyyy-MM-dd HH:mm"),
-                    resolvedBy      = inc.ResolvedBy,
-                    resolvedAt      = inc.ResolvedAt?.ToString("yyyy-MM-dd HH:mm"),
-                    resolvedComment = inc.ResolvedComment,
-                    dismissedBy      = inc.DismissedBy,
-                    dismissedAt      = inc.DismissedAt?.ToString("yyyy-MM-dd HH:mm"),
-                    dismissedComment = inc.DismissedComment,
+                    dto.Id,
+                    dto.TrainId,
+                    dto.CoachId,
+                    dto.Line,
+                    dto.LineId,
+                    dto.Station,
+                    dto.Status,
+                    dto.Source,
+                    dto.Time,
+                    dto.Date,
+                    dto.Elapsed,
+                    dto.Confidence,
+                    dto.DeviceId,
+                    dto.ImageUrl,
+
+                    passengerComment = i.UserReport?.Description,
+
+                    verifiedBy      = i.VerifiedBy,
+                    verifiedAt      = i.VerifiedAt,
+                    verifiedComment = i.VerifiedComment,
+
+                    escalatedBy      = i.EscalatedBy,
+                    escalatedAt      = i.EscalatedAt,
+                    escalatedComment = i.EscalatedComment,
+
+                    enrouteBy = i.EnrouteBy,
+                    enrouteAt = i.EnrouteAt,
+
+                    resolvedBy      = i.ResolvedBy,
+                    resolvedAt      = i.ResolvedAt,
+                    resolvedComment = i.ResolvedComment,
+
+                    dismissedBy      = i.DismissedBy,
+                    dismissedAt      = i.DismissedAt,
+                    dismissedComment = i.DismissedComment
                 };
             }).ToList();
 
             // Counts derived in-memory from the already-built list
-            var pending   = alerts.Count(a => a.status == "pending");
-            var verified  = alerts.Count(a => a.status == "verified");
-            var escalated = alerts.Count(a => a.status == "escalated");
-            var enroute   = alerts.Count(a => a.status == "en_route" || a.status == "enroute");
-            var resolved  = alerts.Count(a => a.status == "resolved");
-            var dismissed = alerts.Count(a => a.status == "dismissed");
+            var pending   = alerts.Count(a => a.Status == "pending");
+            var verified  = alerts.Count(a => a.Status == "verified");
+            var escalated = alerts.Count(a => a.Status == "escalated");
+            var enroute   = alerts.Count(a => a.Status == "en_route" || a.Status == "enroute");
+            var resolved  = alerts.Count(a => a.Status == "resolved");
+            var dismissed = alerts.Count(a => a.Status == "dismissed");
 
             return Ok(new
             {
@@ -567,15 +430,12 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
 
             // ── Load all incidents for the month ──────────────────────────────
             var incidents = await _context.Incidents
+                .AsNoTracking()
                 .Include(i => i.Detection)
                     .ThenInclude(d => d!.Camera)
                         .ThenInclude(c => c!.TrainCoach)
-                            .ThenInclude(tc => tc.TrainAsset)
-                                .ThenInclude(ta => ta.TrainLine)
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.TrainCoach)
-                        .ThenInclude(tc => tc!.TrainAsset)
-                            .ThenInclude(ta => ta.TrainLine)
                 .Where(i => i.CreatedAt >= from && i.CreatedAt < to)
                 .OrderByDescending(i => i.CreatedAt)
                 .ToListAsync();
@@ -605,6 +465,7 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
             var prevFrom = from.AddMonths(-1);
             var prevTo   = from;
             var prevIncidents = await _context.Incidents
+                .AsNoTracking()
                 .Where(i => i.CreatedAt >= prevFrom && i.CreatedAt < prevTo)
                 .ToListAsync();
 
@@ -667,35 +528,28 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
             }.Where(s => s.value > 0).ToList();
 
             // ── Incident list ─────────────────────────────────────────────────
+
             var incidentList = incidents.Select(i =>
             {
-                var (lineId, lineName) = ResolveLineInfo(i);
-                var coachIdRaw = i.Source == IncidentSource.AI_DETECTION
-                    ? (i.Detection?.Camera?.TrainCoach?.CoachId ?? i.Detection?.Camera?.CoachId)
-                    : (i.UserReport?.TrainCoach?.CoachId ?? i.UserReport?.CoachId);
-                var trainIdRaw = i.Source == IncidentSource.AI_DETECTION
-                    ? (i.Detection?.Camera?.TrainCoach?.TrainId ?? i.Detection?.Camera?.TrainId)
-                    : (i.UserReport?.TrainCoach?.TrainId ?? i.UserReport?.TrainId);
-                var coachId = coachIdRaw.HasValue ? coachIdRaw.Value.ToString() : "Unknown";
-                var trainId = trainIdRaw.HasValue ? trainIdRaw.Value.ToString() : "Unknown";
+                var dto = _alertService.MapToAlertDTO(i, now);
 
                 return new
                 {
-                    id       =  i.IncidentId,
-                    trainId  = trainIdRaw?.ToString() ?? "—",
-                    coachId  = coachIdRaw?.ToString() ?? "—",
-                    coach    = coachIdRaw?.ToString() ?? "—",
-                    train_id = trainIdRaw,
-                    coach_id = coachIdRaw,
-                    line     = lineName,
-                    lineId,
-                    datetime = i.CreatedAt.ToString("d MMM yyyy, HH:mm"),
-                    type     = i.Source == IncidentSource.AI_DETECTION ? "AI Detection" : "Passenger Report",
-                    status   = i.Status.ToString(),
-                    handledBy = i.VerifiedBy ?? i.ResolvedBy ?? i.EscalatedBy ?? "—",
+                    id       = i.IncidentId,
+
+                    // ✅ reuse DTO
+                    dto.TrainId,
+                    dto.CoachId,
+                    dto.Line,
+                    dto.LineId,
+                    dto.Status,
+                    dto.Source,
+
+                    datetime  = i.CreatedAt,
+                    type      = i.Source == IncidentSource.AI_DETECTION ? "AI Detection" : "Passenger Report",
+                    handledBy = i.VerifiedBy ?? i.ResolvedBy ?? i.EscalatedBy
                 };
             }).ToList();
-
             // ── Available months (for the date picker) ────────────────────────
             var oldestIncident = await _context.Incidents
                 .OrderBy(i => i.CreatedAt)
@@ -762,7 +616,7 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
                     email     = u.Email,
                     role      = u.Role.ToString(),
                     status    = u.Status.ToString(),
-                    createdAt = u.CreatedAt.ToString("yyyy-MM-dd")
+                    createdAt = u.CreatedAt
                 })
                 .ToListAsync();
 
@@ -826,7 +680,7 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
                     stationId   = s.StationId,
                     stationName = s.Station.StationName,
                     lineName,
-                    shiftDate   = s.ShiftDate.ToString("yyyy-MM-dd"),
+                    shiftDate   = s.ShiftDate,
                     startTime   = s.StartTime.ToString(@"hh\:mm"),
                     endTime     = s.EndTime.ToString(@"hh\:mm")
                 };
@@ -835,107 +689,179 @@ public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateS
             return Ok(result);
         }
 
+        // ── Helper for  CSV and excel Import ───────────────────────────────────────────────────
+
+        private async Task<(List<string[]> rows, string? error)> ParseFileAsync(IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+                return (new List<string[]>(), "No file uploaded.");
+
+            if (file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+            {
+                var rows = await ParseExcelAsync(file);
+                return (rows, null);
+            }
+
+            if (file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                return await ParseCsvAsync(file);
+            }
+
+            return (new List<string[]>(), "Unsupported file type. Use .csv or .xlsx");
+        }
         // ── Excel bulk import ───────────────────────────────────────────────────────
 
-[HttpPost("operator/shifts/import")]
-[ApiExplorerSettings(IgnoreApi = true)]
-
-public async Task<IActionResult> ImportShifts([FromForm] IFormFile file)
-{
-    if (file == null || file.Length == 0)
-        return BadRequest(new { error = "No file uploaded." });
-
-    var inserted = 0;
-    var errors   = new List<string>();
-
-    using var stream = file.OpenReadStream();
-    using var reader = new StreamReader(stream);
-
-    var rows = new List<string[]>();
-    string? line;
-    while ((line = await reader.ReadLineAsync()) != null)
-    {
-        if (string.IsNullOrWhiteSpace(line)) continue;
-        rows.Add(line.Split(','));
-    }
-
-    for (int i = 1; i < rows.Count; i++) // skip header row
-    {
-        var cols = rows[i];
-
-        // FIXED: expect 5 columns, not 4
-        if (cols.Length < 5)
+        [HttpPost("operator/shifts/import")]
+        [ApiExplorerSettings(IgnoreApi = true)]
+        public async Task<IActionResult> ImportShifts([FromForm] IFormFile file)
         {
-            errors.Add($"Row {i + 1}: Expected 5 columns (user_id, station_id, shift_date, start_time, end_time). Got {cols.Length}.");
-            continue;
+            var (rows, error) = await ParseFileAsync(file);
+            if (error != null) return BadRequest(new { error });
+
+            var inserted = 0;
+            var errors   = new List<string>();
+
+            for (int i = 1; i < rows.Count; i++) // skip header row
+            {
+                var cols = rows[i];
+
+                if (cols.Length < 5)
+                {
+                    errors.Add($"Row {i + 1}: Expected 5 columns (user_id, station_id, shift_date, start_time, end_time). Got {cols.Length}.");
+                    continue;
+                }
+
+                var userId    = cols[0].Trim();
+                var stationId = cols[1].Trim();
+                var dateText  = cols[2].Trim();
+                var startText = cols[3].Trim();
+                var endText   = cols[4].Trim();
+
+                if (!DateOnly.TryParse(dateText, out var shiftDate))
+                {
+                    errors.Add($"Row {i + 1}: Invalid shift_date '{dateText}'. Expected format: yyyy-MM-dd.");
+                    continue;
+                }
+
+                if (!TimeOnly.TryParse(startText, out var startTime))
+                {
+                    errors.Add($"Row {i + 1}: Invalid start_time '{startText}'. Expected format: HH:mm.");
+                    continue;
+                }
+
+                if (!TimeOnly.TryParse(endText, out var endTime))
+                {
+                    errors.Add($"Row {i + 1}: Invalid end_time '{endText}'. Expected format: HH:mm.");
+                    continue;
+                }
+
+                if (endTime <= startTime)
+                {
+                    errors.Add($"Row {i + 1}: end_time must be after start_time.");
+                    continue;
+                }
+
+                var user = await _context.Users.FindAsync(userId);
+                if (user == null || user.Role != UserRole.Auxiliary)
+                {
+                    errors.Add($"Row {i + 1}: '{userId}' is not a valid Auxiliary user.");
+                    continue;
+                }
+
+                var station = await _context.Stations.FindAsync(stationId);
+                if (station == null)
+                {
+                    errors.Add($"Row {i + 1}: station '{stationId}' not found.");
+                    continue;
+                }
+
+                _context.AuxiliaryShifts.Add(new AuxiliaryShift
+                {
+                    UserId    = userId,
+                    StationId = stationId,
+                    ShiftDate = new DateTime(shiftDate.Year, shiftDate.Month, shiftDate.Day, 0, 0, 0, DateTimeKind.Utc),
+                    StartTime = startTime.ToTimeSpan(),
+                    EndTime   = endTime.ToTimeSpan(),
+                    CreatedAt = DateTime.UtcNow
+                });
+
+                inserted++;
+            }
+
+            if (inserted > 0)
+                await _context.SaveChangesAsync();
+
+            return Ok(new { inserted, errors });
         }
 
-        var userId    = cols[0].Trim();
-        var stationId = cols[1].Trim();
-        var dateText  = cols[2].Trim();  // FIXED: shift_date
-        var startText = cols[3].Trim();  // FIXED: start_time
-        var endText   = cols[4].Trim();  // FIXED: end_time
-
-        // Parse date separately
-        if (!DateOnly.TryParse(dateText, out var shiftDate))
+        [HttpPost("operator/users/import")]
+        [ApiExplorerSettings(IgnoreApi = true)]
+        public async Task<IActionResult> ImportUsers([FromForm] IFormFile file)
         {
-            errors.Add($"Row {i + 1}: Invalid shift_date '{dateText}'. Expected format: yyyy-MM-dd.");
-            continue;
+            var (rows, error) = await ParseFileAsync(file);
+if (error != null) return BadRequest(new { error });
+
+            var inserted = 0;
+            var errors   = new List<string>();
+
+            for (int i = 1; i < rows.Count; i++) // skip header row
+            {
+                var cols = rows[i];
+
+                if (cols.Length < 3)
+                {
+                    errors.Add($"Row {i + 1}: Expected at least 3 columns (user_name, email, role). Got {cols.Length}.");
+                    continue;
+                }
+
+                var userName   = cols[0].Trim();
+                var email      = cols[1].Trim();
+                var roleText   = cols[2].Trim();  
+
+                if (!Enum.TryParse<UserRole>(roleText, true, out var role))
+                {
+                    errors.Add($"Row {i + 1}: Invalid role '{roleText}'. Must be one of: {string.Join(", ", Enum.GetNames<UserRole>())}");
+                    continue;
+                }
+                if (role == UserRole.Passenger)
+                {
+                    errors.Add($"Row {i + 1}: Passenger role is not allowed for bulk upload.");
+                    continue;
+                }
+                if (await _context.Users.AnyAsync(u => u.Email == email))
+                {
+                    errors.Add($"Row {i + 1}: User with email '{email}' already exists.");
+                    continue;
+                }
+
+                string prefix = role switch
+                {
+                    UserRole.Operator  => "USR-OP-",
+                    UserRole.Auxiliary => "USR-AUX-",
+                     _ => throw new Exception("Invalid role for import")
+                };
+
+                var newUserId = prefix + Guid.NewGuid().ToString("N")[..8].ToUpper();
+                _context.Users.Add(new User
+                {
+                    UserId       = newUserId,
+                    EmployeeId   = null,
+                    Email        = email,
+                    UserName     = userName,
+                    Role         = role,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("DefaultPassword123!"),
+                    Status       = UserStatus.Active,
+                    CreatedAt    = DateTime.UtcNow
+                });
+
+                inserted++;
+            }
+
+            if (inserted > 0)
+                await _context.SaveChangesAsync();
+
+            return Ok(new { inserted, errors });
         }
-
-        // Parse times separately
-        if (!TimeOnly.TryParse(startText, out var startTime))
-        {
-            errors.Add($"Row {i + 1}: Invalid start_time '{startText}'. Expected format: HH:mm.");
-            continue;
-        }
-
-        if (!TimeOnly.TryParse(endText, out var endTime))
-        {
-            errors.Add($"Row {i + 1}: Invalid end_time '{endText}'. Expected format: HH:mm.");
-            continue;
-        }
-
-        if (endTime <= startTime)
-        {
-            errors.Add($"Row {i + 1}: end_time must be after start_time.");
-            continue;
-        }
-
-        // Validate user
-        var user = await _context.Users.FindAsync(userId);
-        if (user == null || user.Role != UserRole.Auxiliary)
-        {
-            errors.Add($"Row {i + 1}: '{userId}' is not a valid Auxiliary user.");
-            continue;
-        }
-
-        // Validate station
-        var station = await _context.Stations.FindAsync(stationId);
-        if (station == null)
-        {
-            errors.Add($"Row {i + 1}: station '{stationId}' not found.");
-            continue;
-        }
-
-        _context.AuxiliaryShifts.Add(new AuxiliaryShift
-        {
-            UserId    = userId,
-            StationId = stationId,
-            ShiftDate = new DateTime(shiftDate.Year, shiftDate.Month, shiftDate.Day, 0, 0, 0, DateTimeKind.Utc),
-            StartTime = startTime.ToTimeSpan(),
-            EndTime   = endTime.ToTimeSpan(),
-            CreatedAt = DateTime.UtcNow
-        });
-
-        inserted++;
-    }
-
-    if (inserted > 0)
-        await _context.SaveChangesAsync();
-
-    return Ok(new { inserted, errors });
-}
 
 
         // ── Operator Settings ──────────────────────────────────────────────────────
@@ -979,8 +905,8 @@ public async Task<IActionResult> ImportShifts([FromForm] IFormFile file)
         }
 
         public class PatchUserStatusRequest
-    {
-        public string Status { get; set; } = null!;
-    }
+        {
+            public string Status { get; set; } = null!;
+            }
 }
 }

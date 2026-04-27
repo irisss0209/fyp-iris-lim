@@ -2,6 +2,7 @@ using backend.Data;
 using backend.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using backend.Services;
 
 namespace backend.Controllers
 {
@@ -10,12 +11,13 @@ namespace backend.Controllers
     public class PassengerController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly IAlertService _alertService;
 
-        public PassengerController(AppDbContext context)
+        public PassengerController(AppDbContext context, IAlertService alertService)
         {
             _context = context;
+            _alertService = alertService;
         }
-
 
         [HttpGet("lines")]
         public async Task<IActionResult> GetLines()
@@ -55,14 +57,15 @@ namespace backend.Controllers
             try
             {
                 // Parse composite FK values sent from the frontend
-                bool coachUnknown = req.Coach?.Trim().Equals("Unknown", StringComparison.OrdinalIgnoreCase) == true;
-                int trainId  = req.TrainId;
-                int coachId  = coachUnknown ? 0 : req.CoachId;
+                if (req.CoachId <= 0)
+                    return BadRequest(new { error = "Coach selection is required." });
+
+                int coachId = req.CoachId;
 
                 var report = new UserReport
                 {
                     UserId      = userId,
-                    TrainId     = trainId,
+                    TrainId     = req.TrainId,
                     CoachId     = coachId,
                     Description = req.Desc,
                     CreatedAt   = DateTime.UtcNow,
@@ -143,50 +146,27 @@ namespace backend.Controllers
                 .Take(10)
                 .ToListAsync();
 
-            var result = incidents.Select(inc =>
-            {
-                string? lineName = null;
-                string? stationName = null;
-                int? coachId = null;
-                int? trainId = null;
-                string? type = null;
-                string? imageUrl = null;
+            var now = DateTime.UtcNow;
 
-                if (inc.Source == IncidentSource.AI_DETECTION && inc.Detection != null)
-                {
-                    coachId = inc.Detection.Camera?.CoachId;
-                    trainId = inc.Detection.Camera?.TrainCoach?.TrainId ?? inc.Detection.Camera?.TrainId;
-                    lineName = inc.Detection.LineStation?.TrainLine?.LineName 
-                             ?? inc.Detection.Camera?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
-                    stationName = inc.Detection.LineStation?.Station?.StationName;
-                    type = "AI Detection";
-                    imageUrl = inc.Detection.ImageUrl;
-                }
-                else if (inc.UserReport != null)
-                {
-                    coachId = inc.UserReport.CoachId;
-                    trainId = inc.UserReport.TrainCoach?.TrainId ?? inc.UserReport.TrainId;
-                    lineName = inc.UserReport.LineStation?.TrainLine?.LineName 
-                             ?? inc.UserReport.TrainCoach?.TrainAsset?.TrainLine?.LineName;
-                    stationName = inc.UserReport.LineStation?.Station?.StationName;
-                    type = inc.UserReport.Description;
-                    imageUrl = inc.UserReport.ImageUrl;
-                }
+            var result = incidents.Select(i =>
+            {
+                var dto = _alertService.MapToAlertDTO(i, now);
 
                 return new
                 {
-                    id = inc.IncidentId,
-                    line = lineName ?? "Unknown",
-                    station = stationName ?? "On Train",
-                    trainId = trainId,
-                    coach = coachId.HasValue ? coachId.Value.ToString() : "Unknown",
-                    type = type ?? "Man in WOCs",
-                    time = inc.CreatedAt.ToString("HH:mm"),
-                    status = inc.Status.ToString(),
-                    imageUrl = imageUrl
+                    dto.Id,
+                    dto.Line,
+                    dto.Station,
+                    dto.TrainId,
+CoachId = dto.CoachId,
+                    type = dto.Source == "ai" ? "AI Detection" : "Passenger Report",
+                    time = dto.Time,
+                    status = dto.Status,
+                    dto.ImageUrl
                 };
             });
 
+           
             return Ok(result);
         }
 

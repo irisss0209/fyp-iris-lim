@@ -6,7 +6,7 @@ interface UserRow {
   status: string;
   createdAt: string;
 }
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 import {
   Loader2Icon,
@@ -14,6 +14,8 @@ import {
   SearchIcon,
   XCircleIcon,
   CheckCircleIcon,
+  UploadIcon,
+  DownloadIcon,
   XIcon
 } from 'lucide-react';
 const ACCENT = '#0B4F6C';
@@ -131,7 +133,74 @@ export function UserManagement() {
   });
 
   const hasActiveFilters = !!search || roleFilter !== 'All' || statusFilter !== 'All';
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const handleUserUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
+    const valid = file.name.match(/\.(csv|xlsx|xls)$/i);
+    if (!valid) {
+      showToast('Only CSV or Excel files allowed', false);
+      return;
+    }
+
+    e.target.value = '';
+    setUploading(true);
+
+    const form = new FormData();
+    form.append('file', file);
+
+    try {
+      const session = JSON.parse(localStorage.getItem("session") || "{}");
+
+      const res = await fetch(`${API}/operator/users/import`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.token}`
+        },
+        body: form
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        showToast(err?.error || 'Upload failed', false);
+        return;
+      }
+
+      const data = await res.json();
+
+      const errSummary = data.errors?.length
+        ? ` (${data.errors.length} skipped)`
+        : '';
+
+      showToast(`✓ Imported ${data.inserted} user${data.inserted !== 1 ? 's' : ''}${errSummary}`);
+
+      if (data.inserted > 0) fetchUsers();
+
+    } catch {
+      showToast('Server error during upload', false);
+    } finally {
+      setUploading(false);
+    }
+  };
+  const downloadUserTemplate = () => {
+    const rows = [
+      ['user_name', 'email', 'role'],
+      ['John Doe', 'john@example.com', 'Auxiliary'],
+    ];
+
+    const csv = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'user_import_template.csv';
+    a.click();
+
+    URL.revokeObjectURL(url);
+  };
   return (
     <div className="p-8 min-h-full" style={{ backgroundColor: '#FAF9F5' }}>
 
@@ -149,9 +218,46 @@ export function UserManagement() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-[28px] font-bold text-gray-900 leading-tight">User Management</h1>
+          <h1 className="text-[28px] font-bold text-gray-900 leading-tight">
+            User Management
+          </h1>
           <p className="text-xs text-gray-400 mt-0.5">
             Manage system users, roles, and account statuses
+          </p>
+        </div>
+
+        <div className="flex flex-col items-end gap-1.5">
+          <div className="flex gap-2">
+
+            <button
+              onClick={downloadUserTemplate}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50"
+            >
+              <DownloadIcon size={14} />
+              Download Template
+            </button>
+
+            <button
+              disabled={uploading}
+              onClick={() => !uploading && fileInputRef.current?.click()}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-semibold text-white"
+              style={{ backgroundColor: ACCENT }}
+            >
+              {uploading ? <Loader2Icon size={14} className="animate-spin" /> : <UploadIcon size={14} />}
+              {uploading ? 'Importing…' : 'Upload Users'}
+            </button>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              className="hidden"
+              onChange={handleUserUpload}
+            />
+          </div>
+
+          <p className="text-xs text-gray-400">
+            Format: user_name, email, role
           </p>
         </div>
       </div>
