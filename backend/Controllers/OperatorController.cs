@@ -428,14 +428,37 @@ namespace backend.Controllers
             var from = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
             var to   = from.AddMonths(1);
 
+            // Pre-load station→line mapping; bypasses composite FK nav that fails when line_id is null
+            var allLineStations = await _context.LineStations
+                .Include(ls => ls.TrainLine)
+                .ToListAsync();
+            var stationLineMap = allLineStations
+                .GroupBy(ls => ls.StationId)
+                .ToDictionary(g => g.Key, g => (lineId: g.First().LineId, lineName: g.First().TrainLine.LineName));
+
             // ── Load all incidents for the month ──────────────────────────────
             var incidents = await _context.Incidents
                 .AsNoTracking()
+                // TrainId/CoachId via AI camera chain (also provides TrainAsset fallback for line)
                 .Include(i => i.Detection)
                     .ThenInclude(d => d!.Camera)
                         .ThenInclude(c => c!.TrainCoach)
+                            .ThenInclude(tc => tc!.TrainAsset)
+                                .ThenInclude(ta => ta!.TrainLine)
+                // TrainId/CoachId via user report chain (also provides TrainAsset fallback for line)
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.TrainCoach)
+                        .ThenInclude(tc => tc!.TrainAsset)
+                            .ThenInclude(ta => ta!.TrainLine)
+                // Passenger reporter name
+                .Include(i => i.UserReport)
+                    .ThenInclude(r => r!.User)
+                // Handler names for timeline steps
+                .Include(i => i.VerifiedByUser)
+                .Include(i => i.EnrouteByUser)
+                .Include(i => i.ResolvedByUser)
+                .Include(i => i.EscalatedByUser)
+                .Include(i => i.DismissedByUser)
                 .Where(i => i.CreatedAt >= from && i.CreatedAt < to)
                 .OrderByDescending(i => i.CreatedAt)
                 .ToListAsync();
@@ -482,21 +505,24 @@ namespace backend.Controllers
             // ── Helper: resolve line name + lineId per incident ───────────────
             (string lineId, string lineName) ResolveLineInfo(Incident inc)
             {
-                // Direct fields
-                if (inc.Detection?.LineStation?.TrainLine != null)
-                    return (inc.Detection.LineId!, inc.Detection.LineStation.TrainLine.LineName);
-                if (inc.UserReport?.LineStation?.TrainLine != null)
-                    return (inc.UserReport.LineId!, inc.UserReport.LineStation.TrainLine.LineName);
+                // Primary: station_id → pre-loaded lookup (works even when line_id is null on Detection/UserReport)
+                var sid = inc.Detection?.StationId ?? inc.UserReport?.StationId;
+                if (sid != null && stationLineMap.TryGetValue(sid, out var fromStation))
+                    return fromStation;
 
-                // Fallback
-                if (inc.Source == IncidentSource.AI_DETECTION && inc.Detection?.Camera?.TrainCoach?.TrainAsset?.TrainLine != null)
+                // Secondary: direct line_id scalar → name lookup in pre-loaded list
+                var knownLineId = inc.Detection?.LineId ?? inc.UserReport?.LineId;
+                if (knownLineId != null)
                 {
-                    var tl = inc.Detection!.Camera!.TrainCoach!.TrainAsset!.TrainLine!;
-                    return (tl.LineId, tl.LineName);
+                    var ls = allLineStations.FirstOrDefault(x => x.LineId == knownLineId);
+                    if (ls != null) return (ls.LineId, ls.TrainLine.LineName);
                 }
-                if (inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine != null)
-                    return (inc.UserReport.TrainCoach.TrainAsset.TrainLine.LineId,
-                            inc.UserReport.TrainCoach.TrainAsset.TrainLine.LineName);
+
+                // Fallback: TrainAsset navigation chain (loaded via Include above)
+                var tl = inc.Detection?.Camera?.TrainCoach?.TrainAsset?.TrainLine
+                         ?? inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine;
+                if (tl != null) return (tl.LineId, tl.LineName);
+
                 return ("unknown", "Unknown");
             }
 
@@ -534,22 +560,34 @@ namespace backend.Controllers
             var incidentList = incidents.Select(i =>
             {
                 var dto = _alertService.MapToAlertDTO(i, now);
+                var (resolvedLineId, resolvedLineName) = ResolveLineInfo(i);
 
                 return new
                 {
-                    id       = i.IncidentId,
-
-                    // ✅ reuse DTO
+                    id               = dto.Id,
                     dto.TrainId,
                     dto.CoachId,
-                    dto.Line,
-                    dto.LineId,
+                    line             = resolvedLineName,
+                    lineId           = resolvedLineId,
                     dto.Status,
                     dto.Source,
-
-                    datetime  = i.CreatedAt,
-                    type      = i.Source == IncidentSource.AI_DETECTION ? "AI Detection" : "Passenger Report",
-                    handledBy = i.VerifiedBy ?? i.ResolvedBy ?? i.EscalatedBy
+                    datetime         = i.CreatedAt,
+                    type             = i.Source == IncidentSource.AI_DETECTION ? "AI Detection" : "Passenger Report",
+                    reportedBy       = i.UserReport?.User?.UserName,
+                    verifiedBy       = i.VerifiedByUser?.UserName  ?? i.VerifiedBy,
+                    verifiedAt       = i.VerifiedAt,
+                    verifiedComment  = i.VerifiedComment,
+                    enrouteBy        = i.EnrouteByUser?.UserName   ?? i.EnrouteBy,
+                    enrouteAt        = i.EnrouteAt,
+                    resolvedBy       = i.ResolvedByUser?.UserName  ?? i.ResolvedBy,
+                    resolvedAt       = i.ResolvedAt,
+                    resolvedComment  = i.ResolvedComment,
+                    escalatedBy      = i.EscalatedByUser?.UserName ?? i.EscalatedBy,
+                    escalatedAt      = i.EscalatedAt,
+                    escalatedComment = i.EscalatedComment,
+                    dismissedBy      = i.DismissedByUser?.UserName ?? i.DismissedBy,
+                    dismissedAt      = i.DismissedAt,
+                    dismissedComment = i.DismissedComment,
                 };
             }).ToList();
             // ── Available months (for the date picker) ────────────────────────
