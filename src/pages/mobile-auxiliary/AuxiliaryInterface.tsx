@@ -27,7 +27,7 @@ export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterface) {
   const [showChangePassword, setShowChangePassword] = useState(false);
 
   return (
-    <div className="flex flex-col h-full relative w-full sm:max-w-md mx-auto overflow-hidden sm:shadow-2xl sm:rounded-[40px] sm:border-[8px] sm:border-white sm:ring-1 sm:ring-gray-100 min-h-screen sm:min-h-[850px] sm:max-h-[850px]" style={{ backgroundColor: '#FAF9F5' }}>
+    <div className="flex flex-col h-full relative w-full sm:max-w-md mx-auto overflow-hidden sm:shadow-2xl sm:rounded-[40px] sm:border-[8px] sm:border-white sm:ring-1 sm:ring-gray-100 min-h-screen sm:min-h-[850px] sm:max-h-[900px]" style={{ backgroundColor: '#FAF9F5' }}>
 
       {/* ── Top Header (Inactive) ── */}
       {/* 
@@ -43,7 +43,7 @@ export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterface) {
       {/* ── Shift Banner ── */}
 
       {/* ── Scrollable Content ── */}
-      <div className="flex-1 overflow-y-auto pb-24">
+      <div className="flex-1 overflow-y-auto" style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}>
         <AnimatePresence mode="wait">
           {activeTab === 'alerts' && (
             <RecentAlerts
@@ -74,7 +74,10 @@ export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterface) {
       </div>
 
       {/* ── Bottom Nav ── */}
-      <div className="absolute bottom-0 left-0 right-0 w-full bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] border-t border-gray-100 flex p-1.5 pb-4 sm:pb-1.5 z-20">
+      <div
+        className="absolute bottom-0 left-0 right-0 w-full bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] border-t border-gray-100 flex p-1.5 z-20"
+        style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}
+      >
         {TABS.map(({ id, icon: Icon, label }) => {
           const active = activeTab === id;
           return (

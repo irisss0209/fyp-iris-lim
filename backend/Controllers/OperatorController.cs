@@ -490,8 +490,10 @@ namespace backend.Controllers
 
                 // Fallback
                 if (inc.Source == IncidentSource.AI_DETECTION && inc.Detection?.Camera?.TrainCoach?.TrainAsset?.TrainLine != null)
-                    return (inc.Detection.Camera.TrainCoach.TrainAsset.TrainLine.LineId,
-                            inc.Detection.Camera.TrainCoach.TrainAsset.TrainLine.LineName);
+                {
+                    var tl = inc.Detection!.Camera!.TrainCoach!.TrainAsset!.TrainLine!;
+                    return (tl.LineId, tl.LineName);
+                }
                 if (inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine != null)
                     return (inc.UserReport.TrainCoach.TrainAsset.TrainLine.LineId,
                             inc.UserReport.TrainCoach.TrainAsset.TrainLine.LineName);
@@ -709,6 +711,39 @@ namespace backend.Controllers
 
             return (new List<string[]>(), "Unsupported file type. Use .csv or .xlsx");
         }
+
+        private static async Task<List<string[]>> ParseExcelAsync(IFormFile file)
+        {
+            ExcelPackage.License.SetNonCommercialOrganization("FYP");
+            using var stream = new MemoryStream();
+            await file.CopyToAsync(stream);
+            using var package = new ExcelPackage(stream);
+            var ws = package.Workbook.Worksheets[0];
+            var rows = new List<string[]>();
+            if (ws.Dimension == null) return rows;
+            for (int r = 1; r <= ws.Dimension.End.Row; r++)
+            {
+                var cols = new string[ws.Dimension.End.Column];
+                for (int c = 1; c <= ws.Dimension.End.Column; c++)
+                    cols[c - 1] = ws.Cells[r, c].Text ?? "";
+                rows.Add(cols);
+            }
+            return rows;
+        }
+
+        private static async Task<(List<string[]> rows, string? error)> ParseCsvAsync(IFormFile file)
+        {
+            using var reader = new StreamReader(file.OpenReadStream());
+            var rows = new List<string[]>();
+            while (!reader.EndOfStream)
+            {
+                var line = await reader.ReadLineAsync();
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                rows.Add(line.Split(','));
+            }
+            return (rows, null);
+        }
+
         // ── Excel bulk import ───────────────────────────────────────────────────────
 
         [HttpPost("operator/shifts/import")]

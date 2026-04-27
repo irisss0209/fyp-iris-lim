@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { WifiOff, RefreshCw } from 'lucide-react';
 
 /**
@@ -24,10 +23,8 @@ export function OfflinePage() {
         fontFamily: 'system-ui, sans-serif',
       }}
     >
-      {/* Animated icon */}
-      <motion.div
-        animate={{ y: [0, -10, 0] }}
-        transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+      {/* Icon */}
+      <div
         style={{
           width: '6rem',
           height: '6rem',
@@ -41,31 +38,17 @@ export function OfflinePage() {
         }}
       >
         <WifiOff size={32} color="#fff" />
-      </motion.div>
+      </div>
 
-      <motion.h1
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        style={{ fontSize: '1.75rem', fontWeight: 800, color: '#1e1b4b', margin: '0 0 0.75rem' }}
-      >
+      <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#1e1b4b', margin: '0 0 0.75rem' }}>
         You're offline
-      </motion.h1>
+      </h1>
 
-      <motion.p
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        style={{ color: '#6b7280', maxWidth: '22rem', lineHeight: 1.6, margin: '0 0 2rem' }}
-      >
+      <p style={{ color: '#6b7280', maxWidth: '22rem', lineHeight: 1.6, margin: '0 0 2rem' }}>
         It looks like your internet connection is unavailable. Railly requires a connection to display live transit data.
-      </motion.p>
+      </p>
 
-      <motion.button
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.2 }}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.97 }}
+      <button
         onClick={() => window.location.reload()}
         style={{
           display: 'flex',
@@ -84,7 +67,7 @@ export function OfflinePage() {
       >
         <RefreshCw size={18} />
         Try Again
-      </motion.button>
+      </button>
     </div>
   );
 }

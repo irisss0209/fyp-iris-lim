@@ -7,6 +7,7 @@ interface UserRow {
   createdAt: string;
 }
 import { useState, useEffect, useRef } from 'react';
+import ExcelJS from 'exceljs';
 
 import {
   Loader2Icon,
@@ -184,21 +185,47 @@ export function UserManagement() {
       setUploading(false);
     }
   };
-  const downloadUserTemplate = () => {
-    const rows = [
-      ['user_name', 'email', 'role'],
-      ['John Doe', 'john@example.com', 'Auxiliary'],
+  const downloadUserTemplate = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const ws = workbook.addWorksheet('Users');
+
+    ws.columns = [
+      { header: 'user_name', key: 'user_name', width: 22 },
+      { header: 'email',     key: 'email',     width: 28 },
+      { header: 'role',      key: 'role',      width: 16 },
     ];
 
-    const csv = rows.map(r => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    // Style header row
+    ws.getRow(1).eachCell(cell => {
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0B4F6C' } };
+    });
 
+    // Sample data row
+    ws.addRow(['John Doe', 'john@example.com', 'Auxiliary']);
+
+    // Dropdown for role column rows 2–100
+    for (let row = 2; row <= 100; row++) {
+      ws.getCell(`C${row}`).dataValidation = {
+        type: 'list',
+        allowBlank: false,
+        formulae: ['"Operator,Auxiliary"'],
+        showErrorMessage: true,
+        errorStyle: 'stop',
+        errorTitle: 'Invalid role',
+        error: 'Please select Operator or Auxiliary',
+      };
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'user_import_template.csv';
+    a.download = 'user_import_template.xlsx';
     a.click();
-
     URL.revokeObjectURL(url);
   };
   return (
@@ -257,7 +284,7 @@ export function UserManagement() {
           </div>
 
           <p className="text-xs text-gray-400">
-            Format: user_name, email, role
+            Format (.xlsx/.csv): user_name, email, role
           </p>
         </div>
       </div>

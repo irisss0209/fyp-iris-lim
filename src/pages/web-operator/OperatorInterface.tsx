@@ -10,6 +10,7 @@ import {
   UsersIcon,
   CalendarIcon,
   PanelLeftOpenIcon,
+  MonitorIcon,
 } from 'lucide-react';
 import { Dashboard } from './Dashboard';
 import { LiveAlerts } from './LiveAlerts';
@@ -177,6 +178,24 @@ export function OperatorInterface({
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#FAF9F5]">
+
+      {/* ── Desktop-only wall ── shown on any viewport narrower than 1024 px */}
+      <div className="lg:hidden fixed inset-0 z-[100] flex flex-col items-center justify-center gap-6 bg-[#FAF9F5] p-8 text-center">
+        <div className="w-20 h-20 rounded-2xl flex items-center justify-center" style={{ backgroundColor: '#0B4F6C1A' }}>
+          <MonitorIcon size={40} style={{ color: '#0B4F6C' }} />
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold text-gray-900">Desktop Required</h1>
+          <p className="text-sm text-gray-500 max-w-[300px] leading-relaxed">
+            The Railly operator dashboard is built for desktop use. Please open it on a laptop or desktop computer.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gray-100 text-xs text-gray-400 font-medium">
+          <MonitorIcon size={13} />
+          Minimum screen width: 1024 px
+        </div>
+      </div>
+
       <Sidebar
         activePage={activePage}
         onNavigate={setActivePage}

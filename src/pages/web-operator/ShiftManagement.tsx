@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import ExcelJS from 'exceljs';
 import {
   CalendarIcon, CheckCircleIcon, Loader2Icon,
   DownloadIcon, UploadIcon, XCircleIcon, SearchIcon, XIcon
@@ -152,18 +153,57 @@ export function ShiftManagementPanel() {
   };
 
   // ── download template ──
-  const downloadTemplate = () => {
-    const rows = [
-      ['user_id', 'station_id', 'shift_date', 'start_time', 'end_time'],
-      ['# Fill in your data below. Delete this row before uploading.', '', '', '', ''],
-      ['AUX001', 'STN001', '2026-05-01', '06:00', '15:00'],
+  const downloadTemplate = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const ws = workbook.addWorksheet('Shifts');
+
+    ws.columns = [
+      { header: 'user_id',    key: 'user_id',    width: 16 },
+      { header: 'station_id', key: 'station_id', width: 16 },
+      { header: 'shift_date', key: 'shift_date', width: 16 },
+      { header: 'start_time', key: 'start_time', width: 16 },
+      { header: 'end_time',   key: 'end_time',   width: 16 },
     ];
-    const csv = rows.map(r => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+
+    // Style header row
+    ws.getRow(1).eachCell(cell => {
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0B4F6C' } };
+    });
+
+    // Sample data row
+    ws.addRow(['AUX001', 'STN001', '2026-05-01', '06:00:00', '15:00:00']);
+
+    // Dropdowns for rows 2–100
+    for (let row = 2; row <= 100; row++) {
+      ws.getCell(`D${row}`).dataValidation = {
+        type: 'list',
+        allowBlank: false,
+        formulae: ['"06:00:00,15:00:00"'],
+        showErrorMessage: true,
+        errorStyle: 'stop',
+        errorTitle: 'Invalid start time',
+        error: 'Please select 06:00:00 or 15:00:00',
+      };
+      ws.getCell(`E${row}`).dataValidation = {
+        type: 'list',
+        allowBlank: false,
+        formulae: ['"15:00:00,23:59:00"'],
+        showErrorMessage: true,
+        errorStyle: 'stop',
+        errorTitle: 'Invalid end time',
+        error: 'Please select 15:00:00 or 23:59:00',
+      };
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'shift_import_template.csv';
+    a.download = 'shift_import_template.xlsx';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -252,7 +292,7 @@ export function ShiftManagementPanel() {
             />
           </div>
           <p className="text-xs text-gray-400">
-            Import format:{' '}
+            Import format (.xlsx/.csv):{' '}
             <code className="text-gray-500">user_id</code>,{' '}
             <code className="text-gray-500">station_id</code>,{' '}
             <code className="text-gray-500">shift_date</code>,{' '}

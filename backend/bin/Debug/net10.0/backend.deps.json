@@ -10,7 +10,7 @@
         "dependencies": {
           "AWSSDK.SimpleEmail": "4.0.2.25",
           "BCrypt.Net-Next": "4.1.0",
-          "EPPlus": "7.5.2",
+          "EPPlus": "8.5.3",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "10.0.5",
           "Microsoft.AspNetCore.OpenApi": "10.0.5",
           "Microsoft.EntityFrameworkCore.Design": "10.0.5",
@@ -49,35 +49,23 @@
           }
         }
       },
-      "EPPlus/7.5.2": {
+      "EPPlus/8.5.3": {
         "dependencies": {
-          "EPPlus.System.Drawing": "7.5.0",
+          "EPPlus.Interfaces": "8.4.0",
           "Microsoft.IO.RecyclableMemoryStream": "3.0.1"
         },
         "runtime": {
-          "lib/net8.0/EPPlus.dll": {
-            "assemblyVersion": "7.5.2.0",
-            "fileVersion": "7.5.2.0"
+          "lib/net10.0/EPPlus.dll": {
+            "assemblyVersion": "8.5.3.0",
+            "fileVersion": "8.5.3.0"
           }
         }
       },
-      "EPPlus.Interfaces/7.5.0": {
+      "EPPlus.Interfaces/8.4.0": {
         "runtime": {
-          "lib/net8.0/EPPlus.Interfaces.dll": {
-            "assemblyVersion": "7.5.0.0",
-            "fileVersion": "7.5.0.0"
-          }
-        }
-      },
-      "EPPlus.System.Drawing/7.5.0": {
-        "dependencies": {
-          "EPPlus.Interfaces": "7.5.0",
-          "System.Drawing.Common": "8.0.4"
-        },
-        "runtime": {
-          "lib/net8.0/EPPlus.System.Drawing.dll": {
-            "assemblyVersion": "7.5.0.0",
-            "fileVersion": "7.5.0.0"
+          "lib/net10.0/EPPlus.Interfaces.dll": {
+            "assemblyVersion": "8.4.0.0",
+            "fileVersion": "8.4.0.0"
           }
         }
       },
@@ -536,22 +524,6 @@
           }
         }
       },
-      "Microsoft.Win32.SystemEvents/8.0.0": {
-        "runtime": {
-          "lib/net8.0/Microsoft.Win32.SystemEvents.dll": {
-            "assemblyVersion": "8.0.0.0",
-            "fileVersion": "8.0.23.53103"
-          }
-        },
-        "runtimeTargets": {
-          "runtimes/win/lib/net8.0/Microsoft.Win32.SystemEvents.dll": {
-            "rid": "win",
-            "assetType": "runtime",
-            "assemblyVersion": "8.0.0.0",
-            "fileVersion": "8.0.23.53103"
-          }
-        }
-      },
       "Mono.TextTemplating/3.0.0": {
         "dependencies": {
           "System.CodeDom": "6.0.0"
@@ -705,17 +677,6 @@
           }
         }
       },
-      "System.Drawing.Common/8.0.4": {
-        "dependencies": {
-          "Microsoft.Win32.SystemEvents": "8.0.0"
-        },
-        "runtime": {
-          "lib/net8.0/System.Drawing.Common.dll": {
-            "assemblyVersion": "8.0.0.0",
-            "fileVersion": "8.0.424.16911"
-          }
-        }
-      },
       "System.IdentityModel.Tokens.Jwt/8.0.1": {
         "dependencies": {
           "Microsoft.IdentityModel.JsonWebTokens": "8.0.1",
@@ -757,26 +718,19 @@
       "path": "bcrypt.net-next/4.1.0",
       "hashPath": "bcrypt.net-next.4.1.0.nupkg.sha512"
     },
-    "EPPlus/7.5.2": {
+    "EPPlus/8.5.3": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-qHJurPvgWoheHyyam53NV8d2CiOO2q88Rg/Lk0wSYwi/aoGDtzYihTMCHeTwGM9zHZnnI3aVLu482SODN+HB4g==",
-      "path": "epplus/7.5.2",
-      "hashPath": "epplus.7.5.2.nupkg.sha512"
+      "sha512": "sha512-wU+ogF8qJTLoAqmD+X7ZCWAj2uUsIV8omXm4SkHhIGS4LPfWxlFDQhLb5FPedNp+0dDEA2S8dEpvtCezpzUgBA==",
+      "path": "epplus/8.5.3",
+      "hashPath": "epplus.8.5.3.nupkg.sha512"
     },
-    "EPPlus.Interfaces/7.5.0": {
+    "EPPlus.Interfaces/8.4.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-mGLKgdIKkXRYIu+HIGmZUngVAAlPzIQgI/KqG10m6P5P2112l6p/5dDa35UHu4GV4Qevw0Pq9PxAymrrrl4tzA==",
-      "path": "epplus.interfaces/7.5.0",
-      "hashPath": "epplus.interfaces.7.5.0.nupkg.sha512"
-    },
-    "EPPlus.System.Drawing/7.5.0": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-cgwstM12foFisisURUyxwJOWHMD/rZxPSyBXFsCOFayaKq0oKlOs1mCTueKNNIlpPDG1no9vcaQiJgZXFM4KPA==",
-      "path": "epplus.system.drawing/7.5.0",
-      "hashPath": "epplus.system.drawing.7.5.0.nupkg.sha512"
+      "sha512": "sha512-QaEzDFG2vcQMPqUmoWv0vBTObtH8hffQmyDr2WkqRYF/nFSn2pkdBB4vudcd/EIv0N8M3P1fzzkPQgEWsFnUmA==",
+      "path": "epplus.interfaces/8.4.0",
+      "hashPath": "epplus.interfaces.8.4.0.nupkg.sha512"
     },
     "Humanizer.Core/2.14.1": {
       "type": "package",
@@ -939,13 +893,6 @@
       "path": "microsoft.visualstudio.solutionpersistence/1.0.52",
       "hashPath": "microsoft.visualstudio.solutionpersistence.1.0.52.nupkg.sha512"
     },
-    "Microsoft.Win32.SystemEvents/8.0.0": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-9opKRyOKMCi2xJ7Bj7kxtZ1r9vbzosMvRrdEhVhDz8j8MoBGgB+WmC94yH839NPH+BclAjtQ/pyagvi/8gDLkw==",
-      "path": "microsoft.win32.systemevents/8.0.0",
-      "hashPath": "microsoft.win32.systemevents.8.0.0.nupkg.sha512"
-    },
     "Mono.TextTemplating/3.0.0": {
       "type": "package",
       "serviceable": true,
@@ -1057,13 +1004,6 @@
       "sha512": "sha512-aRZlojCCGEHDKqh43jaDgaVpYETsgd7Nx4g1zwLKMtv4iTo0627715ajEFNpEEBTgLmvZuv8K0EVxc3sM4NWJA==",
       "path": "system.composition.typedparts/9.0.0",
       "hashPath": "system.composition.typedparts.9.0.0.nupkg.sha512"
-    },
-    "System.Drawing.Common/8.0.4": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-3G4xpa8mUYGzEF0HlswlBArAFywHJIzsZoB5hU4yMlnYHaabj/lg019BwbyyYBxj0aoM7Cz+jdlgUemeno9LOQ==",
-      "path": "system.drawing.common/8.0.4",
-      "hashPath": "system.drawing.common.8.0.4.nupkg.sha512"
     },
     "System.IdentityModel.Tokens.Jwt/8.0.1": {
       "type": "package",

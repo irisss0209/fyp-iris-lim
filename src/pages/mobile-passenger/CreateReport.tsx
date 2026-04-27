@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import {
   CheckCircleIcon,
   CameraIcon,
@@ -133,12 +132,7 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
 
   if (step === 'sent') {
     return (
-      <motion.div
-        key="sent"
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="flex flex-col items-center justify-center px-4 py-20 text-center"
-      >
+      <div className="flex flex-col items-center justify-center px-4 py-20 text-center">
         <div className="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center mb-5 shadow-sm">
           <CheckCircleIcon size={40} className="text-green-500" />
         </div>
@@ -146,19 +140,12 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
         <p className="text-sm text-gray-400 max-w-[260px] leading-relaxed">
           Authorities have been notified. Thank you for keeping our coaches safe.
         </p>
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <motion.div
-      key="create"
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      transition={{ duration: 0.2 }}
-      className="px-4 pt-5 pb-6 space-y-4"
-    >
+    <div className="px-4 pt-5 pb-6 space-y-4">
       <div className="flex items-center gap-3">
         <button
           onClick={onBack}
@@ -187,11 +174,7 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
       </div>
 
       {nearbyStations.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-[#EBF4F8] border border-[#0B4F6C]/10 rounded-2xl p-3.5"
-        >
+        <div className="bg-[#EBF4F8] border border-[#0B4F6C]/10 rounded-2xl p-3.5">
           <p className="text-[10px] font-bold text-[#0B4F6C] uppercase tracking-wider mb-2">Closest Stations</p>
           <div className="flex flex-wrap gap-2">
             {nearbyStations.map((s) => (
@@ -217,7 +200,7 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
             ))}
           </div>
           <p className="text-[10px] text-[#0B4F6C]/60 mt-2 italic">Tap to select the train line for this station.</p>
-        </motion.div>
+        </div>
       )}
 
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
@@ -382,6 +365,6 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
       >
         {step === 'sending' ? 'Submitting...' : 'Submit Report'}
       </button>
-    </motion.div>
+    </div>
   );
 }

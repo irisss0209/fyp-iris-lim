@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import {
   SearchIcon,
   ChevronRightIcon,
@@ -165,14 +164,7 @@ export function AlertsHistory({ userId }: { userId: string }) {
 
   // ── List View ─────────────────────────────────────────────────────────────────
   return (
-    <motion.div
-      key="history"
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ duration: 0.2 }}
-      className="flex-1 overflow-y-auto scrollbar-thin"
-    >
+    <div className="flex-1 overflow-y-auto scrollbar-thin">
       <div className="px-4 pt-4 pb-2">
         <h2 className="text-lg font-bold text-gray-900">Case History</h2>
       </div>
@@ -251,6 +243,6 @@ export function AlertsHistory({ userId }: { userId: string }) {
           })
         )}
       </div>
-    </motion.div>
+    </div>
   );
 }

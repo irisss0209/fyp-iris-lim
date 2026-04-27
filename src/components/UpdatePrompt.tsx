@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw, X } from 'lucide-react';
 
 export function UpdatePrompt() {
@@ -36,14 +35,9 @@ export function UpdatePrompt() {
   const handleDismiss = useCallback(() => setVisible(false), []);
 
   return (
-    <AnimatePresence>
+    <>
       {visible && (
-        <motion.div
-          key="update-prompt"
-          initial={{ opacity: 0, y: 80, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 80, scale: 0.95 }}
-          transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+        <div
           style={{
             position: 'fixed',
             bottom: '1.5rem',
@@ -120,8 +114,8 @@ export function UpdatePrompt() {
           >
             <X size={16} />
           </button>
-        </motion.div>
+        </div>
       )}
-    </AnimatePresence>
+    </>
   );
 }
