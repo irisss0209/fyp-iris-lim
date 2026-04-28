@@ -63,6 +63,9 @@ export function UserManagement() {
   const [roleFilter, setRoleFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
 
+  const session = JSON.parse(localStorage.getItem('user_session') || localStorage.getItem('session') || '{}');
+  const loggedInUserId = session.userId;
+
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 3000);
@@ -70,7 +73,7 @@ export function UserManagement() {
 
   const fetchUsers = () => {
     setLoading(true);
-    const session = JSON.parse(localStorage.getItem("session") || "{}");
+    const session = JSON.parse(localStorage.getItem("user_session") || localStorage.getItem("session") || "{}");
     fetch(`${API}/operator/users`, {
       headers: { 'Authorization': `Bearer ${session.token}` }
     })
@@ -85,6 +88,12 @@ export function UserManagement() {
   }, []);
 
   const handleStatusChange = async (userId: string, newStatus: string) => {
+    if (newStatus === 'Suspend') {
+      if (!window.confirm("Once suspended, this user cannot login, but you can still reactivate them later. Proceed?")) return;
+    } else if (newStatus === 'Archive') {
+      if (!window.confirm("This user will no longer be able to get into the system, but their information will retain in the database for compliance purpose. Proceed?")) return;
+    }
+
     setUpdatingId(userId);
     try {
       const session = JSON.parse(localStorage.getItem("session") || "{}");
@@ -191,8 +200,8 @@ export function UserManagement() {
 
     ws.columns = [
       { header: 'user_name', key: 'user_name', width: 22 },
-      { header: 'email',     key: 'email',     width: 28 },
-      { header: 'role',      key: 'role',      width: 16 },
+      { header: 'email', key: 'email', width: 28 },
+      { header: 'role', key: 'role', width: 16 },
     ];
 
     // Style header row
@@ -391,13 +400,18 @@ export function UserManagement() {
                       <div className="flex items-center gap-2.5">
 
                         <div>
-                          <div className="font-medium text-gray-900">{u.userName}</div>
+                          <div className="font-medium text-gray-900">
+                            {u.userName}
+                            {u.userId === loggedInUserId && (
+                              <span className="text-xs text-gray-400 font-normal ml-1.5">(You)</span>
+                            )}
+                          </div>
                           <div className="text-[12px] text-gray-400 font-mono">{u.email}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-600 font-medium">{u.role}</td>
-                    <td className="px-4 py-3 text-gray-500">
+                    <td className="px-4 py-3 text-gray-700 text-sm">{u.role}</td>
+                    <td className="px-4 py-3 text-gray-700 text-sm">
                       {new Date(u.createdAt).toLocaleDateString('en-MY', {
                         day: '2-digit', month: 'short', year: 'numeric'
                       })}

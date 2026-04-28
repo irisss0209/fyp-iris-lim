@@ -19,6 +19,7 @@ import { Settings } from './Settings';
 import { UserManagement } from './UserManagement';
 import { ShiftManagementPanel } from './ShiftManagement';
 import { UserSession } from '../../App';
+import { ChangePasswordPage } from '../auth/ChangePasswordPage';
 
 export type NavPage =
   | 'dashboard'
@@ -26,7 +27,8 @@ export type NavPage =
   | 'reports'
   | 'users'
   | 'shifts'
-  | 'settings';
+  | 'settings'
+  | 'change-password';
 
 interface SidebarProps {
   activePage: NavPage;
@@ -129,9 +131,11 @@ function Sidebar({ activePage, onNavigate, onLogout, alertCount = 0, user, colla
       {/* User section */}
       <div className="px-2 pb-3 border-t border-gray-100 pt-3">
         <div className={`flex items-center gap-3 ${collapsed ? 'flex-col' : ''}`}>
-          <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-            <UserCircleIcon size={22} className="text-gray-400" aria-hidden="true" />
-          </div>
+          {!collapsed && (
+            <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+              <UserCircleIcon size={22} className="text-gray-400" />
+            </div>
+          )}
           {!collapsed && (
             <>
               <div className="flex-1 min-w-0">
@@ -171,7 +175,9 @@ export function OperatorInterface({
       case 'reports': return <Reports />;
       case 'users': return <UserManagement />;
       case 'shifts': return <ShiftManagementPanel />;
-      case 'settings': return <Settings />;
+      case 'settings': return <Settings onNavigate={setActivePage} />;
+      case 'change-password':
+        return <ChangePasswordPage session={session!} onBack={() => setActivePage('settings')} />;
       default: return <Dashboard />;
     }
   };

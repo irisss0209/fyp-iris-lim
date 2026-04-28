@@ -24,45 +24,19 @@ interface ShiftRow {
 
 function getShiftStatus(shift: ShiftRow): 'upcoming' | 'in_progress' | 'completed' {
   const now = new Date();
-  const shiftStart = new Date(`${shift.shiftDate}T${shift.startTime}`);
-  const shiftEnd = new Date(`${shift.shiftDate}T${shift.endTime}`);
+  const dateStr = shift.shiftDate.split('T')[0];
+  const shiftStart = new Date(`${dateStr}T${shift.startTime}`);
+  const shiftEnd = new Date(`${dateStr}T${shift.endTime}`);
+
+  if (shiftEnd < shiftStart) {
+    shiftEnd.setDate(shiftEnd.getDate() + 1); // Handle overnight shifts
+  }
+
   if (now < shiftStart) return 'upcoming';
   if (now >= shiftStart && now <= shiftEnd) return 'in_progress';
   return 'completed';
 }
 
-function ShiftTypeBadge({ startTime }: { startTime: string }) {
-  const hour = parseInt(startTime.split(':')[0], 10);
-  const isMorning = hour >= 6 && hour < 15;
-  return (
-    <span
-      className="text-xs px-2.5 py-1 rounded-full font-medium"
-      style={{
-        backgroundColor: isMorning ? '#FEF9C3' : '#EDE9FE',
-        color: isMorning ? '#fcb769ff' : '#5B21B6',
-      }}
-    >
-      {isMorning ? 'Morning' : 'Afternoon'}
-    </span>
-  );
-}
-
-function ShiftStatusBadge({ shift }: { shift: ShiftRow }) {
-  const status = getShiftStatus(shift);
-  const styles = {
-    in_progress: { bg: '#DCFCE7', color: '#15803D', label: 'In Progress' },
-    upcoming: { bg: '#EFF6FF', color: '#1D4ED8', label: 'Upcoming' },
-    completed: { bg: '#F3F4F6', color: '#6B7280', label: 'Completed' },
-  }[status];
-  return (
-    <span
-      className="text-xs px-2.5 py-1 rounded-full font-medium"
-      style={{ backgroundColor: styles.bg, color: styles.color }}
-    >
-      {styles.label}
-    </span>
-  );
-}
 
 export function ShiftManagementPanel() {
   const { format } = useTime();
@@ -86,7 +60,7 @@ export function ShiftManagementPanel() {
 
   const fetchShifts = () => {
     setLoading(true);
-    const session = JSON.parse(localStorage.getItem('session') || '{}');
+    const session = JSON.parse(localStorage.getItem('user_session') || localStorage.getItem('session') || '{}');
     fetch(`${API}/operator/shifts`, {
       headers: { Authorization: `Bearer ${session.token}` },
     })
@@ -116,6 +90,7 @@ export function ShiftManagementPanel() {
     }).toLowerCase()
     const matchesSearch =
       !q ||
+      s.userId.toLowerCase().includes(q) ||
       s.userName.toLowerCase().includes(q) ||
       s.stationName.toLowerCase().includes(q) ||
       s.shiftDate.toLowerCase().includes(q) ||
@@ -158,11 +133,11 @@ export function ShiftManagementPanel() {
     const ws = workbook.addWorksheet('Shifts');
 
     ws.columns = [
-      { header: 'user_id',    key: 'user_id',    width: 16 },
+      { header: 'user_id', key: 'user_id', width: 16 },
       { header: 'station_id', key: 'station_id', width: 16 },
       { header: 'shift_date', key: 'shift_date', width: 16 },
       { header: 'start_time', key: 'start_time', width: 16 },
-      { header: 'end_time',   key: 'end_time',   width: 16 },
+      { header: 'end_time', key: 'end_time', width: 16 },
     ];
 
     // Style header row
@@ -459,32 +434,39 @@ export function ShiftManagementPanel() {
                   </td>
 
                   {/* Line */}
-                  <td className="px-4 py-3 text-gray-600 text-sm">{s.lineName || '—'}</td>
+                  <td className="px-4 py-3 text-gray-700 text-sm">{s.lineName || '—'}</td>
 
                   {/* Station */}
                   <td className="px-4 py-3 text-gray-700 text-sm">{s.stationName}</td>
 
                   {/* Date */}
-                  <td className="px-4 py-3 text-gray-600 text-sm">
+                  <td className="px-4 py-3 text-gray-700 text-sm">
                     {new Date(s.shiftDate).toLocaleDateString('en-MY', {
                       day: '2-digit', month: 'short', year: 'numeric',
                     })}
                   </td>
 
                   {/* Shift type */}
-                  <td className="px-4 py-3">
-                    <ShiftTypeBadge startTime={s.startTime} />
+                  <td className="px-4 py-3 text-gray-700 text-sm">
+                    {parseInt(s.startTime.split(':')[0], 10) >= 6 &&
+                      parseInt(s.startTime.split(':')[0], 10) < 15
+                      ? 'Morning'
+                      : 'Afternoon'}
                   </td>
 
                   {/* Hours */}
-                  <td className="px-4 py-3 font-mono text-xs text-gray-500">
+                  <td className="px-4 py-3 text-gray-700 text-sm">
                     {formatClockTime(s.startTime, format)} - {formatClockTime(s.endTime, format)}
                   </td>
 
                   {/* Status */}
-                  <td className="px-4 py-3">
-                    <ShiftStatusBadge shift={s} />
-                  </td>
+                  <td className="px-4 py-3 text-gray-700 text-sm">
+                    {(() => {
+                      const status = getShiftStatus(s);
+                      if (status === 'in_progress') return 'In Progress';
+                      if (status === 'upcoming') return 'Upcoming';
+                      return 'Completed';
+                    })()}                  </td>
 
                 </tr>
               ))}

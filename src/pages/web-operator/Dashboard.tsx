@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  BellIcon,
-  CameraIcon,
-  CheckCircleIcon,
+
   ClockIcon,
   CalendarIcon,
   RefreshCwIcon,
@@ -61,7 +59,25 @@ function getLineColor(lineId: string) {
   }
   return lineColorCache[lineId];
 }
+function formatResponseTime(minutes?: number) {
+  if (!minutes || minutes === 0) {
+    return { value: '—', unit: '' };
+  }
 
+  if (minutes < 60) {
+    return {
+      value: Math.round(minutes),
+      unit: 'min',
+    };
+  }
+
+  const hours = minutes / 60;
+
+  return {
+    value: hours.toFixed(1),
+    unit: 'hr',
+  };
+}
 const STATUS_THEME: Record<string, { color: string, bg: string }> = {
   pending: { color: '#C2410C', bg: '#FFF7ED' },
   verified: { color: '#2D7A5D', bg: '#F0FBF6' },
@@ -85,7 +101,36 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const fetchDashboard = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/operator/dashboard`);
+      const now = new Date();
+      let fromDate: Date | null = null;
+      let toDate: Date | null = null;
+
+      if (selectedRange === 'today') {
+        fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        toDate = new Date(fromDate);
+        toDate.setDate(toDate.getDate() + 1);
+      } else if (selectedRange === 'yesterday') {
+        fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+        toDate = new Date(fromDate);
+        toDate.setDate(toDate.getDate() + 1);
+      } else if (selectedRange === '7days') {
+        fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+        toDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      } else if (selectedRange === '30days') {
+        fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
+        toDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      } else if (selectedRange === 'custom' && customFrom && customTo) {
+        fromDate = new Date(customFrom);
+        toDate = new Date(customTo);
+        toDate.setDate(toDate.getDate() + 1);
+      }
+
+      let query = '';
+      if (fromDate && toDate) {
+        query = `?from=${fromDate.toISOString()}&to=${toDate.toISOString()}`;
+      }
+
+      const res = await fetch(`${API}/operator/dashboard${query}`);
       const data = await res.json();
       setStats(data.stats);
       setAlerts(data.recentAlerts ?? []);
@@ -94,7 +139,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedRange, customFrom, customTo]);
 
   useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
 
@@ -139,7 +184,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     }
   };
 
-  const camerasOffline = stats ? stats.camerasTotal - stats.camerasOnline : 0;
+  const response = formatResponseTime(stats?.avgResponseMinutes);
 
   return (
     <div className="p-8 min-h-full" style={{ backgroundColor: '#FAF9F5' }}>
@@ -201,39 +246,31 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-start justify-between mb-4">
             <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Pending Alerts</span>
-            <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center">
-              <BellIcon size={16} className="text-orange-400" />
-            </div>
+
           </div>
           <div className="text-4xl font-bold text-gray-900 mb-1">
             {loading ? <span className="text-2xl text-gray-300">—</span> : (stats?.pending ?? 0)}
           </div>
-          <div className="text-xs text-gray-400">Awaiting operator review</div>
+
         </div>
 
         {/* Verified */}
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-start justify-between mb-4">
-            <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Verified &amp; Escalated</span>
-            <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center">
-              <CheckCircleIcon size={16} style={{ color: '#0B4F6C' }} />
-            </div>
+            <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Verified</span>
+
           </div>
           <div className="text-4xl font-bold text-gray-900 mb-1">
             {loading ? <span className="text-2xl text-gray-300">—</span> : (stats?.verified ?? 0)}
           </div>
-          <div className="text-xs text-gray-400">
-            {loading ? '' : `${stats?.resolved ?? 0} resolved`}
-          </div>
+
         </div>
 
         {/* Cameras */}
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-start justify-between mb-4">
             <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Cameras Online</span>
-            <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center">
-              <CameraIcon size={16} style={{ color: '#0B4F6C' }} />
-            </div>
+
           </div>
           <div className="flex items-baseline gap-1 mb-1">
             <span className="text-4xl font-bold text-gray-900">
@@ -243,21 +280,27 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               <span className="text-lg text-gray-400 font-medium">/{stats.camerasTotal}</span>
             )}
           </div>
-          <div className="text-xs text-gray-400">{loading ? '' : `${camerasOffline} offline`}</div>
+
         </div>
 
         {/* Avg Response */}
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-start justify-between mb-4">
             <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Avg Response</span>
-            <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center">
-              <ClockIcon size={16} style={{ color: '#0B4F6C' }} />
-            </div>
+
           </div>
-          <div className="text-4xl font-bold text-gray-900 mb-1">
-            {loading ? <span className="text-2xl text-gray-300">—</span> : (stats?.avgResponseMinutes.toFixed(1) ?? '—')}
+
+          <div className="flex items-baseline gap-1 mb-1">
+            <span className="text-4xl font-bold text-gray-900">
+              {loading ? <span className="text-2xl text-gray-300">—</span> : response.value}
+            </span>
+
+            {!loading && response.unit && (
+              <span className="text-lg text-gray-400 font-medium">
+                {response.unit}
+              </span>
+            )}
           </div>
-          <div className="text-xs text-gray-400">minutes to verify</div>
         </div>
       </div>
 
@@ -290,8 +333,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         ) : alerts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <CalendarIcon size={32} className="text-gray-200 mb-3" />
-            <p className="text-sm font-medium text-gray-400">No alerts in the database yet</p>
-            <p className="text-xs text-gray-300 mt-1">Incidents will appear here once detected</p>
+            <p className="text-sm font-medium text-gray-400">No incidents yet</p>
           </div>
         ) : (
           <div className="space-y-3">

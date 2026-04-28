@@ -125,6 +125,9 @@ export function MfaVerification({
             <>
               Enter the 6-digit code sent to{' '}
               <span className="font-medium text-gray-600">{destinationHint || maskedEmail}</span>
+              <p className="text-xs text-gray-400 mt-1">
+                Check your spam or junk folder.
+              </p>
             </>
           )}
         </p>

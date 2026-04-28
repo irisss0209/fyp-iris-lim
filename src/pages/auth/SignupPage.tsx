@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   EyeIcon,
   EyeOffIcon,
-  ShieldIcon,
   CheckCircleIcon,
   LockIcon,
   MailIcon,
@@ -367,7 +366,6 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
         {/* Footer */}
         {step !== 'success' && (
           <div className="px-5 sm:px-8 py-3 sm:py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-center gap-1.5">
-            <ShieldIcon size={12} className="text-gray-300" />
             <span className="text-xs text-gray-400">
               Secured with end-to-end encryption · Railly v2.1
             </span>

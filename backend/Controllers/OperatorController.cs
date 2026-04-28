@@ -229,19 +229,23 @@ namespace backend.Controllers
         }
 
         [HttpGet("operator/dashboard")]
-        public async Task<IActionResult> GetOperatorDashboard()
+        public async Task<IActionResult> GetOperatorDashboard([FromQuery] DateTime? from, [FromQuery] DateTime? to)
         {
+            var baseIncidents = _context.Incidents.AsQueryable();
+            if (from.HasValue) baseIncidents = baseIncidents.Where(i => i.CreatedAt >= from.Value);
+            if (to.HasValue) baseIncidents = baseIncidents.Where(i => i.CreatedAt < to.Value);
+
             // Stats
-            var pending   = await _context.Incidents.CountAsync(i => i.Status == IncidentStatus.Pending);
-            var verified  = await _context.Incidents.CountAsync(i => i.Status == IncidentStatus.Verified || i.Status == IncidentStatus.Escalated);
-            var resolved  = await _context.Incidents.CountAsync(i => i.Status == IncidentStatus.Resolved);
-            var dismissed = await _context.Incidents.CountAsync(i => i.Status == IncidentStatus.Dismissed);
+            var pending   = await baseIncidents.CountAsync(i => i.Status == IncidentStatus.Pending);
+            var verified  = await baseIncidents.CountAsync(i => i.Status == IncidentStatus.Verified || i.Status == IncidentStatus.Escalated);
+            var resolved  = await baseIncidents.CountAsync(i => i.Status == IncidentStatus.Resolved);
+            var dismissed = await baseIncidents.CountAsync(i => i.Status == IncidentStatus.Dismissed);
 
             var camerasOnline = await _context.Cameras.CountAsync(c => c.Status == CameraStatus.Active);
             var camerasTotal  = await _context.Cameras.CountAsync();
 
             // Average response time (verified_at - created_at) for incidents that have been verified
-            var verifiedIncidents = await _context.Incidents
+            var verifiedIncidents = await baseIncidents
                 .AsNoTracking()
                 .Where(i => i.VerifiedAt != null)
                 .Select(i => new { i.CreatedAt, i.VerifiedAt })
@@ -257,8 +261,8 @@ namespace backend.Controllers
                 .OrderBy(ls => ls.SequenceOrder)
                 .ToListAsync();
 
-            // Recent alerts (last 4)
-            var incidents = await _context.Incidents
+            // Recent alerts (last 5)
+            var incidents = await baseIncidents
                 .AsNoTracking()
                 .Include(i => i.Detection)
                     .ThenInclude(d => d!.Camera)
@@ -274,7 +278,7 @@ namespace backend.Controllers
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.User)
                 .OrderByDescending(i => i.CreatedAt)
-                .Take(4)
+                .Take(5)
                 .ToListAsync();
 
             var now = DateTime.UtcNow;
@@ -325,9 +329,11 @@ namespace backend.Controllers
                     }).ToList()
                 }).ToList();
 
-            // All incidents
+            // All incidents from today
+            var today = DateTime.UtcNow.Date;
             var incidents = await _context.Incidents
                 .AsNoTracking()
+                .Where(i => i.CreatedAt >= today)
                 .Include(i => i.Detection)
                     .ThenInclude(d => d!.Camera)
                         .ThenInclude(c => c!.TrainCoach)
@@ -470,8 +476,10 @@ namespace backend.Controllers
             var pending    = incidents.Count(i => i.Status == IncidentStatus.Pending);
             var escalated  = incidents.Count(i => i.Status == IncidentStatus.Escalated);
             var verified   = incidents.Count(i => i.Status == IncidentStatus.Verified);
+            var unresolved = total - resolved - dismissed;
 
             double falseAlarmRate = total > 0 ? Math.Round(dismissed * 100.0 / total, 1) : 0;
+            double resolutionRate = total > 0 ? Math.Round(resolved * 100.0 / total, 1) : 0;
 
             // Avg response time (verified_at - created_at)
             var verifiedIncidents = incidents.Where(i => i.VerifiedAt != null).ToList();
@@ -491,16 +499,24 @@ namespace backend.Controllers
                 .AsNoTracking()
                 .Where(i => i.CreatedAt >= prevFrom && i.CreatedAt < prevTo)
                 .ToListAsync();
-
+            bool hasPrevData = prevIncidents.Any();
             var prevTotal     = prevIncidents.Count;
             var prevDismissed = prevIncidents.Count(i => i.Status == IncidentStatus.Dismissed);
             var prevPending   = prevIncidents.Count(i => i.Status == IncidentStatus.Pending);
+            var prevResolved  = prevIncidents.Count(i => i.Status == IncidentStatus.Resolved);
+            var prevUnresolved = prevTotal - prevResolved - prevDismissed;
 
             double prevFalseAlarmRate    = prevTotal > 0 ? Math.Round(prevDismissed * 100.0 / prevTotal, 1) : 0;
+            double prevResolutionRate    = prevTotal > 0 ? Math.Round(prevResolved * 100.0 / prevTotal, 1) : 0;
             double prevComplianceScore   = prevTotal > 0
                 ? Math.Round((prevTotal - prevPending) * 100.0 / prevTotal, 1) : 100.0;
 
             var verifiedPrev = prevIncidents.Where(i => i.Status != IncidentStatus.Pending).ToList();
+
+            var prevVerifiedIncidents = prevIncidents.Where(i => i.VerifiedAt != null).ToList();
+            double prevAvgResponseMinutes = prevVerifiedIncidents.Count > 0
+                ? Math.Round(prevVerifiedIncidents.Average(i => (i.VerifiedAt!.Value - i.CreatedAt).TotalMinutes), 1)
+                : 0;
 
             // ── Helper: resolve line name + lineId per incident ───────────────
             (string lineId, string lineName) ResolveLineInfo(Incident inc)
@@ -574,6 +590,8 @@ namespace backend.Controllers
                     datetime         = i.CreatedAt,
                     type             = i.Source == IncidentSource.AI_DETECTION ? "AI Detection" : "Passenger Report",
                     reportedBy       = i.UserReport?.User?.UserName,
+                    passengerComment = i.UserReport?.Description,
+                    confidence = dto.Confidence,
                     verifiedBy       = i.VerifiedByUser?.UserName  ?? i.VerifiedBy,
                     verifiedAt       = i.VerifiedAt,
                     verifiedComment  = i.VerifiedComment,
@@ -617,15 +635,44 @@ namespace backend.Controllers
                 months,
                 stats = new
                 {
-                    total,
-                    falseAlarmRate,
-                    avgResponseMinutes,
-                    complianceScore,
-                    // Deltas
-                    totalDelta          = prevTotal > 0 ? Math.Round((total - prevTotal) * 100.0 / prevTotal, 1) : 0.0,
-                    falseAlarmDelta     = Math.Round(falseAlarmRate - prevFalseAlarmRate, 1),
-                    complianceDelta     = Math.Round(complianceScore - prevComplianceScore, 1),
-                },
+                total,
+                falseAlarmRate,
+                resolutionRate,
+                avgResponseMinutes,
+                complianceScore,
+                unresolvedCount = unresolved,
+
+                hasPreviousData = hasPrevData,   
+
+                totalDifference = hasPrevData ? total - prevTotal : 0,
+                resolvedDifference = hasPrevData ? resolved - prevResolved : 0,
+                dismissedDifference = hasPrevData ? dismissed - prevDismissed : 0,
+                avgResponseDifference = hasPrevData ? avgResponseMinutes - prevAvgResponseMinutes : 0,
+                unresolvedDifference = hasPrevData ? unresolved - prevUnresolved : 0,
+                totalDelta = hasPrevData && prevTotal > 0
+                    ? Math.Round((total - prevTotal) * 100.0 / prevTotal, 1)
+                    : 0.0,
+
+                unresolvedDelta = hasPrevData && prevUnresolved > 0
+                    ? Math.Round((unresolved - prevUnresolved) * 100.0 / prevUnresolved, 1)
+                    : 0.0,
+
+                falseAlarmDelta = hasPrevData
+                    ? Math.Round(falseAlarmRate - prevFalseAlarmRate, 1)
+                    : 0.0,
+
+                resolutionDelta = hasPrevData
+                    ? Math.Round(resolutionRate - prevResolutionRate, 1)
+                    : 0.0,
+
+                avgResponseDelta = hasPrevData
+                    ? Math.Round(avgResponseMinutes - prevAvgResponseMinutes, 1)
+                    : 0.0,
+
+                complianceDelta = hasPrevData
+                    ? Math.Round(complianceScore - prevComplianceScore, 1)
+                    : 0.0,
+            },
                 dailyData,
                 lines = lineGroups.Select(l => new { l.lineId, l.lineName }).ToList(),
                 statusBreakdown,
@@ -922,7 +969,7 @@ if (error != null) return BadRequest(new { error });
                     Email        = email,
                     UserName     = userName,
                     Role         = role,
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("DefaultPassword123!"),
+                    PasswordHash = null,
                     Status       = UserStatus.Active,
                     CreatedAt    = DateTime.UtcNow
                 });

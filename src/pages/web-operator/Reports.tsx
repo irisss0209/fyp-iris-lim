@@ -5,9 +5,8 @@ import {
 } from 'recharts';
 import {
   CalendarIcon, DownloadIcon, FileTextIcon, TrendingUpIcon,
-  RefreshCwIcon, ChevronDownIcon, AlertTriangleIcon,
-  CheckCircleIcon, ZapIcon, MapPinIcon, ClockIcon,
-  ChevronRightIcon, PrinterIcon,
+  RefreshCwIcon, ChevronDownIcon,
+  ChevronRightIcon
 } from 'lucide-react';
 import { useTime } from '../../context/TimeContext';
 import { formatDateTimeLabel } from '../../utils/Time';
@@ -36,9 +35,20 @@ interface ReportStats {
   falseAlarmRate: number;
   avgResponseMinutes: number;
   complianceScore: number;
+  resolutionRate: number;
   totalDelta: number;
   falseAlarmDelta: number;
+  hasPreviousData: boolean;
   complianceDelta: number;
+  resolutionDelta: number;
+  avgResponseDelta: number;
+  totalDifference: number;
+  avgResponseDifference: number;
+  resolvedDifference: number;
+  dismissedDifference: number;
+  unresolvedCount: number;
+  unresolvedDifference: number;
+  unresolvedDelta: number;
 }
 
 interface StatusSlice { name: string; value: number; color: string; }
@@ -51,6 +61,8 @@ interface IncidentRow {
   coachId: number;
   line: string;
   lineId: string;
+  passengerComment?: string;
+  confidence?: number;
   datetime: string;
   type: string;
   status: string;
@@ -86,10 +98,35 @@ const statusColor = (status: string) => {
   return { bg: '#F7FAFC', text: '#718096' };
 };
 
-const fmtDelta = (v: number, invertGood = false) => {
-  if (v === 0) return null;
+const fmtDelta = (v: number, invertGood = false, diff?: number) => {
+  if (v === 0) {
+    if (diff !== undefined && diff !== 0) {
+      const good = invertGood ? diff < 0 : diff > 0;
+      return { label: `${diff > 0 ? '↑' : '↓'} 100%`, good };
+    }
+    return null;
+  }
   const good = invertGood ? v < 0 : v > 0;
   return { label: `${v > 0 ? '↑' : '↓'} ${Math.abs(v)}%`, good };
+};
+
+const fmtCountDelta = (v: number, invertGood = true) => {
+  if (v === 0) return null;
+  const good = invertGood ? v < 0 : v > 0;
+  return { label: `${Math.abs(v)} ${v > 0 ? 'more' : 'less'}`, good };
+};
+
+const fmtTimeDiff = (v?: number) => {
+  if (v === undefined || v === 0) return '';
+  const absV = Math.abs(v);
+  const timeStr = absV < 60 ? `${Math.round(absV)} mins` : `${(absV / 60).toFixed(1)} hrs`;
+  return `${timeStr} ${v > 0 ? 'more' : 'less'}`;
+};
+
+const getCountDiffText = (v?: number) => {
+  if (v === undefined) return '';
+  if (v === 0) return `same as last month`;
+  return `${Math.abs(v)} ${v > 0 ? 'more' : 'less'} than last month`;
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -105,6 +142,7 @@ export function Reports() {
   const [statusFilter, setStatusFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
   const [lineFilter, setLineFilter] = useState('');
+  const [trainFilter, setTrainFilter] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
@@ -161,7 +199,7 @@ export function Reports() {
   const byTrain = useMemo(() => {
     const groups: Record<string, { count: number; resolved: number; line: string }> = {};
     allIncidents.forEach(inc => {
-      const key = inc.trainId ? `T.${inc.trainId}` : 'Unknown';
+      const key = inc.trainId ? `${inc.trainId}` : 'Unknown';
       if (!groups[key]) groups[key] = { count: 0, resolved: 0, line: inc.line ?? '' };
       groups[key].count++;
       if (inc.status?.toLowerCase() === 'resolved') groups[key].resolved++;
@@ -204,19 +242,78 @@ export function Reports() {
     }));
     const peakDay = [...dayTotals].sort((a, b) => b.total - a.total)[0];
 
+    // Peak Time of Day
+    const hourTotals = new Array(24).fill(0);
+    allIncidents.forEach(i => {
+      if (i.datetime) {
+        const hour = new Date(i.datetime).getHours();
+        if (!isNaN(hour)) {
+          hourTotals[hour]++;
+        }
+      }
+    });
+
+    let peakHour = 0;
+    let maxIncidents = 0;
+    for (let i = 0; i < 24; i++) {
+      if (hourTotals[i] > maxIncidents) {
+        maxIncidents = hourTotals[i];
+        peakHour = i;
+      }
+    }
+
+    const formatHour = (h: number) => {
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const hr = h % 12 || 12;
+      return `${hr} ${ampm}`;
+    };
+
+    const peakTimeLabel = maxIncidents > 0 ? `${formatHour(peakHour)} - ${formatHour((peakHour + 1) % 24)}` : 'N/A';
+
+    // Peak Date of the Month
+    const dateTotals: Record<string, number> = {};
+    allIncidents.forEach(i => {
+      if (i.datetime) {
+        const d = new Date(i.datetime);
+        if (!isNaN(d.getTime())) {
+          const dateStr = d.toLocaleDateString('en-MY', { month: 'short', day: 'numeric' });
+          dateTotals[dateStr] = (dateTotals[dateStr] || 0) + 1;
+        }
+      }
+    });
+
+    let peakDateStr = '';
+    let peakDateCount = 0;
+    Object.entries(dateTotals).forEach(([dateStr, count]) => {
+      if (count > peakDateCount) {
+        peakDateCount = count;
+        peakDateStr = dateStr;
+      }
+    });
+
     return [
       topLine
-        ? { Icon: MapPinIcon, color: '#7B5EA7', label: 'Most Affected Line', value: topLine[0], sub: `${topLine[1]} incidents` }
+        ? { color: '#7B5EA7', label: 'Most Affected Line', value: topLine[0], sub: `${topLine[1]} incidents` }
         : null,
       topTrain
-        ? { Icon: AlertTriangleIcon, color: '#D34026', label: 'Highest Risk Train', value: topTrain.train, sub: `${topTrain.count} incidents` }
+        ? { color: '#D34026', label: 'Highest Risk Train', value: topTrain.train, sub: `${topTrain.count} incidents` }
         : null,
       peakDay?.total > 0
-        ? { Icon: CalendarIcon, color: '#B45309', label: 'Peak Day of Week', value: peakDay.day, sub: `${peakDay.total} incidents` }
+        ? { color: '#B45309', label: 'Peak Day of Week', value: peakDay.day, sub: `${peakDay.total} incidents` }
         : null,
-      { Icon: CheckCircleIcon, color: '#2D7A5D', label: 'Resolution Rate', value: `${resolutionRate}%`, sub: `${resolvedCount} of ${stats?.total ?? 0} resolved` },
-    ].filter(Boolean) as { Icon: React.ElementType; color: string; label: string; value: string; sub: string }[];
+      maxIncidents > 0
+        ? { color: '#0B4F6C', label: 'Peak Time of Day', value: peakTimeLabel, sub: `${maxIncidents} incidents` }
+        : null,
+      peakDateCount > 0
+        ? { color: '#2D7A5D', label: 'Peak Day of Month', value: peakDateStr, sub: `${peakDateCount} incidents` }
+        : null,
+    ].filter(Boolean) as { color: string; label: string; value: string; sub: string }[];
   }, [allIncidents, byTrain, data, resolutionRate, resolvedCount, stats]);
+
+  const uniqueTrains = useMemo(() => {
+    const t = new Set(allIncidents.map(i => i.trainId).filter(Boolean));
+    return Array.from(t).sort((a, b) => Number(a) - Number(b));
+  }, [allIncidents]);
 
   // Filtered incidents for the Incidents tab
   const filtered = useMemo(() => {
@@ -225,14 +322,15 @@ export function Reports() {
       const matchStatus = !statusFilter || inc.status?.toLowerCase() === statusFilter;
       const matchSource = !sourceFilter || inc.type === sourceFilter;
       const matchLine = !lineFilter || inc.lineId === lineFilter;
+      const matchTrain = !trainFilter || String(inc.trainId) === trainFilter;
       const matchSearch = !q
         || inc.id?.toLowerCase().includes(q)
         || String(inc.trainId).includes(q)
         || inc.line?.toLowerCase().includes(q)
         || [inc.verifiedBy, inc.resolvedBy, inc.escalatedBy, inc.dismissedBy].some(v => v?.toLowerCase().includes(q));
-      return matchStatus && matchSource && matchLine && matchSearch;
+      return matchStatus && matchSource && matchLine && matchTrain && matchSearch;
     });
-  }, [allIncidents, statusFilter, sourceFilter, lineFilter, search]);
+  }, [allIncidents, statusFilter, sourceFilter, lineFilter, trainFilter, search]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -249,6 +347,7 @@ export function Reports() {
 
         'Reported At',
         'Reported By',
+        'Passenger Comment',
 
         'Verified At',
         'Verified By',
@@ -281,6 +380,7 @@ export function Reports() {
 
         i.datetime,
         i.reportedBy ?? '',
+        i.passengerComment ?? '',
 
         i.verifiedAt ?? '',
         i.verifiedBy ?? '',
@@ -328,10 +428,8 @@ export function Reports() {
     try {
       document.body.style.cursor = 'wait';
 
-      // ✅ 1. Clone the element
       const clone = element.cloneNode(true) as HTMLElement;
 
-      // ✅ 2. Force styles for PDF
       clone.style.width = '1200px';
       clone.style.minWidth = '1200px';
       clone.style.maxWidth = '1200px';
@@ -340,7 +438,6 @@ export function Reports() {
       clone.style.padding = '32px';
       clone.style.paddingBottom = '100px';
       clone.style.boxSizing = 'border-box';
-      // ✅ 3. Show header ONLY in clone
       const header = clone.querySelector('.pdf-header') as HTMLElement;
       if (header) header.style.display = 'block';
       clone.querySelectorAll('.grid').forEach((el) => {
@@ -364,7 +461,6 @@ export function Reports() {
       });
       document.body.appendChild(clone);
 
-      // ✅ 4. Capture clone (not real UI)
       const canvas = await html2canvas(clone, {
         scale: 2,
         useCORS: true,
@@ -406,8 +502,8 @@ export function Reports() {
   };
 
   const tabs = [
-    { id: 'overview' as ReportTab, label: 'Overview', icon: <TrendingUpIcon className="w-4 h-4" /> },
-    { id: 'incidents' as ReportTab, label: 'Incident Reports', icon: <FileTextIcon className="w-4 h-4" /> },
+    { id: 'overview' as ReportTab, label: 'Overview' },
+    { id: 'incidents' as ReportTab, label: 'Incident Reports' },
   ];
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -463,7 +559,7 @@ export function Reports() {
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150"
               style={{ backgroundColor: activeTab === tab.id ? ACCENT : 'transparent', color: activeTab === tab.id ? 'white' : '#4A5568' }}
             >
-              {tab.icon}{tab.label}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -472,8 +568,17 @@ export function Reports() {
             onClick={downloadPDF}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
           >
-            <PrinterIcon className="w-4 h-4" />
+            <DownloadIcon className="w-4 h-4" />
             Download PDF
+          </button>
+        )}
+        {activeTab === 'incidents' && !loading && (
+          <button
+            onClick={exportCSV}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+
+          >
+            <DownloadIcon className="w-4 h-4" /> Export CSV
           </button>
         )}
       </div>
@@ -520,103 +625,135 @@ export function Reports() {
             </p>
           </div>
           {/* ── KPI stat cards ── */}
-          <div className="grid grid-cols-4 gap-4">
-            {([
-              {
-                label: 'Total Incidents',
-                value: stats?.total ?? 0,
-                fmt: (v: number) => String(v),
-                delta: stats ? fmtDelta(stats.totalDelta) : null,
-                Icon: AlertTriangleIcon,
-                iconColor: '#D34026',
-                sub: 'vs last month',
-              },
-              {
-                label: 'Resolution Rate',
-                value: resolutionRate,
-                fmt: (v: number) => `${v}%`,
-                delta: null,
-                Icon: CheckCircleIcon,
-                iconColor: '#2D7A5D',
-                sub: `${resolvedCount} of ${stats?.total ?? 0} resolved`,
-              },
-              {
-                label: 'Avg Response Time',
-                value: stats?.avgResponseMinutes ?? 0,
-                fmt: (v: number) => {
-                  if (v === 0) return 'N/A';
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
 
-                  if (v < 60) {
-                    return `${v} min`;
-                  }
-
-                  if (v < 1440) {
-                    const hours = (v / 60).toFixed(1);
-                    return `${hours} hr`;
-                  }
-
-                  const days = (v / 1440).toFixed(1);
-                  return `${days} day`;
+            {/* Section header */}
+            <div className="mb-4">
+              <h2 className="text-sm font-semibold text-gray-900">Key performance metrics</h2>
+            </div>
+            <div className="grid grid-cols-5 gap-4">
+              {([
+                {
+                  label: 'Total Incidents',
+                  value: stats?.total ?? 0,
+                  fmt: (v: number) => String(v),
+                  delta: stats ? fmtDelta(stats.totalDelta, true, stats.totalDifference) : null,
+                  sub: stats?.hasPreviousData
+                    ? getCountDiffText(stats?.totalDifference)
+                    : '',
                 },
-                delta: null,
-                Icon: ClockIcon,
-                iconColor: '#0B4F6C',
-                sub: stats?.avgResponseMinutes === 0 ? 'No verified incidents' : 'to first verification',
-              },
-              {
-                label: 'False Alarm Rate',
-                value: stats?.falseAlarmRate ?? 0,
-                fmt: (v: number) => `${v}%`,
-                delta: stats ? fmtDelta(stats.falseAlarmDelta, true) : null,
-                Icon: ZapIcon,
-                iconColor: '#B45309',
-                sub: 'dismissed incidents',
-              },
-            ] as const).map(card => {
-              const { Icon } = card;
-              return (
-                <div key={card.label} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-medium text-gray-400">{card.label}</span>
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: card.iconColor + '18' }}>
-                      <Icon size={14} style={{ color: card.iconColor }} />
-                    </div>
-                  </div>
-                  <div className="text-3xl font-bold text-gray-900">{card.fmt(card.value)}</div>
-                  <div className="flex items-center gap-1.5 mt-1.5">
-                    {card.delta && (
-                      <span className="text-xs font-semibold" style={{ color: card.delta.good ? '#2D7A5D' : '#D34026' }}>
-                        {card.delta.label}
-                      </span>
-                    )}
-                    <span className="text-xs text-gray-400">{card.sub}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                {
+                  label: 'Unresolved Incidents',
+                  value: stats?.unresolvedCount ?? 0,
+                  fmt: (v: number) => String(v),
+                  delta: stats ? fmtDelta(stats.unresolvedDelta, true, stats.unresolvedDifference) : null,
+                  sub: stats?.hasPreviousData
+                    ? getCountDiffText(stats?.unresolvedDifference)
+                    : 'not resolved or dismissed',
+                },
+                {
+                  label: 'Resolution Rate',
+                  value: stats?.resolutionRate ?? resolutionRate,
+                  fmt: (v: number) => `${v}%`,
+                  delta: stats ? fmtDelta(stats.resolutionDelta, false) : null,
+                  sub: stats?.hasPreviousData
+                    ? getCountDiffText(stats?.resolvedDifference)
+                    : `${resolvedCount} of ${stats?.total ?? 0} resolved`,
+                },
+                {
+                  label: 'Avg Response Time',
+                  value: stats?.avgResponseMinutes ?? 0,
+                  fmt: (v: number) => {
+                    if (v === 0) return 'N/A';
 
-          {/* ── Smart insight callouts ── */}
-          {topInsights.length > 0 && (
-            <div className="grid grid-cols-4 gap-3">
-              {topInsights.map(insight => {
-                const { Icon } = insight;
+                    if (v < 60) {
+                      return `${v} min`;
+                    }
+
+                    if (v < 1440) {
+                      const hours = (v / 60).toFixed(1);
+                      return `${hours} hr`;
+                    }
+
+                    const days = (v / 1440).toFixed(1);
+                    return `${days} day`;
+                  },
+                  delta: stats ? fmtDelta(stats.avgResponseDelta, true) : null,
+                  sub: stats && stats.avgResponseDifference
+                    ? `${fmtTimeDiff(stats.avgResponseDifference)} than last month`
+                    : (stats?.avgResponseMinutes === 0 ? 'No verified incidents' : ''),
+                },
+                {
+                  label: 'False Alarm Rate',
+                  value: stats?.falseAlarmRate ?? 0,
+                  fmt: (v: number) => `${v}%`,
+                  delta: stats ? fmtDelta(stats.falseAlarmDelta, true) : null,
+                  sub: stats?.hasPreviousData
+                    ? getCountDiffText(stats?.dismissedDifference)
+                    : 'No previous data',
+                },
+              ] as const).map(card => {
                 return (
-                  <div key={insight.label} className="bg-white rounded-xl p-3.5 border border-gray-100 shadow-sm flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center" style={{ backgroundColor: insight.color + '18' }}>
-                      <Icon size={16} style={{ color: insight.color }} />
+                  <div key={card.label} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-xs font-medium text-gray-400">{card.label}</span>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 truncate">{insight.label}</p>
-                      <p className="text-sm font-bold text-gray-900 truncate">{insight.value}</p>
-                      <p className="text-[10px] text-gray-400 truncate">{insight.sub}</p>
+                    <div className="text-3xl font-bold text-gray-900">{card.fmt(card.value)}</div>
+                    <div className="flex flex-col mt-1.5">
+
+                      {!stats?.hasPreviousData ? (
+                        <span className="text-xs text-gray-400">
+                          No previous data
+                        </span>
+                      ) : card.delta ? (
+                        <span
+                          className="text-xs font-semibold"
+                          style={{ color: card.delta.good ? '#2D7A5D' : '#D34026' }}
+                        >
+                          {card.delta.label} from last month
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">
+                          No change
+                        </span>
+                      )}
+
+                      {card.sub && (
+                        <span className="text-xs text-gray-400">
+                          {card.sub}
+                        </span>
+                      )}
+
                     </div>
                   </div>
                 );
               })}
             </div>
-          )}
+          </div>
 
+          {/* ── Smart insight callouts ── */}
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+
+            {/* Section header */}
+            <div className="mb-4">
+              <h2 className="text-sm font-semibold text-gray-900">Key Insights</h2>
+            </div>
+            {topInsights.length > 0 && (
+              <div className="grid grid-cols-5 gap-3">
+                {topInsights.map(insight => {
+                  return (
+                    <div key={insight.label} className="bg-white rounded-xl p-3.5 border border-gray-100 shadow-sm flex items-center gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 truncate">{insight.label}</p>
+                        <p className="text-sm font-bold text-gray-900 truncate">{insight.value}</p>
+                        <p className="text-[10px] text-gray-400 truncate">{insight.sub}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           {/* ── Charts row 1: Daily by Line + Status Breakdown ── */}
           <div className="grid grid-cols-2 gap-4">
 
@@ -770,8 +907,9 @@ export function Reports() {
           {/* ── Recent incidents ── */}
           <IncidentTable
             incidents={allIncidents.slice(0, 5)}
-            title="Recent Incidents"
+            title=" Incidents (Preview)"
             showPagination={false}
+            onViewAll={() => setActiveTab('incidents')}
           />
         </div>
       )}
@@ -823,13 +961,17 @@ export function Reports() {
                 <option key={l.lineId} value={l.lineId}>{l.lineName}</option>
               ))}
             </select>
-            <button
-              onClick={exportCSV}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-white"
-              style={{ backgroundColor: ACCENT }}
+            <select
+              value={trainFilter}
+              onChange={e => { setTrainFilter(e.target.value); setPage(1); }}
+              className="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]"
             >
-              <DownloadIcon className="w-4 h-4" /> Export CSV
-            </button>
+              <option value="">All Trains</option>
+              {uniqueTrains.map(t => (
+                <option key={t} value={String(t)}>Train {t}</option>
+              ))}
+            </select>
+
           </div>
 
           <IncidentTable
@@ -854,9 +996,10 @@ interface IncidentTableProps {
   page?: number;
   totalPages?: number;
   onPageChange?: (p: number) => void;
+  onViewAll?: () => void;
 }
 
-function IncidentTable({ incidents, title, showPagination, page = 1, totalPages = 1, onPageChange }: IncidentTableProps) {
+function IncidentTable({ incidents, title, showPagination, page = 1, totalPages = 1, onPageChange, onViewAll }: IncidentTableProps) {
   const { format } = useTime();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -865,15 +1008,24 @@ function IncidentTable({ incidents, title, showPagination, page = 1, totalPages 
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-100">
+      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
         <h3 className="font-semibold text-sm text-gray-900">{title}</h3>
+
+        {onViewAll && (
+          <button
+            onClick={onViewAll}
+            className="text-xs font-semibold text-[#0B4F6C] hover:underline"
+          >
+            View all →
+          </button>
+        )}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/50">
               <th className="w-8 px-2" />
-              {['Incident ID', 'Train · Coach', 'Line', 'Date / Time', 'Source', 'Status'].map(h => (
+              {['Incident ID', 'Train ID (Coach ID)', 'Line', 'DateTime', 'Source', 'Status'].map(h => (
                 <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-400">{h}</th>
               ))}
             </tr>
@@ -889,8 +1041,14 @@ function IncidentTable({ incidents, title, showPagination, page = 1, totalPages 
               const open = expandedId === inc.id;
 
               // Build timeline steps from non-null status fields
-              const steps: { label: string; by?: string; at?: string; comment?: string; color: string }[] = [
-                { label: 'Reported', by: inc.reportedBy, at: inc.datetime, color: '#4A5568' },
+              const steps = [
+                {
+                  label: isAI ? 'Detected' : 'Reported',
+                  by: isAI ? 'AI System' : inc.reportedBy,
+                  at: inc.datetime,
+                  comment: !isAI && inc.passengerComment ? inc.passengerComment : undefined,
+                  color: isAI ? '#0B4F6C' : '#4A5568'
+                },
               ];
               if (inc.verifiedBy || inc.verifiedAt)
                 steps.push({ label: 'Verified', by: inc.verifiedBy, at: inc.verifiedAt, comment: inc.verifiedComment, color: '#1D4ED8' });
@@ -919,18 +1077,46 @@ function IncidentTable({ incidents, title, showPagination, page = 1, totalPages 
                     </td>
                     <td className="px-4 py-3 font-mono text-xs font-semibold" style={{ color: ACCENT }}>{inc.id}</td>
                     <td className="px-4 py-3">
-                      <span className="text-xs font-semibold text-gray-800">{inc.trainId}'('</span>
-                      <span className="text-xs text-gray-400 ml-1">{inc.coachId}</span>
+                      <span className="text-xs font-semibold text-gray-800">{inc.trainId} ({inc.coachId})</span>
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500">{inc.line}</td>
                     <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">
                       {formatDateTimeLabel(inc.datetime, format)}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                        style={{ backgroundColor: isAI ? '#EFF6FF' : '#FEF2F0', color: isAI ? '#0B4F6C' : '#D34026' }}>
-                        {isAI ? 'AI' : 'Passenger'}
-                      </span>
+                      {isAI ? (
+                        <span
+                          className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                          style={{
+                            backgroundColor:
+                              inc.confidence != null
+                                ? inc.confidence >= 0.8
+                                  ? 'rgba(239, 255, 251, 1)'
+                                  : inc.confidence >= 0.5
+                                    ? '#fff6efff'
+                                    : '#ffefefff'
+                                : '#EFF6FF',
+                            color:
+                              inc.confidence != null
+                                ? inc.confidence >= 0.8
+                                  ? '#2D7A5D'
+                                  : inc.confidence >= 0.5
+                                    ? '#B45309'
+                                    : '#D34026'
+                                : '#0B4F6C'
+                          }}
+                        >
+                          System
+                          {inc.confidence != null && ` (${Math.round(inc.confidence * 100)}%)`}
+                        </span>
+                      ) : (
+                        <span
+                          className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                          style={{ backgroundColor: '#FEF2F0', color: '#D34026' }}
+                        >
+                          Passenger
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: sc.bg, color: sc.text }}>
@@ -962,7 +1148,7 @@ function IncidentTable({ incidents, title, showPagination, page = 1, totalPages 
                                 {step.by && (
                                   <div className="text-[10px] text-gray-600 font-medium mt-0.5">by {step.by}</div>
                                 )}
-                                {step.comment && (
+                                {step.comment !== undefined && (
                                   <div className="text-[10px] text-gray-500 mt-1 italic bg-white rounded px-2 py-1 border border-gray-100">
                                     "{step.comment}"
                                   </div>

@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { 
-  ArrowLeft, 
-  LockIcon, 
-  EyeIcon, 
-  EyeOffIcon, 
-  ShieldCheckIcon 
+import {
+  ArrowLeft,
+  EyeIcon,
+  EyeOffIcon,
+  ShieldCheckIcon
 } from 'lucide-react';
 import { UserSession } from '../../App';
 
@@ -64,24 +63,15 @@ export function ChangePasswordPage({ session, onBack }: ChangePasswordPageProps)
 
   return (
     <div className="min-h-screen bg-[#FAF9F5] flex flex-col">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-100 px-4 py-5 flex items-center gap-4">
-        <button 
-          onClick={onBack}
-          className="p-2 hover:bg-gray-50 rounded-xl transition-colors"
-        >
-          <ArrowLeft size={20} className="text-gray-600" />
-        </button>
-        <h1 className="text-lg font-bold text-gray-900">Change Password</h1>
-      </div>
+
 
       <div className="flex-1 px-4 py-8 max-w-md mx-auto w-full space-y-6">
         <div className="bg-white rounded-[32px] p-8 border border-gray-100 shadow-sm space-y-6">
           <div className="flex flex-col items-center text-center space-y-2">
-            <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-[#0B4F6C] mb-2">
-              <LockIcon size={32} />
+            <div className="w-16 h-16 mb-2">
+              <img src="/Railly_logo.png" alt="Railly Logo" className="w-full h-full object-contain" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900">Secure Your Account</h2>
+            <h2 className="text-xl font-bold text-gray-900">Change Password</h2>
             <p className="text-sm text-gray-500 px-4">
               Enter your current password and choose a new strong one.
             </p>
@@ -117,7 +107,7 @@ export function ChangePasswordPage({ session, onBack }: ChangePasswordPageProps)
               <div className="relative">
                 <input
                   type={showPw.new ? 'text' : 'password'}
-                  placeholder="New password (min 8 chars)"
+                  placeholder="New password"
                   value={newPw}
                   onChange={e => setNewPw(e.target.value)}
                   className={inputBase}
@@ -169,7 +159,6 @@ export function ChangePasswordPage({ session, onBack }: ChangePasswordPageProps)
 
           {saved && (
             <div className="bg-green-50 text-green-700 text-sm p-4 rounded-2xl border border-green-100 flex items-center justify-center gap-2 font-bold animate-in fade-in zoom-in duration-300">
-              <ShieldCheckIcon size={20} />
               Password updated successfully!
             </div>
           )}
@@ -188,8 +177,14 @@ export function ChangePasswordPage({ session, onBack }: ChangePasswordPageProps)
             ) : (
               'Update Password'
             )}
-          </button>
-        </div>
+          </button >
+          <button
+            onClick={onBack}
+
+            className="block mx-auto text-[14px] text-gray-400 px-8"
+          >
+            Back
+          </button>        </div>
 
         <p className="text-center text-[10px] text-gray-400 px-8">
           Changing your password will not log you out of this session.
