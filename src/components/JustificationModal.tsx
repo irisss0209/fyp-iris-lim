@@ -1,10 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
-  CheckCircleIcon,
-  XCircleIcon,
+
   XIcon,
-  MessageSquareIcon,
-  ChevronRightIcon
+
 } from 'lucide-react';
 interface JustificationModalProps {
   isOpen: boolean;
@@ -16,22 +15,42 @@ interface JustificationModalProps {
   isOptional?: boolean;
 }
 const QUICK_REASONS_VERIFY = [
-  'Confirmed via CCTV footage',
-  'Officer on-site verified',
-  'Multiple camera angles confirmed',
-  'Passenger report corroborated'];
+  'Unauthorized male passenger in women’s coach',
+  'Violation confirmed via CCTV',
+  'Passenger report verified',
+  'Repeated violation observed'
+];
 
 const QUICK_REASONS_DISMISS = [
-  'False positive — no violation',
-  'AI misclassification',
-  'Maintenance staff, not passenger',
-  'Duplicate alert'];
+  'No violation — passenger permitted in coach',
+  'Male child accompanied by female passenger',
+  'PWD passenger allowed in coach',
+  'Staff member on duty',
+  'Incorrect detection — no issue observed',
+  'Duplicate or already handled alert'
+];
 
 const QUICK_REASONS_ESCALATE = [
-  'Violation confirmed, dispatch auxiliary',
-  'Repeated offender on this line',
-  'Passenger safety concern',
-  'Multiple violations detected'];
+  'Unauthorized passenger refuses to leave',
+  'Potential safety risk to passengers',
+  'Repeated violations detected',
+  'Assistance required from auxiliary staff'
+];
+
+const QUICK_REASONS_EN_ROUTE = [
+  'Assigned to handle this alert',
+  'En route to manage unauthorized passenger',
+  'Responding to verified violation',
+  'Proceeding to assist with safety concern'
+];
+
+const QUICK_REASONS_RESOLVE = [
+  'Passenger complied and moved to appropriate coach',
+  'Male passenger accompanied by female family member',
+  'PWD passenger assisted and relocated',
+  'Alert resolved by station staff',
+  'No further issues observed after intervention'
+];
 
 export function JustificationModal({
   isOpen,
@@ -45,14 +64,14 @@ export function JustificationModal({
   const [comment, setComment] = useState('');
   const [error, setError] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  
+
   const isVerify = actionType === 'verify';
   const isEscalate = actionType === 'escalate';
   const isEnRoute = actionType === 'en_route';
   const isResolve = actionType === 'resolve';
-  
-  const accentColor = isVerify ? '#0D6E6E' : isEscalate ? '#7B5EA7' : isEnRoute ? '#0B4F6C' : isResolve ? '#1D4ED8' : '#DC2626';
-  const quickReasons = isVerify ? QUICK_REASONS_VERIFY : isEscalate ? QUICK_REASONS_ESCALATE : QUICK_REASONS_DISMISS;
+
+  const accentColor = (isVerify || isResolve) ? '#2D7A5D' : isEscalate ? '#7B5EA7' : isEnRoute ? '#0B4F6C' : '#D34026';
+  const quickReasons = isVerify ? QUICK_REASONS_VERIFY : isEscalate ? QUICK_REASONS_ESCALATE : isEnRoute ? QUICK_REASONS_EN_ROUTE : isResolve ? QUICK_REASONS_RESOLVE : QUICK_REASONS_DISMISS;
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -85,25 +104,26 @@ export function JustificationModal({
     textareaRef.current?.focus();
   };
   if (!isOpen) return null;
-  return (
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title">
 
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-black/60 backdrop-blur-md"
         onClick={onCancel}
         aria-hidden="true" />
 
 
       {/* Modal */}
       <div
-        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-[340px] overflow-hidden"
         style={{
-          boxShadow: '0 24px 64px rgba(0,0,0,0.18)'
+          boxShadow: '0 20px 48px rgba(0,0,0,0.15)'
         }}>
 
         {/* Header stripe */}
@@ -116,23 +136,9 @@ export function JustificationModal({
 
 
         {/* Header */}
-        <div className="flex items-start justify-between px-6 pt-5 pb-4">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{
-                backgroundColor: isVerify ? '#F0FDFA' : isEscalate ? '#F5F0FF' : '#FEF2F2'
-              }}>
+        <div className="flex items-start justify-between px-5 pt-4 pb-3">
+          <div className="flex items-center gap-2.5">
 
-              {isVerify ?
-                <CheckCircleIcon size={18} style={{ color: accentColor }} aria-hidden="true" /> :
-                isEscalate ?
-                <ChevronRightIcon size={18} style={{ color: accentColor }} aria-hidden="true" /> :
-                isEnRoute || isResolve ?
-                <CheckCircleIcon size={18} style={{ color: accentColor }} aria-hidden="true" /> :
-                <XCircleIcon size={18} style={{ color: accentColor }} aria-hidden="true" />
-              }
-            </div>
             <div>
               <h2
                 id="modal-title"
@@ -155,7 +161,7 @@ export function JustificationModal({
         </div>
 
         {/* Body */}
-        <div className="px-6 pb-6">
+        <div className="px-5 pb-5">
           {/* Quick reasons */}
           <div className="mb-4">
             <p className="text-xs font-medium text-gray-500 mb-2">
@@ -191,7 +197,6 @@ export function JustificationModal({
               htmlFor="justification-comment"
               className="flex items-center gap-1.5 text-xs font-medium text-gray-700 mb-1.5">
 
-              <MessageSquareIcon size={12} aria-hidden="true" />
               {isOptional ? 'Optional Comment' : 'Justification comment'}
               {!isOptional && (
                 <span className="text-red-400" aria-hidden="true">
@@ -209,10 +214,10 @@ export function JustificationModal({
               }}
               placeholder={
                 isVerify ? 'Describe why this alert is being verified...' :
-                isEscalate ? 'Describe why this alert needs escalation...' :
-                isEnRoute ? 'Add any notes before routing...' :
-                isResolve ? 'Describe how this was resolved...' :
-                'Describe why this alert is being dismissed...'
+                  isEscalate ? 'Describe why this alert needs escalation...' :
+                    isEnRoute ? 'Add any notes before routing...' :
+                      isResolve ? 'Describe how this was resolved...' :
+                        'Describe why this alert is being dismissed...'
               }
               rows={3}
               className={`
@@ -245,7 +250,7 @@ export function JustificationModal({
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-2.5 mt-5">
+          <div className="flex items-center gap-2 mt-4">
             <button
               onClick={onCancel}
               className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">
@@ -264,6 +269,7 @@ export function JustificationModal({
           </div>
         </div>
       </div>
-    </div>);
-
+    </div>,
+    document.body
+  );
 }

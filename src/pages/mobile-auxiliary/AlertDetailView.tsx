@@ -1,9 +1,6 @@
 import {
   CameraIcon,
   ChevronLeftIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  AlertTriangleIcon
 } from 'lucide-react';
 import { Alert, AlertStatus } from '../../type/Alert';
 
@@ -19,6 +16,28 @@ interface AlertDetailViewProps {
 export function AlertDetailView({ alert, onBack, onAction }: AlertDetailViewProps) {
   const steps: { label: string, by?: string | null, at?: string | null, comment?: string | null, color: string, bg: string }[] = [];
 
+  // ── 1. Initial Report ──
+  if (alert.source === 'ai') {
+    steps.push({
+      label: 'Detected',
+      by: 'System (AI Analytics)',
+      at: `${alert.date} ${alert.time}`,
+      comment: alert.confidence ? `Confidence Level: ${(alert.confidence * 100).toFixed(1)}%` : 'Confidence data unavailable',
+      color: '#92400E',
+      bg: '#FEF3C7'
+    });
+  } else {
+    steps.push({
+      label: 'Reported',
+      by: alert.reportedBy || 'Passenger',
+      at: `${alert.date} ${alert.time}`,
+      comment: alert.passengerComment || 'No additional remarks provided.',
+      color: '#92400E',
+      bg: '#FEF3C7'
+    });
+  }
+
+  // ── 2. Handling Steps ──
   if (alert.verifiedAt || alert.verifiedBy)
     steps.push({ label: 'Verified', by: alert.verifiedBy, at: alert.verifiedAt, comment: alert.verifiedComment, color: '#2D7A5D', bg: '#F0FBF6' });
   if (alert.escalatedAt || alert.escalatedBy)
@@ -31,13 +50,12 @@ export function AlertDetailView({ alert, onBack, onAction }: AlertDetailViewProp
     steps.push({ label: 'Dismissed', by: alert.dismissedBy, at: alert.dismissedAt, comment: alert.dismissedComment, color: '#718096', bg: '#F7FAFC' });
 
   return (
-    <div className="flex flex-col h-full bg-white relative z-10">
+    <div className="flex flex-col h-full  relative z-10">
       {/* ── Header ── */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 flex-shrink-0 bg-white">
+      <div className="bg-white flex items-center justify-between px-5 py-3 border-b border-gray-100 flex-shrink-0 ">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="p-1.5 hover:bg-gray-100 rounded-lg -ml-1 transition-colors"
           >
             <ChevronLeftIcon className="w-5 h-5 text-gray-700" />
           </button>
@@ -62,7 +80,7 @@ export function AlertDetailView({ alert, onBack, onAction }: AlertDetailViewProp
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-32 custom-scrollbar p-5 space-y-5">
+      <div className="flex-1 overflow-y-auto pb-20 custom-scrollbar p-5 space-y-5 bg-[#faf9f5]">
         {/* ── Snapshot ── */}
         <div className="rounded-xl overflow-hidden bg-gray-900 shadow-sm border border-gray-100" style={{ aspectRatio: '21/9' }}>
           {alert.snapshotUrl || alert.imageUrl ? (
@@ -80,7 +98,7 @@ export function AlertDetailView({ alert, onBack, onAction }: AlertDetailViewProp
           <div className="grid grid-cols-3 gap-2">
             {[
               { label: 'Train ID', value: alert.trainId },
-              { label: 'Coach ID', value: alert.coachId || alert.coach },
+              { label: 'Coach ID', value: alert.coachId },
               { label: 'Line', value: alert.line },
               { label: 'Station', value: alert.station },
               { label: 'Date', value: alert.date },
@@ -93,15 +111,6 @@ export function AlertDetailView({ alert, onBack, onAction }: AlertDetailViewProp
             ))}
           </div>
 
-          {/* Passenger Comment */}
-          {alert.source === 'passenger' && alert.passengerComment && (
-            <div className="rounded-xl border border-amber-100 bg-amber-50/50 px-4 py-3">
-              <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-2">Passenger Remark</div>
-              <p className="text-xs text-amber-900 leading-relaxed italic">
-                "{alert.passengerComment}"
-              </p>
-            </div>
-          )}
 
           {/* Audit Trail */}
           {steps.length > 0 && (
@@ -122,39 +131,39 @@ export function AlertDetailView({ alert, onBack, onAction }: AlertDetailViewProp
               </div>
             </div>
           )}
+
+          {/* ── Action Buttons (Scrollable) ── */}
+          {(alert.status === 'pending' || alert.status === 'verified' || alert.status === 'escalated' || alert.status === 'en_route') && (
+            <div className="pt-2 space-y-2">
+              {alert.status !== 'en_route' && (
+                <button
+                  onClick={() => onAction(alert.id, 'en_route')}
+                  className="w-full py-3.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all shadow-sm"
+                  style={{ backgroundColor: ACCENT }}
+                >
+                  En Route
+                </button>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onAction(alert.id, 'resolved')}
+                  className="flex-1 py-3.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all shadow-sm"
+                  style={{ backgroundColor: '#2D7A5D' }}
+                >
+                  Resolve
+                </button>
+                <button
+                  onClick={() => onAction(alert.id, 'dismissed')}
+                  className="flex-1 py-3.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all shadow-sm"
+                  style={{ backgroundColor: RED }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-
-      {/* ── Fixed Bottom Actions ── */}
-      {(alert.status === 'pending' || alert.status === 'verified' || alert.status === 'escalated' || alert.status === 'en_route') && (
-        <div className="absolute bottom-0 left-0 right-0 p-5 bg-white border-t border-gray-100 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] space-y-2">
-          {alert.status !== 'en_route' && (
-            <button
-              onClick={() => onAction(alert.id, 'en_route')}
-              className="w-full py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: ACCENT }}
-            >
-              En Route
-            </button>
-          )}
-          <div className="flex gap-2">
-            <button
-              onClick={() => onAction(alert.id, 'resolved')}
-              className="flex-1 py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: '#2D7A5D' }}
-            >
-              Resolve
-            </button>
-            <button
-              onClick={() => onAction(alert.id, 'dismissed')}
-              className="flex-1 py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: RED }}
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

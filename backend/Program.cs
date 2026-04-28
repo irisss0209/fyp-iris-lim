@@ -76,6 +76,7 @@ builder.Services.AddSingleton<IEmailVerificationSender, EmailService>();
 builder.Services.AddSingleton<AuthChallengeStore>();
 builder.Services.AddSingleton<ITotpService, TotpService>();
 builder.Services.AddScoped<IAlertService, AlertService>();
+builder.Services.AddScoped<IS3Service, S3Service>();
 
 // CORS
 var allowedOrigins = builder.Configuration

@@ -1,10 +1,11 @@
 {
   "version": 2,
-  "dgSpecHash": "MlizKqpETQg=",
+  "dgSpecHash": "7FEgG56mjEM=",
   "success": true,
   "projectFilePath": "C:\\Users\\iriss\\Downloads\\fyp-tp076823\\backend\\backend.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\iriss\\.nuget\\packages\\awssdk.core\\4.0.3.32\\awssdk.core.4.0.3.32.nupkg.sha512",
+    "C:\\Users\\iriss\\.nuget\\packages\\awssdk.s3\\4.0.4\\awssdk.s3.4.0.4.nupkg.sha512",
     "C:\\Users\\iriss\\.nuget\\packages\\awssdk.simpleemail\\4.0.2.25\\awssdk.simpleemail.4.0.2.25.nupkg.sha512",
     "C:\\Users\\iriss\\.nuget\\packages\\bcrypt.net-next\\4.1.0\\bcrypt.net-next.4.1.0.nupkg.sha512",
     "C:\\Users\\iriss\\.nuget\\packages\\epplus\\8.5.3\\epplus.8.5.3.nupkg.sha512",
@@ -55,5 +56,18 @@
     "C:\\Users\\iriss\\.nuget\\packages\\system.identitymodel.tokens.jwt\\8.0.1\\system.identitymodel.tokens.jwt.8.0.1.nupkg.sha512",
     "C:\\Users\\iriss\\.nuget\\packages\\system.security.cryptography.pkcs\\10.0.6\\system.security.cryptography.pkcs.10.0.6.nupkg.sha512"
   ],
-  "logs": []
+  "logs": [
+    {
+      "code": "NU1603",
+      "level": "Warning",
+      "message": "backend depends on AWSSDK.S3 (>= 4.0.3.32) but AWSSDK.S3 4.0.3.32 was not found. AWSSDK.S3 4.0.4 was resolved instead.",
+      "projectPath": "C:\\Users\\iriss\\Downloads\\fyp-tp076823\\backend\\backend.csproj",
+      "warningLevel": 1,
+      "filePath": "C:\\Users\\iriss\\Downloads\\fyp-tp076823\\backend\\backend.csproj",
+      "libraryId": "AWSSDK.S3",
+      "targetGraphs": [
+        "net10.0"
+      ]
+    }
+  ]
 }

@@ -5,10 +5,8 @@ import {
   AlertTriangleIcon,
   MapPinIcon,
   ChevronRightIcon,
-  ShieldCheckIcon,
   InfoIcon,
   Loader2,
-  XCircleIcon
 } from 'lucide-react';
 
 interface HomeProps {
@@ -17,7 +15,6 @@ interface HomeProps {
 
 export function Home({ onNavigate }: HomeProps) {
   const [incidents, setIncidents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedLine, setSelectedLine] = useState('All Lines');
   const [lines, setLines] = useState<string[]>(['All Lines']);
 
@@ -46,11 +43,9 @@ export function Home({ onNavigate }: HomeProps) {
       .then(res => res.json())
       .then(data => {
         setIncidents(data || []);
-        setLoading(false);
       })
       .catch(err => {
         console.error('Failed to fetch incidents', err);
-        setLoading(false);
       });
 
     fetch('http://localhost:5293/api/data/lines')
@@ -62,9 +57,17 @@ export function Home({ onNavigate }: HomeProps) {
       .catch(console.error);
   }, []);
 
-  const filteredIncidents = selectedLine === 'All Lines'
-    ? incidents
-    : incidents.filter(i => i.line === selectedLine);
+  const todayDate = new Date().toISOString().split('T')[0];
+
+  const filteredIncidents = incidents.filter(i => {
+    // Only show if it happened today
+    if (i.date !== todayDate) return false;
+
+    // Filter by selected line
+    if (selectedLine !== 'All Lines' && i.line !== selectedLine) return false;
+
+    return true;
+  });
 
   const activeIncident = filteredIncidents.find(i => i.status === 'Verified') || filteredIncidents[0];
 

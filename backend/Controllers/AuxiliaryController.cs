@@ -126,6 +126,8 @@ public AuxiliaryController(AppDbContext context, IAlertService alertService)
         if (!allowedLineIds.Any())
             return Ok(new List<AlertDTO>());
 
+        var today = DateTime.UtcNow.Date;
+
         var incidents = await _context.Incidents
             .Include(i => i.Detection)
                 .ThenInclude(d => d!.Camera)
@@ -148,14 +150,49 @@ public AuxiliaryController(AppDbContext context, IAlertService alertService)
             .Include(i => i.UserReport)
                 .ThenInclude(r => r!.LineStation)
                     .ThenInclude(ls => ls!.Station)
+            .Include(i => i.UserReport).ThenInclude(r => r!.User)
+            .Include(i => i.VerifiedByUser)
+            .Include(i => i.EnrouteByUser)
+            .Include(i => i.ResolvedByUser)
+            .Include(i => i.EscalatedByUser)
+            .Include(i => i.DismissedByUser)
+            .Where(i => i.CreatedAt >= today)
             .OrderByDescending(i => i.CreatedAt)
             .Take(50)
             .ToListAsync();
 
         var alerts = incidents
-    .Select(i => _alertService.MapToAlertDTO(i, now))
-    .Where(a => !string.IsNullOrEmpty(a.LineId) && allowedLineIds.Contains(a.LineId))
-    .ToList();
+            .Select(i => _alertService.MapToAlertDTO(i, now))
+            .Where(a => !string.IsNullOrEmpty(a.LineId) && allowedLineIds.Contains(a.LineId))
+            .Select(dto =>
+            {
+                var incidentIdStr = dto.Id.Replace("ALT-", "").Replace("RPT-", "");
+                if (!int.TryParse(incidentIdStr, out var incidentId)) return (object)dto;
+                var i = incidents.FirstOrDefault(x => x.IncidentId == incidentId);
+                if (i == null) return (object)dto;
+                return new
+                {
+                    dto.Id, dto.TrainId, dto.CoachId, dto.Line, dto.LineId, dto.Station,
+                    dto.Status, dto.Source, dto.Time, dto.Date, dto.Elapsed,
+                    dto.Confidence, dto.DeviceId, dto.ImageUrl,
+                    reportedBy = i.UserReport?.User?.UserName,
+                    verifiedBy = i.VerifiedByUser?.UserName ?? i.VerifiedBy,
+                    verifiedAt = i.VerifiedAt?.ToString("yyyy-MM-dd HH:mm"),
+                    verifiedComment = i.VerifiedComment,
+                    enrouteBy = i.EnrouteByUser?.UserName ?? i.EnrouteBy,
+                    enrouteAt = i.EnrouteAt?.ToString("yyyy-MM-dd HH:mm"),
+                    resolvedBy = i.ResolvedByUser?.UserName ?? i.ResolvedBy,
+                    resolvedAt = i.ResolvedAt?.ToString("yyyy-MM-dd HH:mm"),
+                    resolvedComment = i.ResolvedComment,
+                    escalatedBy = i.EscalatedByUser?.UserName ?? i.EscalatedBy,
+                    escalatedAt = i.EscalatedAt?.ToString("yyyy-MM-dd HH:mm"),
+                    escalatedComment = i.EscalatedComment,
+                    dismissedBy = i.DismissedByUser?.UserName ?? i.DismissedBy,
+                    dismissedAt = i.DismissedAt?.ToString("yyyy-MM-dd HH:mm"),
+                    dismissedComment = i.DismissedComment,
+                };
+            })
+            .ToList();
 
         return Ok(alerts);
     }
@@ -235,6 +272,13 @@ public AuxiliaryController(AppDbContext context, IAlertService alertService)
             .Include(i => i.UserReport)
                 .ThenInclude(r => r!.LineStation)
                     .ThenInclude(ls => ls!.Station)
+            .Include(i => i.UserReport)
+                .ThenInclude(r => r!.User)
+            .Include(i => i.VerifiedByUser)
+            .Include(i => i.ResolvedByUser)
+            .Include(i => i.EscalatedByUser)
+            .Include(i => i.DismissedByUser)
+            .Include(i => i.EnrouteByUser)
             .Where(i =>
                 i.EnrouteBy == userId ||
                 i.ResolvedBy == userId ||
@@ -247,9 +291,44 @@ public AuxiliaryController(AppDbContext context, IAlertService alertService)
             .OrderByDescending(i => i.CreatedAt)
             .ToListAsync();
 
-        var history = incidents
-        .Select(i => _alertService.MapToAlertDTO(i, now))
-        .ToList();
+        var history = incidents.Select(i =>
+        {
+            var dto = _alertService.MapToAlertDTO(i, now);
+            return new
+            {
+                dto.Id,
+                dto.Line,
+                dto.Station,
+                dto.Date,
+                dto.Time,
+                dto.Status,
+                dto.Elapsed,
+                dto.TrainId,
+                dto.CoachId,
+                dto.Source,
+                dto.ImageUrl,
+
+                reportedBy = i.UserReport?.User?.UserName,
+                verifiedBy = i.VerifiedByUser?.UserName ?? i.VerifiedBy,
+                verifiedAt = i.VerifiedAt?.ToString("yyyy-MM-dd HH:mm"),
+                verifiedComment = i.VerifiedComment,
+
+                enrouteBy = i.EnrouteByUser?.UserName ?? i.EnrouteBy,
+                enrouteAt = i.EnrouteAt?.ToString("yyyy-MM-dd HH:mm"),
+
+                resolvedBy = i.ResolvedByUser?.UserName ?? i.ResolvedBy,
+                resolvedAt = i.ResolvedAt?.ToString("yyyy-MM-dd HH:mm"),
+                resolvedComment = i.ResolvedComment,
+
+                escalatedBy = i.EscalatedByUser?.UserName ?? i.EscalatedBy,
+                escalatedAt = i.EscalatedAt?.ToString("yyyy-MM-dd HH:mm"),
+                escalatedComment = i.EscalatedComment,
+
+                dismissedBy = i.DismissedByUser?.UserName ?? i.DismissedBy,
+                dismissedAt = i.DismissedAt?.ToString("yyyy-MM-dd HH:mm"),
+                dismissedComment = i.DismissedComment,
+            };
+        }).ToList();
 
         return Ok(history);
     }

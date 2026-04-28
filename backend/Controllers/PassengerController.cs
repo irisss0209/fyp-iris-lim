@@ -99,27 +99,58 @@ namespace backend.Controllers
         [HttpGet("profile")]
         public async Task<IActionResult> GetProfile([FromQuery] string userId)
         {
-
             if (string.IsNullOrWhiteSpace(userId))
                 return BadRequest(new { error = "userId query parameter is required." });
 
             var user = await _context.Users.FindAsync(userId);
             if (user == null) return NotFound();
 
-            var reportsCount = await _context.UserReports.CountAsync(r => r.UserId == userId);
-            var validReports = await _context.Incidents
-                .Include(i => i.UserReport)
-                .CountAsync(i => i.UserReport != null && i.UserReport.UserId == userId && (i.Status == IncidentStatus.Verified || i.Status == IncidentStatus.Resolved || i.Status == IncidentStatus.Escalated));
-            
-            return Ok(new
+            if (user.Role == UserRole.Auxiliary)
             {
-                userId = user.UserId,
-                userName = user.UserName,
-                email = user.Email,
-                role = user.Role,
-                reports = reportsCount,
-                verified = validReports
-            });
+                // Calculate average reaction time: EnrouteAt - CreatedAt
+                var reactedIncidents = await _context.Incidents
+                    .Where(i => i.EnrouteBy == userId && i.EnrouteAt != null)
+                    .ToListAsync();
+
+                double avgMinutes = 0;
+                if (reactedIncidents.Any())
+                {
+                    avgMinutes = reactedIncidents
+                        .Select(i => (i.EnrouteAt!.Value - i.CreatedAt).TotalMinutes)
+                        .Average();
+                }
+
+                // Resolved count
+                var resolvedCount = await _context.Incidents
+                    .CountAsync(i => i.ResolvedBy == userId && i.Status == IncidentStatus.Resolved);
+
+                return Ok(new
+                {
+                    userId = user.UserId,
+                    userName = user.UserName,
+                    email = user.Email,
+                    role = user.Role,
+                    avgReactionTime = Math.Round(avgMinutes, 1),
+                    resolved = resolvedCount
+                });
+            }
+            else
+            {
+                var reportsCount = await _context.UserReports.CountAsync(r => r.UserId == userId);
+                var validReports = await _context.Incidents
+                    .Include(i => i.UserReport)
+                    .CountAsync(i => i.UserReport != null && i.UserReport.UserId == userId && (i.Status == IncidentStatus.Verified || i.Status == IncidentStatus.Resolved || i.Status == IncidentStatus.Escalated));
+
+                return Ok(new
+                {
+                    userId = user.UserId,
+                    userName = user.UserName,
+                    email = user.Email,
+                    role = user.Role,
+                    reports = reportsCount,
+                    verified = validReports
+                });
+            }
         }
 
         [HttpGet("incident-near-me")]
@@ -141,7 +172,7 @@ namespace backend.Controllers
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.LineStation)
                         .ThenInclude(ls => ls!.Station)
-                .Where(i => i.Status == IncidentStatus.Pending || i.Status == IncidentStatus.Verified || i.Status == IncidentStatus.En_Route || i.Status == IncidentStatus.Escalated)
+                .Where(i => (i.Status == IncidentStatus.Pending || i.Status == IncidentStatus.Verified || i.Status == IncidentStatus.En_Route || i.Status == IncidentStatus.Escalated) && i.CreatedAt >= DateTime.UtcNow.Date)
                 .OrderByDescending(i => i.CreatedAt)
                 .Take(10)
                 .ToListAsync();
@@ -161,6 +192,7 @@ namespace backend.Controllers
 CoachId = dto.CoachId,
                     type = dto.Source == "ai" ? "AI Detection" : "Passenger Report",
                     time = dto.Time,
+                    date = dto.Date,
                     status = dto.Status,
                     dto.ImageUrl
                 };

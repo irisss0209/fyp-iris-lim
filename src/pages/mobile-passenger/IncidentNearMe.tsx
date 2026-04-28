@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { ClockIcon, MapPinIcon, ChevronRightIcon, Loader2, XCircleIcon, SearchIcon, AlertTriangleIcon } from 'lucide-react';
+import { MapPinIcon, ChevronRightIcon, SearchIcon } from 'lucide-react';
 import { detectNearbyLines } from '../../utils/location';
 
 export function IncidentNearMe() {
@@ -79,8 +78,12 @@ export function IncidentNearMe() {
       key="incident-near-me"
       className="px-4 pt-5 pb-6 space-y-4"
     >
+      <div>
+        <h2 className="text-xl font-black text-gray-900 mb-1">Incident Near Me</h2>
+        <p className="text-sm text-gray-500">See incidents happening near you.</p>
+      </div>
       {/* Integrated Control Row */}
-      <div className={`relative w-full bg-white/30 backdrop-blur-md border border-white/20 transition-all duration-300 ${showLinePicker ? 'rounded-t-[28px] rounded-b-none z-50' : 'rounded-[28px] z-30'}`}>
+      <div className={`relative w-full bg-white backdrop-blur-md border border-white/20 transition-all duration-300 ${showLinePicker ? 'rounded-t-[28px] rounded-b-none z-50' : 'rounded-[28px] z-30'}`}>
         <div className="flex items-center gap-2 p-2">
           {/* Action 1: Detect Location (Simplified Grey-out state) */}
           <button
@@ -158,12 +161,6 @@ export function IncidentNearMe() {
         </div>
       ) : filteredIncidents.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 px-4 text-center bg-white rounded-2xl border border-gray-100 shadow-sm">
-          <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mb-4">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-500">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-              <polyline points="22 4 12 14.01 9 11.01"></polyline>
-            </svg>
-          </div>
           <p className="text-sm font-bold text-gray-900">No Incidents Found</p>
           <p className="text-xs text-gray-400 mt-1 max-w-[200px]">
             {searchQuery || statusFilter !== 'All'
@@ -174,7 +171,7 @@ export function IncidentNearMe() {
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-4 ">
           {Object.values(filteredIncidents.reduce((acc: any, inc) => {
             const stationKey = `${inc.line}-${inc.station}`;
             if (!acc[stationKey]) {

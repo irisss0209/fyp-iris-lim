@@ -69,7 +69,7 @@ export function ChangePasswordPage({ session, onBack }: ChangePasswordPageProps)
         <div className="bg-white rounded-[32px] p-8 border border-gray-100 shadow-sm space-y-6">
           <div className="flex flex-col items-center text-center space-y-2">
             <div className="w-16 h-16 mb-2">
-              <img src="/Railly_logo.png" alt="Railly Logo" className="w-full h-full object-contain" />
+              <img src="https://railly.s3.ap-southeast-1.amazonaws.com/assets/Railly_logo.png" alt="Railly Logo" className="w-full h-full object-contain" />
             </div>
             <h2 className="text-xl font-bold text-gray-900">Change Password</h2>
             <p className="text-sm text-gray-500 px-4">

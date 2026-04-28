@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import {
   BellIcon,
   ClockIcon,
-  ArrowRightIcon,
 } from 'lucide-react';
 import { JustificationModal } from '../../components/JustificationModal';
 import { Alert, AlertStatus, fetchAuxiliaryAlerts, updateAlertStatus } from '../../type/Alert';
@@ -65,7 +64,7 @@ function AlertCard({
             <div className="flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-bold text-sm text-gray-900">
-                  T.{alert.trainId} · C.{alert.coachId || alert.coach}
+                  T.{alert.trainId} · C.{alert.coachId}
                 </span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-gray-100 text-gray-500 uppercase">
                   {alert.station}
@@ -154,37 +153,6 @@ function AlertCard({
   );
 }
 
-function CompactAlertCard({ alert, onClick }: { alert: Alert, onClick: () => void }) {
-  return (
-    <div
-      onClick={onClick}
-      className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4 cursor-pointer active:bg-gray-50 transition-all"
-    >
-      <div
-        className="w-1.5 h-10 rounded-full flex-shrink-0"
-        style={{ backgroundColor: STATUS_STYLES[alert.status].dot }}
-      />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-xs text-gray-900">T.{alert.trainId} C.{alert.coachId || alert.coach}</span>
-            <span className="text-[10px] font-bold text-gray-400 uppercase">{alert.station}</span>
-          </div>
-          <StatusBadge status={alert.status} />
-        </div>
-        <p className="text-sm font-bold text-gray-800 truncate">{alert.type}</p>
-        <div className="flex items-center gap-3 mt-1">
-          <span className="text-[10px] text-gray-400 flex items-center gap-1">
-            <ClockIcon size={10} />
-            {alert.time}
-          </span>
-          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Line: {alert.line}</span>
-        </div>
-      </div>
-      <ArrowRightIcon size={16} className="text-gray-300 flex-shrink-0" />
-    </div>
-  );
-}
 
 export function RecentAlerts({ assignedStationId, userId, userName }: { assignedStationId?: string, userId: string, userName: string }) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -215,7 +183,7 @@ export function RecentAlerts({ assignedStationId, userId, userName }: { assigned
       isOpen: true,
       action,
       alertId: id,
-      alertCoach: alert.coachId || alert.coach || ''
+      alertCoach: alert.coachId,
     });
   };
 
@@ -256,23 +224,23 @@ export function RecentAlerts({ assignedStationId, userId, userName }: { assigned
     }));
 
     if (selectedAlert?.id === alertId) {
-       const update: Partial<Alert> = { status: action };
-        if (action === 'en_route') {
-          update.enrouteBy = userName;
-          update.enrouteAt = now;
-        } else if (action === 'resolved') {
-          update.resolvedBy = userName;
-          update.resolvedAt = now;
-          update.resolvedComment = comment;
-        } else if (action === 'dismissed') {
-          update.dismissedBy = userName;
-          update.dismissedAt = now;
-          update.dismissedComment = comment;
-        } else if (action === 'escalated') {
-          update.escalatedBy = userName;
-          update.escalatedAt = now;
-          update.escalatedComment = comment;
-        }
+      const update: Partial<Alert> = { status: action };
+      if (action === 'en_route') {
+        update.enrouteBy = userName;
+        update.enrouteAt = now;
+      } else if (action === 'resolved') {
+        update.resolvedBy = userName;
+        update.resolvedAt = now;
+        update.resolvedComment = comment;
+      } else if (action === 'dismissed') {
+        update.dismissedBy = userName;
+        update.dismissedAt = now;
+        update.dismissedComment = comment;
+      } else if (action === 'escalated') {
+        update.escalatedBy = userName;
+        update.escalatedAt = now;
+        update.escalatedComment = comment;
+      }
       setSelectedAlert({
         ...selectedAlert,
         ...update
@@ -316,7 +284,7 @@ export function RecentAlerts({ assignedStationId, userId, userName }: { assigned
 
   if (selectedAlert) {
     return (
-      <div className="absolute inset-0 bg-white z-50 overflow-hidden flex flex-col h-[calc(100vh-145px)] sm:h-[710px]">
+      <div className="absolute inset-0 bg-[#FAF9F5] z-10 overflow-hidden flex flex-col h-full">
         <AlertDetailView
           alert={selectedAlert}
           onBack={() => setSelectedAlert(null)}
@@ -329,7 +297,7 @@ export function RecentAlerts({ assignedStationId, userId, userName }: { assigned
 
   return (
     <div
-      className="pb-6"
+      className="h-full overflow-y-auto pb-6"
     >
       {/* Section header */}
       <div className="px-4 pt-5 pb-3">
@@ -416,21 +384,13 @@ export function RecentAlerts({ assignedStationId, userId, userName }: { assigned
                 : `No alerts have been ${activeStatus} yet.`}
             </p>
           </div>
-        ) : (activeStatus === 'pending' || activeStatus === 'verified' || activeStatus === 'en_route' || activeStatus === 'escalated') ? (
+        ) : (
           <div
             key="alert-list"
             className="space-y-3"
           >
             {filtered.map(alert => (
               <AlertCard key={alert.id} alert={alert} onAction={handleAction} onClick={() => setSelectedAlert(alert)} />
-            ))}
-          </div>
-        ) : (
-          <div
-            className="space-y-2"
-          >
-            {filtered.map(alert => (
-              <CompactAlertCard key={alert.id} alert={alert} onClick={() => setSelectedAlert(alert)} />
             ))}
           </div>
         )}

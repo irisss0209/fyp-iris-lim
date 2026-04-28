@@ -63,7 +63,7 @@ function Sidebar({ activePage, onNavigate, onLogout, alertCount = 0, user, colla
             <div
               className="w-10 h-10 rounded-xl flex-shrink-0"
               style={{
-                backgroundImage: 'url(/Railly_logo.png)',
+                backgroundImage: 'url(https://railly.s3.ap-southeast-1.amazonaws.com/assets/Railly_logo.png)',
                 backgroundSize: '100%',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',

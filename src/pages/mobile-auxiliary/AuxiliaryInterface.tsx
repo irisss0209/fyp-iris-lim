@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { BellIcon, ClockIcon, UserIcon, ShieldIcon } from 'lucide-react';
+import { BellIcon, ClockIcon, UserIcon } from 'lucide-react';
 import { RecentAlerts } from './RecentAlerts';
 import { AlertsHistory } from './AlertsHistory';
 import { AuxiliaryProfile } from './AuxiliaryProfile';
@@ -43,7 +43,7 @@ export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterface) {
       {/* ── Shift Banner ── */}
 
       {/* ── Scrollable Content ── */}
-      <div className="flex-1 overflow-y-auto" style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}>
+      <div className="flex-1 relative overflow-hidden">
         <AnimatePresence mode="wait">
           {activeTab === 'alerts' && (
             <RecentAlerts
@@ -75,8 +75,8 @@ export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterface) {
 
       {/* ── Bottom Nav ── */}
       <div
-        className="absolute bottom-0 left-0 right-0 w-full bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] border-t border-gray-100 flex p-1.5 z-20"
-        style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}
+        className="w-full bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] border-t border-gray-100 flex p-1.5 z-20"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
         {TABS.map(({ id, icon: Icon, label }) => {
           const active = activeTab === id;
@@ -84,7 +84,7 @@ export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterface) {
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-2xl transition-all duration-200 ${active ? 'text-theme-auxiliary' : 'text-gray-400 hover:text-gray-600'
+              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-2xl transition-all duration-200 ${active ? 'text-[#0B4F6C]' : 'text-gray-400 hover:text-gray-600'
                 }`}
             >
               <Icon size={24} />

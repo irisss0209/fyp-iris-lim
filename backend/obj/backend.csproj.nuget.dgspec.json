@@ -50,6 +50,10 @@
         "net10.0": {
           "targetAlias": "net10.0",
           "dependencies": {
+            "AWSSDK.S3": {
+              "target": "Package",
+              "version": "[4.0.3.32, )"
+            },
             "AWSSDK.SimpleEmail": {
               "target": "Package",
               "version": "[4.0.2.25, )"

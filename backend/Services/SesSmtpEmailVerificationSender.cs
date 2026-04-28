@@ -48,7 +48,7 @@ namespace backend.Services
         <div style='background-color: {ACCENT}; padding: 40px 20px; text-align: center;'>
             <div style='display: inline-block; background-color: rgba(255,255,255,0.1); padding: 12px; border-radius: 16px; margin-bottom: 16px;'>
                 <!-- Logo Placeholder - Replace src with public URL when hosted -->
-                <img src='https://railly.my/Railly_logo.png' alt='Railly' style='width: 48px; height: 48px; display: block;' onerror=""this.style.display='none'"" />
+                <img src='https://railly.s3.ap-southeast-1.amazonaws.com/assets/Railly_logo.png' alt='Railly' style='width: 48px; height: 48px; display: block;' onerror=""this.style.display='none'"" />
                 <span style='color: #ffffff; font-weight: 800; font-size: 20px; letter-spacing: 2px; vertical-align: middle;'>RAILLY</span>
             </div>
             <h1 style='color: #ffffff; margin: 0; font-size: 22px; font-weight: 700;'>Identity Verification</h1>

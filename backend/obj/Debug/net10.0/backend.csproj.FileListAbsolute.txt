@@ -139,3 +139,4 @@ C:\Users\iriss\Downloads\fyp-tp076823\backend\bin\Debug\net10.0\Otp.NET.dll
 C:\Users\iriss\Downloads\fyp-tp076823\backend\bin\Debug\net10.0\AWSSDK.Core.dll
 C:\Users\iriss\Downloads\fyp-tp076823\backend\bin\Debug\net10.0\AWSSDK.SimpleEmail.dll
 C:\Users\iriss\Downloads\fyp-tp076823\backend\bin\Debug\net10.0\BCrypt.Net-Next.dll
+C:\Users\iriss\Downloads\fyp-tp076823\backend\bin\Debug\net10.0\AWSSDK.S3.dll

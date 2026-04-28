@@ -8,6 +8,7 @@
     ".NETCoreApp,Version=v10.0": {
       "backend/1.0.0": {
         "dependencies": {
+          "AWSSDK.S3": "4.0.4",
           "AWSSDK.SimpleEmail": "4.0.2.25",
           "BCrypt.Net-Next": "4.1.0",
           "EPPlus": "8.5.3",
@@ -27,6 +28,17 @@
           "lib/net8.0/AWSSDK.Core.dll": {
             "assemblyVersion": "4.0.0.0",
             "fileVersion": "4.0.3.32"
+          }
+        }
+      },
+      "AWSSDK.S3/4.0.4": {
+        "dependencies": {
+          "AWSSDK.Core": "4.0.3.32"
+        },
+        "runtime": {
+          "lib/net8.0/AWSSDK.S3.dll": {
+            "assemblyVersion": "4.0.0.0",
+            "fileVersion": "4.0.4.0"
           }
         }
       },
@@ -703,6 +715,13 @@
       "sha512": "sha512-Z+FDac2Sb5dRImj87wVcgsj5PbE34CXDPGFodk11AKTx5B30/NgsnYynZH2NYS/uPZylzcX23NEjGbcMSbqAwQ==",
       "path": "awssdk.core/4.0.3.32",
       "hashPath": "awssdk.core.4.0.3.32.nupkg.sha512"
+    },
+    "AWSSDK.S3/4.0.4": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-Xo/s2vef07V3FIuThclCMaM0IbuPRbF0VvtjvIRxnQNfXpAul/kKgrxM+45oFSIqoCYNgD9pVTzhzHixKQ49dg==",
+      "path": "awssdk.s3/4.0.4",
+      "hashPath": "awssdk.s3.4.0.4.nupkg.sha512"
     },
     "AWSSDK.SimpleEmail/4.0.2.25": {
       "type": "package",

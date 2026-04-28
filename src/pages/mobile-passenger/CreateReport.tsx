@@ -264,7 +264,7 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
           {showSampleImage && (
             <div className="mb-3 rounded-xl overflow-hidden border border-[#0B4F6C]/20 shadow-sm relative">
               <img
-                src="/trainid_coachid_sample.png"
+                src="https://railly.s3.ap-southeast-1.amazonaws.com/assets/trainid_coachid_sample.png"
                 alt="Sample sticker showing Car No. and Door No. inside the train"
                 className="w-full object-cover max-h-44"
               />
