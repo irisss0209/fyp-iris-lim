@@ -22,8 +22,9 @@ public class UserReport
     [Column("coach_id")]
     public int CoachId { get; set; }
 
+    [Required]
     [Column("description")]
-    public string? Description { get; set; }
+    public string Description { get; set; } = null!;
 
     [Column("image_url")]
     [MaxLength(255)]
@@ -32,13 +33,15 @@ public class UserReport
     [Column("created_at")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    [Required]
     [Column("line_id")]
     [MaxLength(50)]
-    public string? LineId { get; set; }
+    public string LineId { get; set; } = null!;
 
+    [Required]
     [Column("station_id")]
     [MaxLength(50)]
-    public string? StationId { get; set; }
+    public string StationId { get; set; } = null!;
 
     // Navigation
     public User User { get; set; } = null!;

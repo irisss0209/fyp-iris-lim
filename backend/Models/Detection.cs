@@ -11,27 +11,32 @@ namespace backend.Models
         [Column("detection_id")]
         public int DetectionId { get; set; }
 
+        [Required]
         [Column("camera_id")]
         [MaxLength(50)]
-        public string? CameraId { get; set; }
+        public string CameraId { get; set; } = null!;
 
+        [Required]
         [Column("confidence_score")]
-        public decimal? ConfidenceScore { get; set; }
+        public decimal ConfidenceScore { get; set; }
 
+        [Required]
         [Column("image_url")]
         [MaxLength(255)]
-        public string? ImageUrl { get; set; }
+        public string ImageUrl { get; set; } = null!;
 
         [Column("detected_at")]
         public DateTime DetectedAt { get; set; } = DateTime.UtcNow;
 
+        [Required]
         [Column("line_id")]
         [MaxLength(50)]
-        public string? LineId { get; set; }
+        public string LineId { get; set; } = null!;
 
+        [Required]
         [Column("station_id")]
         [MaxLength(50)]
-        public string? StationId { get; set; }
+        public string StationId { get; set; } = null!;
 
         // Navigation
         [ForeignKey(nameof(CameraId))]

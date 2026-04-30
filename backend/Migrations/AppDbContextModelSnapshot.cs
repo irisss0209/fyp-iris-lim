@@ -91,6 +91,7 @@ namespace backend.Migrations
                         .HasColumnName("status");
 
                     b.Property<string>("StreamUrl")
+                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("stream_url");
 
@@ -115,11 +116,12 @@ namespace backend.Migrations
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("DetectionId"));
 
                     b.Property<string>("CameraId")
+                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("camera_id");
 
-                    b.Property<decimal?>("ConfidenceScore")
+                    b.Property<decimal>("ConfidenceScore")
                         .HasColumnType("numeric")
                         .HasColumnName("confidence_score");
 
@@ -128,16 +130,19 @@ namespace backend.Migrations
                         .HasColumnName("detected_at");
 
                     b.Property<string>("ImageUrl")
+                        .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
                         .HasColumnName("image_url");
 
                     b.Property<string>("LineId")
+                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("line_id");
 
                     b.Property<string>("StationId")
+                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("station_id");
@@ -295,11 +300,11 @@ namespace backend.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("station_id");
 
-                    b.Property<double?>("Latitude")
+                    b.Property<double>("Latitude")
                         .HasColumnType("double precision")
                         .HasColumnName("latitude");
 
-                    b.Property<double?>("Longitude")
+                    b.Property<double>("Longitude")
                         .HasColumnType("double precision")
                         .HasColumnName("longitude");
 
@@ -445,6 +450,7 @@ namespace backend.Migrations
                         .HasColumnName("created_at");
 
                     b.Property<string>("Description")
+                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("description");
 
@@ -454,11 +460,13 @@ namespace backend.Migrations
                         .HasColumnName("image_url");
 
                     b.Property<string>("LineId")
+                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("line_id");
 
                     b.Property<string>("StationId")
+                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("station_id");
@@ -518,12 +526,15 @@ namespace backend.Migrations
                 {
                     b.HasOne("backend.Models.Camera", "Camera")
                         .WithMany("Detections")
-                        .HasForeignKey("CameraId");
+                        .HasForeignKey("CameraId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("backend.Models.LineStation", "LineStation")
                         .WithMany()
                         .HasForeignKey("LineId", "StationId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Camera");
 
@@ -634,7 +645,8 @@ namespace backend.Migrations
                     b.HasOne("backend.Models.LineStation", "LineStation")
                         .WithMany()
                         .HasForeignKey("LineId", "StationId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("backend.Models.TrainCoach", "TrainCoach")
                         .WithMany("UserReports")

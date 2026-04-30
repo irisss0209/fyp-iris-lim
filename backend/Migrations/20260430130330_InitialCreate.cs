@@ -8,7 +8,7 @@ using backend.Models;
 namespace backend.Migrations
 {
     /// <inheritdoc />
-    public partial class CreateIdentitySchema : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -28,8 +28,8 @@ namespace backend.Migrations
                 {
                     station_id = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     station_name = table.Column<string>(type: "character varying(150)", maxLength: 150, nullable: false),
-                    latitude = table.Column<double>(type: "double precision", nullable: true),
-                    longitude = table.Column<double>(type: "double precision", nullable: true)
+                    latitude = table.Column<double>(type: "double precision", nullable: false),
+                    longitude = table.Column<double>(type: "double precision", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -168,7 +168,7 @@ namespace backend.Migrations
                     camera_id = table.Column<string>(type: "text", nullable: false),
                     train_id = table.Column<int>(type: "integer", nullable: false),
                     coach_id = table.Column<int>(type: "integer", nullable: false),
-                    stream_url = table.Column<string>(type: "text", nullable: true),
+                    stream_url = table.Column<string>(type: "text", nullable: false),
                     status = table.Column<CameraStatus>(type: "camera_status", nullable: false)
                 },
                 constraints: table =>
@@ -191,11 +191,11 @@ namespace backend.Migrations
                     user_id = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     train_id = table.Column<int>(type: "integer", nullable: false),
                     coach_id = table.Column<int>(type: "integer", nullable: false),
-                    description = table.Column<string>(type: "text", nullable: true),
+                    description = table.Column<string>(type: "text", nullable: false),
                     image_url = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     created_at = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
-                    line_id = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
-                    station_id = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true)
+                    line_id = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    station_id = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -226,12 +226,12 @@ namespace backend.Migrations
                 {
                     detection_id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    camera_id = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
-                    confidence_score = table.Column<decimal>(type: "numeric", nullable: true),
-                    image_url = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
+                    camera_id = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    confidence_score = table.Column<decimal>(type: "numeric", nullable: false),
+                    image_url = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
                     detected_at = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
-                    line_id = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
-                    station_id = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true)
+                    line_id = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    station_id = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -240,7 +240,8 @@ namespace backend.Migrations
                         name: "FK_Detection_Camera_camera_id",
                         column: x => x.camera_id,
                         principalTable: "Camera",
-                        principalColumn: "camera_id");
+                        principalColumn: "camera_id",
+                        onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_Detection_Line_Station_line_id_station_id",
                         columns: x => new { x.line_id, x.station_id },

@@ -15,8 +15,9 @@ public class Camera
     [Column("coach_id")]
     public int CoachId { get; set; }
 
+    [Required]
     [Column("stream_url")]
-    public string? StreamUrl { get; set; }
+    public string StreamUrl { get; set; } = null!;
 
     [Column("status")]
     public CameraStatus Status { get; set; } = CameraStatus.Active;

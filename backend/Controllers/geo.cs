@@ -30,8 +30,7 @@ namespace backend.Controllers
                 .ToListAsync();
 
             var missing = allStations
-                .Where(s => s.Latitude == null || s.Longitude == null ||
-                            s.Latitude == 0 || s.Longitude == 0)
+                .Where(s => s.Latitude == 0 || s.Longitude == 0)
                 .Select(s => new { s.StationId, s.StationName, s.Latitude, s.Longitude })
                 .ToList();
 
@@ -49,8 +48,7 @@ namespace backend.Controllers
         public async Task<IActionResult> GeocodeStations()
         {
             var stations = await _context.Stations
-                .Where(s => s.Latitude == null || s.Longitude == null ||
-                            s.Latitude == 0   || s.Longitude == 0)
+                .Where(s => s.Latitude == 0 || s.Longitude == 0)
                 .ToListAsync();
 
             if (stations.Count == 0)
@@ -500,7 +498,6 @@ namespace backend.Controllers
             var stations = await _context.Stations
                 .Include(s => s.LineStations)
                     .ThenInclude(ls => ls.TrainLine)
-                .Where(s => s.Latitude != null && s.Longitude != null)
                 .ToListAsync();
 
             var nearby = stations
@@ -508,7 +505,7 @@ namespace backend.Controllers
                 {
                     stationId   = s.StationId,
                     stationName = s.StationName,
-                    distance    = CalculateDistance(lat, lng, s.Latitude!.Value, s.Longitude!.Value),
+                    distance    = CalculateDistance(lat, lng, s.Latitude, s.Longitude),
                     lines       = s.LineStations.Select(ls => new
                     {
                         id   = ls.LineId,

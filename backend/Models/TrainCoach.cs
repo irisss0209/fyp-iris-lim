@@ -9,7 +9,7 @@ public class TrainCoach
     public int TrainId { get; set; }
 
     [Column("coach_id")]
-    public int CoachId { get; set; }
+    public int? CoachId { get; set; }
 
     [Required]
     [Column("coach_type")]
