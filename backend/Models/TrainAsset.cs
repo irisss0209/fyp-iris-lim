@@ -8,7 +8,7 @@ namespace backend.Models
     {
         [Key]
         [Column("train_id")]
-        public int TrainId { get; set; } = null!;
+        public int TrainId { get; set; }
 
         [Required]
         [Column("line_id")]
