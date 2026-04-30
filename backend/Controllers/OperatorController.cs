@@ -3,6 +3,7 @@ using backend.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 using backend.Models.DTOs;
 using backend.Services;
@@ -15,13 +16,16 @@ namespace backend.Controllers
     {
         private readonly AppDbContext _context;
         private readonly IAlertService _alertService;
+        private readonly IS3Service _s3Service;
 
-        public OperatorController(AppDbContext context, IAlertService alertService)
+        public OperatorController(AppDbContext context, IAlertService alertService, IS3Service s3Service)
         {
             _context = context;
             _alertService = alertService;
+            _s3Service = s3Service;
         }
 
+        [Authorize]
         [HttpGet("home-stats")]
         public async Task<IActionResult> GetHomeStats()
         {
@@ -32,6 +36,11 @@ namespace backend.Controllers
                 .AsNoTracking()
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.TrainCoach)
+                .Include(i => i.VerifiedByUser)
+                .Include(i => i.EscalatedByUser)
+                .Include(i => i.EnrouteByUser)
+                .Include(i => i.ResolvedByUser)
+                .Include(i => i.DismissedByUser)
                 .OrderByDescending(i => i.CreatedAt)
                 .Take(5)
                 .ToListAsync();
@@ -109,6 +118,7 @@ namespace backend.Controllers
             });
         }
 
+        [Authorize]
         [HttpGet("incident-alerts")]
         public async Task<IActionResult> IncidentAlerts([FromQuery] string? assignedStationId = null)
         {
@@ -133,8 +143,29 @@ namespace backend.Controllers
                 .Include(i => i.Detection)
                     .ThenInclude(d => d!.Camera)
                         .ThenInclude(c => c!.TrainCoach)
+                            .ThenInclude(tc => tc!.TrainAsset)
+                                .ThenInclude(ta => ta!.TrainLine)
+                .Include(i => i.Detection)
+                    .ThenInclude(d => d!.LineStation)
+                        .ThenInclude(ls => ls!.TrainLine)
+                .Include(i => i.Detection)
+                    .ThenInclude(d => d!.LineStation)
+                        .ThenInclude(ls => ls!.Station)
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.TrainCoach)
+                        .ThenInclude(tc => tc!.TrainAsset)
+                            .ThenInclude(ta => ta!.TrainLine)
+                .Include(i => i.UserReport)
+                    .ThenInclude(r => r!.LineStation)
+                        .ThenInclude(ls => ls!.TrainLine)
+                .Include(i => i.UserReport)
+                    .ThenInclude(r => r!.LineStation)
+                        .ThenInclude(ls => ls!.Station)
+                .Include(i => i.VerifiedByUser)
+                .Include(i => i.EscalatedByUser)
+                .Include(i => i.EnrouteByUser)
+                .Include(i => i.ResolvedByUser)
+                .Include(i => i.DismissedByUser)
                 .AsQueryable();
 
             var incidents = await incidentsQuery
@@ -162,12 +193,13 @@ namespace backend.Controllers
         [HttpPost("incident-alerts/{id}/status")]
         public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateStatusRequest request)
         {
-            if (!int.TryParse(id, out var incidentId))
-                return BadRequest();
+            var incidentIdStr = id.Replace("ALT-", "").Replace("RPT-", "");
+            if (!int.TryParse(incidentIdStr, out var incidentId))
+                return BadRequest(new { error = $"Invalid ID format: {id}" });
 
             var incident = await _context.Incidents.FindAsync(incidentId);
             if (incident == null)
-                return NotFound();
+                return NotFound(new { error = $"Incident {incidentId} not found" });
 
             // Accept frontend aliases (e.g. "resolve" → "Resolved", "en_route" → "En_Route")
             var normalizedStatus = request.Status?.ToLower() switch
@@ -186,7 +218,8 @@ namespace backend.Controllers
 
             incident.Status = parsedStatus;
 
-            var userId = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                        ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
 
             switch (parsedStatus)
             {
@@ -228,6 +261,7 @@ namespace backend.Controllers
             });
         }
 
+        [Authorize]
         [HttpGet("operator/dashboard")]
         public async Task<IActionResult> GetOperatorDashboard([FromQuery] DateTime? from, [FromQuery] DateTime? to)
         {
@@ -255,35 +289,45 @@ namespace backend.Controllers
                 ? verifiedIncidents.Average(i => (i.VerifiedAt!.Value - i.CreatedAt).TotalMinutes)
                 : 0;
 
-            // Preload all line→station mappings once
-            var lineStations = await _context.LineStations
-                .Include(ls => ls.Station)
-                .OrderBy(ls => ls.SequenceOrder)
-                .ToListAsync();
-
             // Recent alerts (last 5)
             var incidents = await baseIncidents
                 .AsNoTracking()
+                .AsSplitQuery()
                 .Include(i => i.Detection)
                     .ThenInclude(d => d!.Camera)
                         .ThenInclude(c => c!.TrainCoach)
+                            .ThenInclude(tc => tc!.TrainAsset)
+                                .ThenInclude(ta => ta!.TrainLine)
+                .Include(i => i.Detection)
+                    .ThenInclude(d => d!.LineStation)
+                        .ThenInclude(ls => ls!.TrainLine)
                 .Include(i => i.Detection)
                     .ThenInclude(d => d!.LineStation)
                         .ThenInclude(ls => ls!.Station)
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.TrainCoach)
+                        .ThenInclude(tc => tc!.TrainAsset)
+                            .ThenInclude(ta => ta!.TrainLine)
+                .Include(i => i.UserReport)
+                    .ThenInclude(r => r!.LineStation)
+                        .ThenInclude(ls => ls!.TrainLine)
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.LineStation)
                         .ThenInclude(ls => ls!.Station)
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.User)
+                .Include(i => i.VerifiedByUser)
+                .Include(i => i.EscalatedByUser)
+                .Include(i => i.EnrouteByUser)
+                .Include(i => i.ResolvedByUser)
+                .Include(i => i.DismissedByUser)
                 .OrderByDescending(i => i.CreatedAt)
-                .Take(5)
                 .ToListAsync();
 
             var now = DateTime.UtcNow;
 
             var recentAlerts = incidents
+                .DistinctBy(i => i.IncidentId)
                 .Select(i => _alertService.MapToAlertDTO(i, now))
                 .ToList();
 
@@ -303,6 +347,7 @@ namespace backend.Controllers
             });
         }
 
+        [Authorize]
         [HttpGet("operator/alerts")]
         public async Task<IActionResult> GetOperatorAlerts()
         {
@@ -353,6 +398,11 @@ namespace backend.Controllers
                         .ThenInclude(ls => ls!.Station)
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.User)
+                .Include(i => i.VerifiedByUser)
+                .Include(i => i.EnrouteByUser)
+                .Include(i => i.ResolvedByUser)
+                .Include(i => i.EscalatedByUser)
+                .Include(i => i.DismissedByUser)
                 .OrderByDescending(i => i.CreatedAt)
                 .ToListAsync();
 
@@ -377,28 +427,28 @@ namespace backend.Controllers
                     dto.Elapsed,
                     dto.Confidence,
                     dto.DeviceId,
-                    dto.ImageUrl,
+                    imageUrl = dto.ImageUrl,
 
                     passengerComment = i.UserReport?.Description,
 
-                    verifiedBy      = i.VerifiedBy,
-                    verifiedAt      = i.VerifiedAt,
-                    verifiedComment = i.VerifiedComment,
+                    verifiedBy      = dto.VerifiedBy,
+                    verifiedAt      = dto.VerifiedAt,
+                    verifiedComment = dto.VerifiedComment,
 
-                    escalatedBy      = i.EscalatedBy,
-                    escalatedAt      = i.EscalatedAt,
-                    escalatedComment = i.EscalatedComment,
+                    escalatedBy      = dto.EscalatedBy,
+                    escalatedAt      = dto.EscalatedAt,
+                    escalatedComment = dto.EscalatedComment,
 
-                    enrouteBy = i.EnrouteBy,
-                    enrouteAt = i.EnrouteAt,
+                    enrouteBy = dto.EnrouteBy,
+                    enrouteAt = dto.EnrouteAt,
 
-                    resolvedBy      = i.ResolvedBy,
-                    resolvedAt      = i.ResolvedAt,
-                    resolvedComment = i.ResolvedComment,
+                    resolvedBy      = dto.ResolvedBy,
+                    resolvedAt      = dto.ResolvedAt,
+                    resolvedComment = dto.ResolvedComment,
 
-                    dismissedBy      = i.DismissedBy,
-                    dismissedAt      = i.DismissedAt,
-                    dismissedComment = i.DismissedComment
+                    dismissedBy      = dto.DismissedBy,
+                    dismissedAt      = dto.DismissedAt,
+                    dismissedComment = dto.DismissedComment
                 };
             }).ToList();
 
@@ -421,6 +471,7 @@ namespace backend.Controllers
 
         // ── Reports ────────────────────────────────────────────────────────────────
 
+        [Authorize]
         [HttpGet("operator/reports")]
         public async Task<IActionResult> GetOperatorReports(
             [FromQuery] int year  = 0,
@@ -592,20 +643,20 @@ namespace backend.Controllers
                     reportedBy       = i.UserReport?.User?.UserName,
                     passengerComment = i.UserReport?.Description,
                     confidence = dto.Confidence,
-                    verifiedBy       = i.VerifiedByUser?.UserName  ?? i.VerifiedBy,
-                    verifiedAt       = i.VerifiedAt,
-                    verifiedComment  = i.VerifiedComment,
-                    enrouteBy        = i.EnrouteByUser?.UserName   ?? i.EnrouteBy,
-                    enrouteAt        = i.EnrouteAt,
-                    resolvedBy       = i.ResolvedByUser?.UserName  ?? i.ResolvedBy,
-                    resolvedAt       = i.ResolvedAt,
-                    resolvedComment  = i.ResolvedComment,
-                    escalatedBy      = i.EscalatedByUser?.UserName ?? i.EscalatedBy,
-                    escalatedAt      = i.EscalatedAt,
-                    escalatedComment = i.EscalatedComment,
-                    dismissedBy      = i.DismissedByUser?.UserName ?? i.DismissedBy,
-                    dismissedAt      = i.DismissedAt,
-                    dismissedComment = i.DismissedComment,
+                    verifiedBy       = dto.VerifiedBy,
+                    verifiedAt       = dto.VerifiedAt,
+                    verifiedComment  = dto.VerifiedComment,
+                    enrouteBy        = dto.EnrouteBy,
+                    enrouteAt        = dto.EnrouteAt,
+                    resolvedBy       = dto.ResolvedBy,
+                    resolvedAt       = dto.ResolvedAt,
+                    resolvedComment  = dto.ResolvedComment,
+                    escalatedBy      = dto.EscalatedBy,
+                    escalatedAt      = dto.EscalatedAt,
+                    escalatedComment = dto.EscalatedComment,
+                    dismissedBy      = dto.DismissedBy,
+                    dismissedAt      = dto.DismissedAt,
+                    dismissedComment = dto.DismissedComment,
                 };
             }).ToList();
             // ── Available months (for the date picker) ────────────────────────
@@ -691,6 +742,7 @@ namespace backend.Controllers
 
         // ── User Management ───────────────────────────────────────────────────
 
+        [Authorize]
         [HttpGet("operator/users")]
         public async Task<IActionResult> GetAllUsers()
         {
@@ -710,6 +762,7 @@ namespace backend.Controllers
             return Ok(users);
         }
 
+        [Authorize]
         [HttpPatch("operator/users/{userId}/status")]
         public async Task<IActionResult> UpdateUserStatus(string userId, [FromBody] PatchUserStatusRequest req)
         {
@@ -738,6 +791,7 @@ namespace backend.Controllers
 
         // ── Shifts with line info ───────────────────────────────────────────────────
 
+        [Authorize]
         [HttpGet("operator/shifts")]
         public async Task<IActionResult> GetOperatorShifts()
         {
@@ -820,9 +874,9 @@ namespace backend.Controllers
         {
             using var reader = new StreamReader(file.OpenReadStream());
             var rows = new List<string[]>();
-            while (!reader.EndOfStream)
+            string? line;
+            while ((line = await reader.ReadLineAsync()) != null)
             {
-                var line = await reader.ReadLineAsync();
                 if (string.IsNullOrWhiteSpace(line)) continue;
                 rows.Add(line.Split(','));
             }
@@ -831,6 +885,7 @@ namespace backend.Controllers
 
         // ── Excel bulk import ───────────────────────────────────────────────────────
 
+        [Authorize]
         [HttpPost("operator/shifts/import")]
         [ApiExplorerSettings(IgnoreApi = true)]
         public async Task<IActionResult> ImportShifts([FromForm] IFormFile file)
@@ -914,6 +969,7 @@ namespace backend.Controllers
             return Ok(new { inserted, errors });
         }
 
+        [Authorize]
         [HttpPost("operator/users/import")]
         [ApiExplorerSettings(IgnoreApi = true)]
         public async Task<IActionResult> ImportUsers([FromForm] IFormFile file)

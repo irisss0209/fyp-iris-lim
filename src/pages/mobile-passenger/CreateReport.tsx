@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   CheckCircleIcon,
   CameraIcon,
   XIcon,
   ArrowLeftIcon,
   MapPinIcon,
-  Loader2
+  Loader2,
+  ImageIcon,
 } from 'lucide-react';
 
 import { detectNearbyStations } from '../../utils/location';
+import { queueReport } from '../../utils/offlineQueue';
 
 function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
@@ -20,13 +22,16 @@ function FieldLabel({ children, required }: { children: React.ReactNode; require
 }
 
 export function CreateReport({ session, onBack }: { session: any, onBack: () => void }) {
-  const [step, setStep] = useState<'form' | 'sent' | 'sending'>('form');
+  const [step, setStep] = useState<'form' | 'sent' | 'sending' | 'queued'>('form');
   const [line, setLine] = useState('');
   const [station, setStation] = useState('');
   const [coach, setCoach] = useState('');
   const [type, setType] = useState('');
   const [desc, setDesc] = useState('');
-  const [photo, setPhoto] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLocating, setIsLocating] = useState(false);
   const [nearbyStations, setNearbyStations] = useState<any[]>([]);
@@ -34,11 +39,25 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [selectedTrainId, setSelectedTrainId] = useState<number>(0);
   const [selectedCoachId, setSelectedCoachId] = useState<number>(0);
-  const [trainNumber, setTrainNumber] = useState('');      // Car No. label e.g. "1303"
+  const [trainNumber, setTrainNumber] = useState('');
   const [showSampleImage, setShowSampleImage] = useState(false);
 
   const [linesData, setLinesData] = useState<any[]>([]);
   const [stationsData, setStationsData] = useState<any[]>([]);
+
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+    e.target.value = '';
+  };
+
+  const clearPhoto = () => {
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    setPhotoFile(null);
+    setPhotoPreview(null);
+  };
 
   const handleDetectLocation = () => {
     setNearbyStations([]);
@@ -50,7 +69,7 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
   };
 
   useEffect(() => {
-    fetch('http://localhost:5293/api/data/lines')
+    fetch(`${import.meta.env.VITE_API_URL}/api/data/lines`)
       .then(res => res.json())
       .then(setLinesData)
       .catch(console.error);
@@ -58,7 +77,7 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
 
   useEffect(() => {
     if (selectedLineId) {
-      fetch(`http://localhost:5293/api/data/stations-by-line/${selectedLineId}`)
+      fetch(`${import.meta.env.VITE_API_URL}/api/data/stations-by-line/${selectedLineId}`)
         .then(res => res.json())
         .then(setStationsData)
         .catch(console.error);
@@ -69,6 +88,7 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
 
   const selectedLineData = linesData.find(l => l.lineName === line);
   const availableCoaches = selectedLineData?.coaches || [];
+  const availableTrains = selectedLineData?.trains || [];
 
   const inputClass = (field: string) =>
     `w-full px-3.5 py-3 text-sm rounded-xl border transition-all focus:outline-none focus:ring-2 ${errors[field]
@@ -80,7 +100,7 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
     const newErrors: Record<string, string> = {};
     if (!line) newErrors.line = 'Please select a line';
     if (!station) newErrors.station = 'Please select a station';
-    if (!trainNumber.trim()) newErrors.trainNumber = 'Please enter the Car No. from the sticker';
+    if (!trainNumber.trim()) newErrors.trainNumber = 'Please select a train number';
     if (!coach) newErrors.coach = 'Please enter coach ID (or "Unknown")';
     if (!desc) newErrors.desc = 'Please describe what is happening';
     setErrors(newErrors);
@@ -91,29 +111,56 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
     if (!validate()) return;
     setStep('sending');
 
+    const reportPayload = {
+      line, station, coach, trainNumber,
+      trainId: selectedTrainId,
+      coachId: selectedCoachId,
+      type, desc,
+      lineId: selectedLineId,
+      stationId: selectedStationId,
+    };
+
+    if (!navigator.onLine) {
+      queueReport(session.userId, reportPayload);
+      setStep('queued');
+      setTimeout(() => onBack(), 3000);
+      return;
+    }
+
     try {
-      const response = await fetch(`http://localhost:5293/api/data/report?userId=${session.userId}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/data/report?userId=${session.userId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          line,
-          station,
-          coach,
-          trainNumber,
-          trainId: selectedTrainId,
-          coachId: selectedCoachId,
-          type,
-          desc,
-          lineId: selectedLineId,
-          stationId: selectedStationId
-        })
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session.token && { Authorization: `Bearer ${session.token}` }),
+        },
+        body: JSON.stringify(reportPayload),
       });
 
       if (response.ok) {
+        const { reportId } = await response.json();
+
+        // Upload photo if one was selected
+        if (photoFile && reportId) {
+          const form = new FormData();
+          form.append('image', photoFile);
+          try {
+            await fetch(
+              `${import.meta.env.VITE_API_URL}/api/data/report/${reportId}/image?userId=${session.userId}`,
+              {
+                method: 'POST',
+                headers: { ...(session.token && { Authorization: `Bearer ${session.token}` }) },
+                body: form,
+              }
+            );
+          } catch (err) {
+            console.error('Image upload failed:', err);
+            // Image upload failure is non-fatal — report is already saved
+          }
+        }
+
         setStep('sent');
-        setTimeout(() => {
-          onBack(); // Auto-return to list when successfully finished
-        }, 3000);
+        setTimeout(() => onBack(), 3000);
       } else {
         let errorMsg = 'Failed to submit report. Please try again.';
         try {
@@ -124,21 +171,27 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
         setStep('form');
       }
     } catch (err) {
-      console.error(err);
-      setErrors({ desc: 'Network error. Please try again.' });
-      setStep('form');
+      // Network failed mid-request — queue it
+      queueReport(session.userId, reportPayload);
+      setStep('queued');
+      setTimeout(() => onBack(), 3000);
     }
   };
 
-  if (step === 'sent') {
+  if (step === 'sent' || step === 'queued') {
+    const isQueued = step === 'queued';
     return (
       <div className="flex flex-col items-center justify-center px-4 py-20 text-center">
-        <div className="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center mb-5 shadow-sm">
-          <CheckCircleIcon size={40} className="text-green-500" />
+        <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-5 shadow-sm ${isQueued ? 'bg-amber-50' : 'bg-green-50'}`}>
+          <CheckCircleIcon size={40} className={isQueued ? 'text-amber-500' : 'text-green-500'} />
         </div>
-        <h3 className="text-xl font-bold text-gray-900 mb-2">Report Submitted</h3>
+        <h3 className="text-xl font-bold text-gray-900 mb-2">
+          {isQueued ? 'Report Saved' : 'Report Submitted'}
+        </h3>
         <p className="text-sm text-gray-400 max-w-[260px] leading-relaxed">
-          Authorities have been notified. Thank you for keeping our coaches safe.
+          {isQueued
+            ? "You're offline. Your report has been saved and will be submitted automatically when you reconnect."
+            : 'Authorities have been notified. Thank you for keeping our coaches safe.'}
         </p>
       </div>
     );
@@ -177,27 +230,28 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
         <div className="bg-[#EBF4F8] border border-[#0B4F6C]/10 rounded-2xl p-3.5">
           <p className="text-[10px] font-bold text-[#0B4F6C] uppercase tracking-wider mb-2">Closest Stations</p>
           <div className="flex flex-wrap gap-2">
-            {nearbyStations.map((s) => (
-              <button
-                key={s.stationId}
-                onClick={() => {
-                  if (s.lines && s.lines.length > 0) {
-                    const firstLine = s.lines[0];
-                    setLine(firstLine.name);
+            {nearbyStations.flatMap((s) =>
+              (s.lines && s.lines.length > 0 ? s.lines : []).map((lineEntry: any) => (
+                <button
+                  key={`${s.stationId}-${lineEntry.id}`}
+                  onClick={() => {
+                    setLine(lineEntry.name);
                     setStation(s.stationName);
                     setCoach('');
                     setErrors(v => ({ ...v, line: '', station: '' }));
                     setSelectedStationId(s.stationId);
-                    setSelectedLineId(firstLine.id);
-                    setSelectedTrainId(firstLine.trainId ?? 0);
+                    setSelectedLineId(lineEntry.id);
+                    setSelectedTrainId(lineEntry.trainId ?? 0);
                     setSelectedCoachId(0);
-                  }
-                }}
-                className="bg-white border border-[#0B4F6C]/20 px-3 py-1.5 rounded-xl text-xs font-semibold text-[#0B4F6C] shadow-sm active:bg-[#0B4F6C] active:text-white transition-colors"
-              >
-                {s.stationName} <span className="text-[10px] font-normal opacity-60">({(s.distance).toFixed(1)}km)</span>
-              </button>
-            ))}
+                  }}
+                  className="bg-white border border-[#0B4F6C]/20 px-3 py-1.5 rounded-xl text-xs font-semibold text-[#0B4F6C] shadow-sm active:bg-[#0B4F6C] active:text-white transition-colors"
+                >
+                  {s.stationName}
+                  <span className="text-[10px] font-normal opacity-80 ml-1">({lineEntry.name})</span>
+                  <span className="text-[10px] font-normal opacity-50 ml-1">{(s.distance).toFixed(1)}km</span>
+                </button>
+              ))
+            )}
           </div>
           <p className="text-[10px] text-[#0B4F6C]/60 mt-2 italic">Tap to select the train line for this station.</p>
         </div>
@@ -217,7 +271,8 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
               setErrors(v => ({ ...v, line: '' }));
               setSelectedStationId(null);
               setSelectedLineId(selected?.lineId || null);
-              setSelectedTrainId(selected?.trainId ?? 0);
+              setSelectedTrainId(0);
+              setTrainNumber('');
               setSelectedCoachId(0);
             }}
             className={inputClass('line')}
@@ -251,7 +306,6 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
         <div>
           <FieldLabel required>Train Number (Car No.)</FieldLabel>
 
-          {/* Hint banner */}
           <button
             type="button"
             onClick={() => setShowSampleImage(v => !v)}
@@ -276,17 +330,22 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
             </div>
           )}
 
-          <input
-            type="text"
-            inputMode="numeric"
+          <select
             value={trainNumber}
             onChange={e => {
-              setTrainNumber(e.target.value);
+              const val = e.target.value;
+              setTrainNumber(val);
+              setSelectedTrainId(parseInt(val, 10) || 0);
               setErrors(v => ({ ...v, trainNumber: '' }));
             }}
-            placeholder="e.g. 1303"
             className={inputClass('trainNumber')}
-          />
+            disabled={!line || availableTrains.length === 0}
+          >
+            <option value="">{!line ? 'Select a line first…' : 'Select train…'}</option>
+            {availableTrains.map((t: number) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
           {errors.trainNumber && <p className="text-[10px] text-red-500 mt-1 font-medium">{errors.trainNumber}</p>}
         </div>
 
@@ -328,26 +387,53 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
           <FieldLabel>
             Photo <span className="text-gray-400 font-normal normal-case ml-1">(Optional)</span>
           </FieldLabel>
-          {!photo ? (
-            <button
-              onClick={() => setPhoto('attached')}
-              className="w-full py-7 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center gap-2 text-gray-400 hover:bg-gray-100 active:bg-gray-100 transition-colors"
-            >
-              <CameraIcon size={22} />
-              <span className="text-xs font-medium">Tap to attach photo</span>
-            </button>
-          ) : (
-            <div className="relative w-full h-28 rounded-xl overflow-hidden border border-gray-200 bg-gray-900">
-              <img
-                src="https://images.unsplash.com/photo-1599395191060-e10eb96eb678?q=80&w=600&auto=format&fit=crop"
-                alt="Attached"
-                className="w-full h-full object-cover opacity-70"
-              />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-white text-xs font-semibold drop-shadow">Photo attached</span>
-              </div>
+
+          {/* Hidden inputs */}
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleFileSelected}
+          />
+          <input
+            ref={galleryInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileSelected}
+          />
+
+          {!photoPreview ? (
+            <div className="flex gap-2">
               <button
-                onClick={() => setPhoto(null)}
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                className="flex-1 py-6 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center gap-2 text-gray-400 active:bg-gray-100 transition-colors"
+              >
+                <CameraIcon size={20} />
+                <span className="text-xs font-medium">Take photo</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => galleryInputRef.current?.click()}
+                className="flex-1 py-6 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center gap-2 text-gray-400 active:bg-gray-100 transition-colors"
+              >
+                <ImageIcon size={20} />
+                <span className="text-xs font-medium">From gallery</span>
+              </button>
+            </div>
+          ) : (
+            <div className="relative w-full rounded-xl overflow-hidden border border-gray-200 bg-gray-900">
+              <img
+                src={photoPreview}
+                alt="Preview"
+                className="w-full max-h-52 object-cover"
+              />
+              <button
+                type="button"
+                onClick={clearPhoto}
                 className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white"
               >
                 <XIcon size={13} />

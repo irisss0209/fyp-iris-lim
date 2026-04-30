@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { StatusTimeline, buildTimelineSteps } from '../../components/StatusTimeline';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, PieChart, Pie, Cell,
@@ -14,7 +15,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import '../../Operator.css';
 
-const API = 'http://localhost:5293/api/data';
+const API = `${import.meta.env.VITE_API_URL}/api/data`;
 const ACCENT = '#0B4F6C';
 const LINE_PALETTE = ['#D34026', '#0B4F6C', '#2D7A5D', '#7B5EA7', '#B45309', '#0E7490'];
 const lineColorCache: Record<string, string> = {};
@@ -151,7 +152,10 @@ export function Reports() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${API}/operator/reports`);
+        const token: string | undefined = (() => { try { return JSON.parse(localStorage.getItem('user_session') ?? '{}')?.token; } catch { return undefined; } })();
+        const res = await fetch(`${API}/operator/reports`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         const json = await res.json();
         if (json.months?.length > 0) {
           setMonths(json.months);
@@ -177,7 +181,10 @@ export function Reports() {
   const fetchReport = useCallback(async (m: MonthOption) => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/operator/reports?year=${m.year}&month=${m.month}`);
+      const token: string | undefined = (() => { try { return JSON.parse(localStorage.getItem('user_session') ?? '{}')?.token; } catch { return undefined; } })();
+      const res = await fetch(`${API}/operator/reports?year=${m.year}&month=${m.month}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       const json = await res.json();
       setData(json);
       if (json.months?.length > 0) setMonths(json.months);
@@ -980,6 +987,7 @@ export function Reports() {
             showPagination
             page={page}
             totalPages={totalPages}
+            totalCount={filtered.length}
             onPageChange={setPage}
           />
         </div>
@@ -995,16 +1003,14 @@ interface IncidentTableProps {
   showPagination: boolean;
   page?: number;
   totalPages?: number;
+  totalCount?: number;
   onPageChange?: (p: number) => void;
   onViewAll?: () => void;
 }
 
-function IncidentTable({ incidents, title, showPagination, page = 1, totalPages = 1, onPageChange, onViewAll }: IncidentTableProps) {
+function IncidentTable({ incidents, title, showPagination, page = 1, totalPages = 1, totalCount, onPageChange, onViewAll }: IncidentTableProps) {
   const { format } = useTime();
   const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  const fmtAt = (d?: string | null) =>
-    d ? new Date(d).toLocaleString('en-MY', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -1041,25 +1047,18 @@ function IncidentTable({ incidents, title, showPagination, page = 1, totalPages 
               const open = expandedId === inc.id;
 
               // Build timeline steps from non-null status fields
-              const steps = [
-                {
-                  label: isAI ? 'Detected' : 'Reported',
-                  by: isAI ? 'AI System' : inc.reportedBy,
-                  at: inc.datetime,
-                  comment: !isAI && inc.passengerComment ? inc.passengerComment : undefined,
-                  color: isAI ? '#0B4F6C' : '#4A5568'
-                },
-              ];
-              if (inc.verifiedBy || inc.verifiedAt)
-                steps.push({ label: 'Verified', by: inc.verifiedBy, at: inc.verifiedAt, comment: inc.verifiedComment, color: '#1D4ED8' });
-              if (inc.enrouteBy || inc.enrouteAt)
-                steps.push({ label: 'En Route', by: inc.enrouteBy, at: inc.enrouteAt, color: '#0B4F6C' });
-              if (inc.resolvedBy || inc.resolvedAt)
-                steps.push({ label: 'Resolved', by: inc.resolvedBy, at: inc.resolvedAt, comment: inc.resolvedComment, color: '#2D7A5D' });
-              if (inc.escalatedBy || inc.escalatedAt)
-                steps.push({ label: 'Escalated', by: inc.escalatedBy, at: inc.escalatedAt, comment: inc.escalatedComment, color: '#D34026' });
-              if (inc.dismissedBy || inc.dismissedAt)
-                steps.push({ label: 'Dismissed', by: inc.dismissedBy, at: inc.dismissedAt, comment: inc.dismissedComment, color: '#4A5568' });
+              const steps = buildTimelineSteps({
+                source: inc.type,
+                datetime: inc.datetime,
+                reportedBy: inc.reportedBy,
+                passengerComment: inc.passengerComment,
+                confidence: inc.confidence,
+                verifiedBy: inc.verifiedBy, verifiedAt: inc.verifiedAt, verifiedComment: inc.verifiedComment,
+                enrouteBy: inc.enrouteBy, enrouteAt: inc.enrouteAt,
+                resolvedBy: inc.resolvedBy, resolvedAt: inc.resolvedAt, resolvedComment: inc.resolvedComment,
+                escalatedBy: inc.escalatedBy, escalatedAt: inc.escalatedAt, escalatedComment: inc.escalatedComment,
+                dismissedBy: inc.dismissedBy, dismissedAt: inc.dismissedAt, dismissedComment: inc.dismissedComment,
+              });
 
               return (
                 <React.Fragment key={inc.id}>
@@ -1129,34 +1128,7 @@ function IncidentTable({ incidents, title, showPagination, page = 1, totalPages 
                   {open && (
                     <tr className="bg-gray-50/80">
                       <td colSpan={7} className="px-6 pb-4 pt-2">
-                        <div className="flex gap-0">
-                          {steps.map((step, i) => (
-                            <div key={i} className="flex items-start flex-1 min-w-0">
-                              {/* Connector line + dot */}
-                              <div className="flex flex-col items-center mr-2 mt-1 flex-shrink-0">
-                                <div className="w-3 h-3 rounded-full border-2 border-white flex-shrink-0" style={{ backgroundColor: step.color, boxShadow: `0 0 0 2px ${step.color}40` }} />
-                                {i < steps.length - 1 && (
-                                  <div className="flex-1 w-px mt-1" style={{ backgroundColor: '#E2E8F0', minHeight: 16 }} />
-                                )}
-                              </div>
-                              {/* Content */}
-                              <div className="min-w-0 pr-4 pb-2">
-                                <div className="text-[11px] font-bold" style={{ color: step.color }}>{step.label}</div>
-                                {step.at && (
-                                  <div className="text-[10px] text-gray-400 mt-0.5">{fmtAt(step.at)}</div>
-                                )}
-                                {step.by && (
-                                  <div className="text-[10px] text-gray-600 font-medium mt-0.5">by {step.by}</div>
-                                )}
-                                {step.comment !== undefined && (
-                                  <div className="text-[10px] text-gray-500 mt-1 italic bg-white rounded px-2 py-1 border border-gray-100">
-                                    "{step.comment}"
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                        <StatusTimeline steps={steps} />
                       </td>
                     </tr>
                   )}
@@ -1169,10 +1141,44 @@ function IncidentTable({ incidents, title, showPagination, page = 1, totalPages 
 
       {showPagination && totalPages > 1 && (
         <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100">
-          <span className="text-xs text-gray-400">Page {page} of {totalPages}</span>
-          <div className="flex gap-1">
-            <button disabled={page <= 1} onClick={() => onPageChange?.(page - 1)} className="px-3 py-1 text-xs rounded border border-gray-200 disabled:opacity-40 hover:bg-gray-50">←</button>
-            <button disabled={page >= totalPages} onClick={() => onPageChange?.(page + 1)} className="px-3 py-1 text-xs rounded border border-gray-200 disabled:opacity-40 hover:bg-gray-50">→</button>
+          <span className="text-xs text-gray-400">
+            Page {page} of {totalPages}{totalCount !== undefined ? ` · ${totalCount} incidents` : ''}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => onPageChange?.(page - 1)}
+              disabled={page <= 1}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              ← Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce<(number | '...')[]>((acc, p, idx, arr) => {
+                if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('...');
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((item, i) =>
+                item === '...' ? (
+                  <span key={`ellipsis-${i}`} className="px-2 text-xs text-gray-400">…</span>
+                ) : (
+                  <button
+                    key={item}
+                    onClick={() => onPageChange?.(item as number)}
+                    className={`w-8 h-8 text-xs font-medium rounded-lg border transition-colors ${page === item ? 'bg-[#0B4F6C] text-white border-[#0B4F6C]' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    {item}
+                  </button>
+                )
+              )}
+            <button
+              onClick={() => onPageChange?.(page + 1)}
+              disabled={page >= totalPages}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Next →
+            </button>
           </div>
         </div>
       )}

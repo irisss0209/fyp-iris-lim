@@ -191,7 +191,7 @@ namespace backend.Controllers
 
             if (user.Role == UserRole.Operator)
             {
-                return BadRequest(new { error = "Operators must sign in with password and Google Authenticator." });
+                return BadRequest(new { error = "Operators must sign in with password and an Authenticator App." });
             }
 
             var frontendRole = MapFrontendRole(user.Role);
@@ -218,7 +218,7 @@ namespace backend.Controllers
             {
                 if (!user.IsMfaEnabled || string.IsNullOrWhiteSpace(user.MfaSecret))
                 {
-                    return Unauthorized(new { error = "Google Authenticator is not configured for this operator." });
+                    return Unauthorized(new { error = "Authenticator App is not configured for this operator." });
                 }
 
                 isVerified = _totpService.VerifyCode(user.MfaSecret, request.Code.Trim());
@@ -314,7 +314,7 @@ namespace backend.Controllers
             user.IsMfaEnabled = true;
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Google Authenticator activated successfully." });
+            return Ok(new { message = "Authenticator App activated successfully." });
         }
 
         [HttpPost("setup-password")]

@@ -9,6 +9,7 @@ export function IncidentNearMe() {
   const [selectedLine, setSelectedLine] = useState('All Lines');
   const [lines, setLines] = useState<string[]>(['All Lines']);
   const [showLinePicker, setShowLinePicker] = useState(false);
+  const [showSampleImage, setShowSampleImage] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -31,7 +32,7 @@ export function IncidentNearMe() {
   };
 
   useEffect(() => {
-    fetch('http://localhost:5293/api/data/incident-near-me')
+    fetch(`${import.meta.env.VITE_API_URL}/api/data/incident-near-me`)
       .then(res => res.json())
       .then(data => {
         setIncidents(data || []);
@@ -42,7 +43,7 @@ export function IncidentNearMe() {
         setLoading(false);
       });
 
-    fetch('http://localhost:5293/api/data/lines')
+    fetch(`${import.meta.env.VITE_API_URL}/api/data/lines`)
       .then(res => res.json())
       .then(data => {
         const names = data.map((l: any) => l.lineName);
@@ -64,7 +65,8 @@ export function IncidentNearMe() {
       return (
         inc.type.toLowerCase().includes(q) ||
         inc.line.toLowerCase().includes(q) ||
-        inc.station.toLowerCase().includes(q)
+        inc.station.toLowerCase().includes(q) ||
+        (inc.trainId && inc.trainId.toString().includes(q))
       );
     }
 
@@ -139,7 +141,7 @@ export function IncidentNearMe() {
           <SearchIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search station..."
+            placeholder="Search station or train ID..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             className="w-full bg-white border border-gray-100 rounded-xl py-2.5 pl-9 pr-4 text-xs focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/10 shadow-sm transition-all"
@@ -152,6 +154,48 @@ export function IncidentNearMe() {
         >
           {statuses.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
+      </div>
+
+      {/* Train ID Hint */}
+      <div className="pt-1">
+        <button
+          type="button"
+          onClick={() => setShowSampleImage(v => !v)}
+          className="flex items-center gap-1.5 text-[10px] font-semibold text-[#0B4F6C] hover:underline"
+        >
+          <span>Where do I find the Train ID?</span>
+          <span className="text-gray-400">{showSampleImage ? '▲ hide' : '▼ show'}</span>
+        </button>
+
+        {showSampleImage && (
+          <div className="mt-2 rounded-xl overflow-hidden border border-[#0B4F6C]/20 shadow-sm relative">
+            <img
+              src="https://railly.s3.ap-southeast-1.amazonaws.com/assets/trainid_coachid_sample.png"
+              alt="Sample sticker showing Car No. and Door No. inside the train"
+              className="w-full object-cover max-h-44"
+            />
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2">
+              <p className="text-white text-[10px] font-semibold leading-tight">
+                (Inside) Look for this sticker on the wall above the door
+              </p>
+            </div>
+          </div>
+        )}
+
+        {showSampleImage && (
+          <div className="mt-2 rounded-xl overflow-hidden border border-[#0B4F6C]/20 shadow-sm relative">
+            <img
+              src="https://railly.s3.ap-southeast-1.amazonaws.com/assets/trainid_outside_sample.jpeg"
+              alt="Sample sticker showing Car No. outside the train"
+              className="w-full object-cover max-h-44"
+            />
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2">
+              <p className="text-white text-[10px] font-semibold leading-tight">
+                (Outside) Look for this sticker on the train's body
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -173,46 +217,62 @@ export function IncidentNearMe() {
       ) : (
         <div className="space-y-4 ">
           {Object.values(filteredIncidents.reduce((acc: any, inc) => {
-            const stationKey = `${inc.line}-${inc.station}`;
-            if (!acc[stationKey]) {
-              acc[stationKey] = {
-                station: inc.station,
+            const trainLabel = inc.trainId ? `Train ${inc.trainId}` : `Station: ${inc.station}`;
+            const key = `${trainLabel}-${inc.line}`;
+            if (!acc[key]) {
+              acc[key] = {
+                label: trainLabel,
                 line: inc.line,
+                stations: {}
+              };
+            }
+            if (!acc[key].stations[inc.station]) {
+              acc[key].stations[inc.station] = {
+                name: inc.station,
                 statuses: {}
               };
             }
-            acc[stationKey].statuses[inc.status] = (acc[stationKey].statuses[inc.status] || 0) + 1;
+            const st = acc[key].stations[inc.station];
+            st.statuses[inc.status] = (st.statuses[inc.status] || 0) + 1;
             return acc;
           }, {})).map((group: any) => (
-            <div key={`${group.line}-${group.station}`} className="bg-white rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-gray-100 p-5 active:scale-[0.99] transition-transform">
+            <div key={`${group.line}-${group.trainId}`} className="bg-white rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-gray-100 p-5 active:scale-[0.99] transition-transform">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h3 className="font-black text-base text-gray-900 leading-none">{group.station}</h3>
-                  <div className="flex items-center gap-1.5 mt-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                    <MapPinIcon size={12} className="text-[#0B4F6C]" />
-                    {group.line}
-                  </div>
+                  <h3 className="font-black text-base text-gray-900 leading-none">
+                    {group.label} <span className="text-[#0B4F6C] font-black ml-1">({group.line})</span>
+                  </h3>
                 </div>
-
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(group.statuses).map(([status, count]: [any, any]) => {
-                  let displayStatus = status;
-                  if (status === 'Verified') displayStatus = 'En Route';
-
-                  return (
-                    <div
-                      key={status}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-gray-100 bg-gray-50/50 text-gray-500"
-                    >
-                      <span className="text-[9px] font-black uppercase tracking-widest">{displayStatus}</span>
-                      <span className="w-5 h-5 rounded-lg flex items-center justify-center bg-[#0B4F6C]/10 text-[#0B4F6C] text-[11px] font-black">
-                        {count}
-                      </span>
+              <div className="space-y-6">
+                {Object.values(group.stations).map((st: any) => (
+                  <div key={st.name} className="space-y-3">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                      <MapPinIcon size={12} className="text-[#0B4F6C]" />
+                      {st.name}
                     </div>
-                  );
-                })}
+
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(st.statuses).map(([status, count]: [any, any]) => {
+                        let displayStatus = status;
+                        if (status === 'Verified') displayStatus = 'En Route';
+
+                        return (
+                          <div
+                            key={status}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-gray-100 bg-gray-50/50 text-gray-500"
+                          >
+                            <span className="text-[9px] font-black uppercase tracking-widest">{displayStatus}</span>
+                            <span className="w-5 h-5 rounded-lg flex items-center justify-center bg-[#0B4F6C]/10 text-[#0B4F6C] text-[11px] font-black">
+                              {count}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}

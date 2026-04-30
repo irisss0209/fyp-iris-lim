@@ -46,11 +46,7 @@ namespace backend.Services
 <body style='font-family: -apple-system, BlinkMacSystemFont, ""Segoe UI"", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f9; margin: 0; padding: 40px 0;'>
     <div style='max-width: 500px; margin: 0 auto; background-color: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #e1e8ed;'>
         <div style='background-color: {ACCENT}; padding: 40px 20px; text-align: center;'>
-            <div style='display: inline-block; background-color: rgba(255,255,255,0.1); padding: 12px; border-radius: 16px; margin-bottom: 16px;'>
-                <!-- Logo Placeholder - Replace src with public URL when hosted -->
-                <img src='https://railly.s3.ap-southeast-1.amazonaws.com/assets/Railly_logo.png' alt='Railly' style='width: 48px; height: 48px; display: block;' onerror=""this.style.display='none'"" />
-                <span style='color: #ffffff; font-weight: 800; font-size: 20px; letter-spacing: 2px; vertical-align: middle;'>RAILLY</span>
-            </div>
+
             <h1 style='color: #ffffff; margin: 0; font-size: 22px; font-weight: 700;'>Identity Verification</h1>
         </div>
         <div style='padding: 40px; text-align: center;'>
@@ -61,7 +57,7 @@ namespace backend.Services
                 <div style='font-size: 36px; font-weight: 800; color: {ACCENT}; letter-spacing: 6px; font-family: monospace;'>{code}</div>
             </div>
 
-            <p style='color: #a1aab2; font-size: 13px;'>If you didn't request this, you can safely ignore this email.</p>
+            <p style='color: #a1aab2; font-size: 13px;'>If you didn't request this, you can &quot;railly&quot; ignore this email.</p>
         </div>
         <div style='padding: 24px; text-align: center; background-color: #f8fafb; border-top: 1px solid #eef1f4;'>
             <p style='color: #6a7682; font-size: 12px; margin: 0;'>&copy; {DateTime.UtcNow.Year} Railly Team &middot; For Safer Commute</p>

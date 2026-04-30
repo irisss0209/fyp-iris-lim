@@ -15,10 +15,11 @@ interface ShiftData {
 
 export interface AuxiliaryShiftProps {
   userId: string;
+  token?: string;
   onStationDetected?: (stationId: string | undefined) => void;
 }
 
-export function AuxiliaryShift({ userId, onStationDetected }: AuxiliaryShiftProps) {
+export function AuxiliaryShift({ userId, token, onStationDetected }: AuxiliaryShiftProps) {
   const [shift, setShift] = useState<ShiftData | null>(null);
 
   useEffect(() => {
@@ -26,7 +27,9 @@ export function AuxiliaryShift({ userId, onStationDetected }: AuxiliaryShiftProp
       onStationDetected?.(undefined);
       return;
     }
-    fetch(`http://localhost:5293/api/data/auxiliary/shift?userId=${userId}`)
+    fetch(`${import.meta.env.VITE_API_URL}/api/data/auxiliary/shift?userId=${userId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
       .then(res => res.json())
       .then(data => {
         setShift(data);

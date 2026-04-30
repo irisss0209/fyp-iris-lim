@@ -66,7 +66,7 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
 
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:5293/api/auth/signup/start', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/signup/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmedName, email: trimmedEmail, password })
@@ -91,7 +91,7 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
     if (!signupChallengeId) return false;
 
     try {
-      const response = await fetch('http://localhost:5293/api/auth/signup/complete', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/signup/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -133,7 +133,7 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
   const handleResendOtp = async () => {
     setError('');
     try {
-      const response = await fetch('http://localhost:5293/api/auth/signup/start', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/signup/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), password })

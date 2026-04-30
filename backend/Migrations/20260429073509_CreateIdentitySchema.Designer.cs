@@ -13,15 +13,15 @@ using backend.Models;
 namespace backend.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260425161455_SyncSchema")]
-    partial class SyncSchema
+    [Migration("20260429073509_CreateIdentitySchema")]
+    partial class CreateIdentitySchema
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.5")
+                .HasAnnotation("ProductVersion", "10.0.7")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "asset_status", new[] { "Active", "Inactive", "Maintenance" });
@@ -105,7 +105,7 @@ namespace backend.Migrations
 
                     b.HasIndex("TrainId", "CoachId");
 
-                    b.ToTable("Cameras");
+                    b.ToTable("Camera");
                 });
 
             modelBuilder.Entity("backend.Models.Detection", b =>
@@ -326,24 +326,15 @@ namespace backend.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("TrainId"));
 
-                    b.Property<string>("AssetName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("asset_name");
-
                     b.Property<string>("LineId")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("line_id");
 
-                    b.Property<string>("TrainLineLineId")
-                        .HasColumnType("character varying(50)");
-
                     b.HasKey("TrainId");
 
-                    b.HasIndex("TrainLineLineId");
+                    b.HasIndex("LineId");
 
                     b.ToTable("Train_Asset");
                 });
@@ -364,7 +355,7 @@ namespace backend.Migrations
 
                     b.HasKey("TrainId", "CoachId");
 
-                    b.ToTable("TrainCoaches");
+                    b.ToTable("Train_Coach");
                 });
 
             modelBuilder.Entity("backend.Models.TrainLine", b =>
@@ -417,13 +408,8 @@ namespace backend.Migrations
                         .HasColumnName("MfaSecret");
 
                     b.Property<string>("PasswordHash")
-                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("password_hash");
-
-                    b.Property<string>("PreviousPasswordHash")
-                        .HasColumnType("text")
-                        .HasColumnName("previous_password_hash");
 
                     b.Property<UserRole>("Role")
                         .HasColumnType("user_role")
@@ -622,7 +608,9 @@ namespace backend.Migrations
                 {
                     b.HasOne("backend.Models.TrainLine", "TrainLine")
                         .WithMany("TrainAssets")
-                        .HasForeignKey("TrainLineLineId");
+                        .HasForeignKey("LineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("TrainLine");
                 });
@@ -632,7 +620,7 @@ namespace backend.Migrations
                     b.HasOne("backend.Models.TrainAsset", "TrainAsset")
                         .WithMany("TrainCoaches")
                         .HasForeignKey("TrainId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("TrainAsset");

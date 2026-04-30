@@ -154,7 +154,7 @@ function AlertCard({
 }
 
 
-export function RecentAlerts({ assignedStationId, userId, userName }: { assignedStationId?: string, userId: string, userName: string }) {
+export function RecentAlerts({ assignedStationId, userId, userName, token }: { assignedStationId?: string, userId: string, userName: string, token?: string }) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [activeStatus, setActiveStatus] = useState<AlertStatus>('pending');
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
@@ -171,7 +171,7 @@ export function RecentAlerts({ assignedStationId, userId, userName }: { assigned
       return;
     }
 
-    fetchAuxiliaryAlerts(assignedStationId)
+    fetchAuxiliaryAlerts(assignedStationId, token)
       .then(data => { setAlerts(data); })
       .catch(err => { console.error('Failed to fetch alerts', err); });
   }, [assignedStationId]);
@@ -248,7 +248,7 @@ export function RecentAlerts({ assignedStationId, userId, userName }: { assigned
     }
 
     try {
-      await updateAlertStatus(alertId, action, comment, undefined, userId);
+      await updateAlertStatus(alertId, action, comment, token, userId, 'auxiliary');
     } catch (err) {
       console.error('Failed to update status', err);
     }

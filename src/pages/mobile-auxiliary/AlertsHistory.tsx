@@ -70,7 +70,7 @@ function caseToAlert(c: Case): Alert {
   };
 }
 
-export function AlertsHistory({ userId }: { userId: string }) {
+export function AlertsHistory({ userId, token }: { userId: string; token?: string }) {
   const [cases, setCases] = useState<Case[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -80,7 +80,9 @@ export function AlertsHistory({ userId }: { userId: string }) {
   useEffect(() => {
     if (!userId) { setLoading(false); return; }
     setLoading(true);
-    fetch(`http://localhost:5293/api/data/auxiliary/history?userId=${userId}`)
+    fetch(`${import.meta.env.VITE_API_URL}/api/data/auxiliary/history?userId=${userId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
       .then(res => res.json())
       .then(data => { setCases(data); setLoading(false); })
       .catch(err => { console.error('Failed to fetch history', err); setLoading(false); });

@@ -8,7 +8,7 @@ import { useTime } from '../../context/TimeContext';
 import { formatClockTime } from '../../utils/Time';
 
 const ACCENT = '#0B4F6C';
-const API = 'http://localhost:5293/api/data';
+const API = `${import.meta.env.VITE_API_URL}/api/data`;
 
 interface ShiftRow {
   shiftId: number;
@@ -60,7 +60,7 @@ export function ShiftManagementPanel() {
 
   const fetchShifts = () => {
     setLoading(true);
-    const session = JSON.parse(localStorage.getItem('user_session') || localStorage.getItem('session') || '{}');
+    const session = JSON.parse(localStorage.getItem('user_session') || '{}');
     fetch(`${API}/operator/shifts`, {
       headers: { Authorization: `Bearer ${session.token}` },
     })
@@ -194,7 +194,7 @@ export function ShiftManagementPanel() {
     form.append('file', file);
 
     try {
-      const session = JSON.parse(localStorage.getItem('session') || '{}');
+      const session = JSON.parse(localStorage.getItem('user_session') || '{}');
       const res = await fetch(`${API}/operator/shifts/import`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.token}` },

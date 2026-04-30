@@ -166,19 +166,30 @@ export function OperatorInterface({
   session: UserSession | null;
 }) {
   const [activePage, setActivePage] = useState<NavPage>('dashboard');
+  const [initialAlertId, setInitialAlertId] = useState<string | number | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+
+  const handleNavigate = (page: NavPage, id?: string | number) => {
+    setActivePage(page);
+    if (id) setInitialAlertId(id);
+  };
 
   const renderPage = () => {
     switch (activePage) {
-      case 'dashboard': return <Dashboard onNavigate={setActivePage} />;
-      case 'live-alerts': return <LiveAlerts />;
+      case 'dashboard': return <Dashboard onNavigate={handleNavigate} />;
+      case 'live-alerts': return (
+        <LiveAlerts
+          initialAlertId={initialAlertId}
+          onClearInitial={() => setInitialAlertId(null)}
+        />
+      );
       case 'reports': return <Reports />;
       case 'users': return <UserManagement />;
       case 'shifts': return <ShiftManagementPanel />;
-      case 'settings': return <Settings onNavigate={setActivePage} />;
+      case 'settings': return <Settings onNavigate={handleNavigate} />;
       case 'change-password':
         return <ChangePasswordPage session={session!} onBack={() => setActivePage('settings')} />;
-      default: return <Dashboard />;
+      default: return <Dashboard onNavigate={handleNavigate} />;
     }
   };
 
@@ -204,7 +215,7 @@ export function OperatorInterface({
 
       <Sidebar
         activePage={activePage}
-        onNavigate={setActivePage}
+        onNavigate={handleNavigate}
         onLogout={onLogout}
         alertCount={0}
         user={session}

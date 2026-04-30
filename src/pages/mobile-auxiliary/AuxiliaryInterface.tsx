@@ -37,7 +37,7 @@ export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterface) {
       */}
 
       <div className="pt-6">
-        <AuxiliaryShift userId={session.userId} onStationDetected={(id) => setAssignedStationId(id)} />
+        <AuxiliaryShift userId={session.userId} token={session.token} onStationDetected={(id) => setAssignedStationId(id)} />
       </div>
 
       {/* ── Shift Banner ── */}
@@ -51,9 +51,10 @@ export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterface) {
               assignedStationId={assignedStationId}
               userId={session.userId}
               userName={session.userName}
+              token={session.token}
             />
           )}
-          {activeTab === 'history' && <AlertsHistory key="history" userId={session.userId} />}
+          {activeTab === 'history' && <AlertsHistory key="history" userId={session.userId} token={session.token} />}
           {activeTab === 'profile' && (
             showChangePassword ? (
               <ChangePasswordPage

@@ -1,66 +1,105 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import {
   ClockIcon,
   XIcon,
   PlusIcon,
   ChevronDownIcon,
   InfoIcon,
-  HeartIcon
 } from 'lucide-react';
 import { CreateReport } from './CreateReport';
 
+const STATUS_BADGE: Record<string, string> = {
+  verified:  'bg-green-50 text-green-600',
+  resolved:  'bg-green-50 text-green-600',
+  pending:   'bg-yellow-50 text-yellow-600',
+  en_route:  'bg-blue-50 text-blue-600',
+  escalated: 'bg-red-50 text-red-600',
+  dismissed: 'bg-gray-50 text-gray-400',
+};
+
+const AUDIT_THEME: Record<string, { color: string; bg: string }> = {
+  verified:  { color: '#2D7A5D', bg: '#F0FBF6' },
+  escalated: { color: '#7B5EA7', bg: '#F5F0FF' },
+  en_route:  { color: '#0B4F6C', bg: '#EFF6FF' },
+  resolved:  { color: '#1D4ED8', bg: '#EBF8FF' },
+  dismissed: { color: '#718096', bg: '#F7FAFC' },
+};
+
+function fmtStatus(s: string) {
+  return s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 export function Report({ session }: { session: any }) {
   const [view, setView] = useState<'dashboard' | 'create'>('dashboard');
-
   const [history, setHistory] = useState<any[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('');
-
   const [selectedReport, setSelectedReport] = useState<any | null>(null);
   const [reportComment, setReportComment] = useState('');
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   const fetchHistory = () => {
-    fetch(`http://localhost:5293/api/data/my-history?userId=${session.userId}`)
+    fetch(`${import.meta.env.VITE_API_URL}/api/data/my-history?userId=${session.userId}`, {
+      headers: session.token ? { Authorization: `Bearer ${session.token}` } : {},
+    })
       .then(res => res.json())
-      .then(data => setHistory(data))
+      .then(data => {
+        setHistory(Array.isArray(data) ? data : []);
+      })
       .catch(console.error);
   };
 
   useEffect(() => {
-    if (view === 'dashboard') {
-      fetchHistory();
-    }
+    if (view === 'dashboard') fetchHistory();
   }, [view]);
 
   const handleUpdateStatus = async (action: 'Cancel' | 'Escalate') => {
     if (!selectedReport) return;
     if (action === 'Cancel' && !reportComment.trim()) {
-      alert("A comment is required to cancel this report.");
+      alert('A comment is required to cancel this report.');
       return;
     }
 
+    const newStatus = action === 'Cancel' ? 'dismissed' : 'escalated';
+    const now = new Date().toISOString();
+    const byName = session.name ?? session.username ?? 'You';
+    const comment = reportComment.trim();
+
+    // Optimistic update — close modal feel + immediate list + audit trail
+    const patch: any = { status: newStatus };
+    if (action === 'Escalate') {
+      patch.escalatedAt = now; patch.escalatedBy = byName; patch.escalatedComment = comment || null;
+    } else {
+      patch.dismissedAt = now; patch.dismissedBy = byName; patch.dismissedComment = comment;
+    }
+    setHistory(prev => prev.map(r => r.id === selectedReport.id ? { ...r, ...patch } : r));
+    setSelectedReport((prev: any) => prev ? { ...prev, ...patch } : prev);
+    setReportComment('');
+
     setIsUpdatingStatus(true);
     try {
-      const res = await fetch(`http://localhost:5293/api/data/incident/${selectedReport.incidentId}/status?userId=${session.userId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: action === 'Cancel' ? 'Dismiss' : 'Escalate', comment: reportComment.trim() })
-      });
-
-      if (res.ok) {
-        setReportComment('');
-        setSelectedReport(null);
-        fetchHistory();
-      } else {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/data/incident/${selectedReport.incidentId}/status?userId=${session.userId}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session.token && { Authorization: `Bearer ${session.token}` }),
+          },
+          body: JSON.stringify({ action: action === 'Cancel' ? 'Dismiss' : 'Escalate', comment }),
+        }
+      );
+      if (!res.ok) {
         const error = await res.json();
-        alert(error.error || "Failed to update status");
+        alert(error.error || 'Failed to update status');
+        fetchHistory(); // reconcile on error
       }
     } catch (err) {
       console.error(err);
-      alert("Network error updating status.");
+      alert('Network error updating status.');
+      fetchHistory();
     } finally {
       setIsUpdatingStatus(false);
     }
@@ -71,42 +110,37 @@ export function Report({ session }: { session: any }) {
   }
 
   const filteredHistory = history.filter(r => {
-    if (statusFilter !== 'All') {
-      const normalizedStatus = r.status.replace('_', ' ');
-      if (normalizedStatus !== statusFilter && r.status !== statusFilter) {
-        return false;
-      }
-    }
-
-    if (dateFilter) {
-      // Create date without timezone shifts by using components directly, or just match strictly using simple string manipulation.
-      // Easiest reliable way: parse standard YYYY-MM-DD to MMM DD, YYYY
-      const [year, month, day] = dateFilter.split('-');
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const formattedDate = `${months[parseInt(month, 10) - 1]} ${day}, ${year}`;
-      if (r.date !== formattedDate) {
-        return false;
-      }
-    }
-
+    if (statusFilter !== 'all' && r.status !== statusFilter) return false;
+    if (dateFilter && r.date !== dateFilter) return false;
     return true;
   });
 
   const displayedHistory = isExpanded ? filteredHistory : filteredHistory.slice(0, 3);
 
-  return (
-    <div
+  // Build audit trail steps for the currently selected report
+  const auditSteps: { label: string; by?: string | null; at?: string | null; comment?: string | null; color: string; bg: string }[] = [];
+  if (selectedReport) {
+    if (selectedReport.verifiedAt || selectedReport.verifiedBy)
+      auditSteps.push({ label: 'Verified',  by: selectedReport.verifiedBy,  at: selectedReport.verifiedAt,  comment: selectedReport.verifiedComment,  ...AUDIT_THEME.verified });
+    if (selectedReport.escalatedAt || selectedReport.escalatedBy)
+      auditSteps.push({ label: 'Escalated', by: selectedReport.escalatedBy, at: selectedReport.escalatedAt, comment: selectedReport.escalatedComment, ...AUDIT_THEME.escalated });
+    if (selectedReport.enrouteAt || selectedReport.enrouteBy)
+      auditSteps.push({ label: 'En Route',  by: selectedReport.enrouteBy,   at: selectedReport.enrouteAt,  comment: null,                             ...AUDIT_THEME.en_route });
+    if (selectedReport.resolvedAt || selectedReport.resolvedBy)
+      auditSteps.push({ label: 'Resolved',  by: selectedReport.resolvedBy,  at: selectedReport.resolvedAt,  comment: selectedReport.resolvedComment,  ...AUDIT_THEME.resolved });
+    if (selectedReport.dismissedAt || selectedReport.dismissedBy)
+      auditSteps.push({ label: 'Dismissed', by: selectedReport.dismissedBy, at: selectedReport.dismissedAt, comment: selectedReport.dismissedComment, ...AUDIT_THEME.dismissed });
+  }
 
-      className="px-4 pt-5 pb-6 space-y-3"
-    >
+  return (
+    <div className="px-4 pt-5 pb-6 space-y-3">
       <div>
         <h2 className="text-xl font-black text-gray-900 mb-1">Incident Reports</h2>
         <p className="text-sm text-gray-500">Track and manage your submitted reports.</p>
       </div>
 
-      {/* Boarding Reminders */}
+      {/* Reminder */}
       <div className="bg-white rounded-[32px] p-5 border border-gray-100 shadow-sm">
-
         <div className="flex gap-4">
           <div className="w-10 h-10 rounded-2xl bg-blue-50 flex-shrink-0 flex items-center justify-center text-blue-500">
             <InfoIcon size={20} />
@@ -114,7 +148,7 @@ export function Report({ session }: { session: any }) {
           <div>
             <h4 className="text-[11px] font-black text-blue-600 uppercase tracking-widest mb-1">Reminder</h4>
             <p className="text-xs text-gray-600 font-medium leading-relaxed">
-              The Women’s Coach is reserved for female passengers, boys aged 12 and below (with a female guardian), and persons with disabilities (PWD) with their caregivers. Please check that the situation falls outside these conditions before reporting.
+              The Women's Coach is reserved for female passengers, boys aged 12 and below (with a female guardian), and persons with disabilities (PWD) with their caregivers. Please check that the situation falls outside these conditions before reporting.
             </p>
           </div>
         </div>
@@ -136,52 +170,47 @@ export function Report({ session }: { session: any }) {
           <div className="flex gap-2 mb-4">
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={e => setStatusFilter(e.target.value)}
               className="flex-1 text-sm p-2 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/20"
             >
-              <option value="All">All Statuses</option>
-              <option value="Pending">Pending</option>
-              <option value="En Route">En Route</option>
-              <option value="Verified">Verified</option>
-              <option value="Resolved">Resolved</option>
-              <option value="Escalated">Escalated</option>
-              <option value="Dismissed">Dismissed</option>
+              <option value="all">All Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="en_route">En Route</option>
+              <option value="verified">Verified</option>
+              <option value="resolved">Resolved</option>
+              <option value="escalated">Escalated</option>
+              <option value="dismissed">Dismissed</option>
             </select>
             <input
               type="date"
               value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
+              onChange={e => setDateFilter(e.target.value)}
               className="flex-1 text-sm p-2 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/20"
             />
           </div>
+
           {filteredHistory.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-4">{history.length === 0 ? "No reports submitted yet." : "No reports match the selected filters."}</p>
+            <p className="text-sm text-gray-400 text-center py-4">
+              {history.length === 0 ? 'No reports submitted yet.' : 'No reports match the selected filters.'}
+            </p>
           ) : (
             <div className="space-y-4">
-              {displayedHistory.map((r) => (
+              {displayedHistory.map(r => (
                 <div
                   key={r.id}
                   onClick={() => { setSelectedReport(r); setReportComment(''); }}
                   className="flex items-start justify-between border-b border-gray-50 pb-3 last:border-0 last:pb-0 active:scale-[0.98] transition-transform cursor-pointer hover:bg-gray-50/50 rounded-lg -mx-2 px-2 pt-2"
                 >
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">{r.type}</p>
+                    <p className="text-sm font-semibold text-gray-900">{r.id}</p>
                     <p className="text-xs text-gray-500 mt-0.5">{r.line} · Coach {r.coach}</p>
                     <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
                       <ClockIcon size={12} /> {r.date} at {r.time}
                     </p>
                   </div>
-                  <div>
-                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${r.status === 'Verified' ? 'bg-green-50 text-green-600' :
-                      r.status === 'Resolved' ? 'bg-green-50 text-green-600' :
-                        r.status === 'Pending' ? 'bg-yellow-50 text-yellow-600' :
-                          r.status === 'En_Route' ? 'bg-blue-50 text-blue-600' :
-                            r.status === 'Escalated' ? 'bg-red-50 text-red-600' :
-                              'bg-gray-50 text-gray-400'
-                      }`}>
-                      {r.status.replace('_', ' ')}
-                    </span>
-                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${STATUS_BADGE[r.status] ?? 'bg-gray-50 text-gray-400'}`}>
+                    {fmtStatus(r.status)}
+                  </span>
                 </div>
               ))}
 
@@ -203,65 +232,102 @@ export function Report({ session }: { session: any }) {
       <AnimatePresence>
         {selectedReport && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4 sm:p-0">
-            <div
+            <div className="bg-white w-full sm:max-w-sm rounded-[32px] shadow-2xl relative max-h-[85vh] flex flex-col">
 
-              className="bg-white w-full sm:max-w-sm rounded-[32px] p-5 shadow-2xl relative"
-            >
-              <button
-                onClick={() => setSelectedReport(null)}
-                className="absolute right-4 top-4 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
-              >
-                <XIcon size={16} />
-              </button>
-
-              <h3 className="text-lg font-bold text-gray-900 pr-10">Report Details</h3>
-              <div className="mt-4 space-y-3">
-                <div className="flex justify-between text-sm py-2 border-b border-gray-50">
-                  <span className="text-gray-500">Status</span>
-                  <span className="font-bold text-gray-900">{selectedReport.status}</span>
-                </div>
-                <div className="flex justify-between text-sm py-2 border-b border-gray-50">
-                  <span className="text-gray-500">Line & Coach</span>
-                  <span className="font-semibold text-gray-800 text-right">{selectedReport.line} <br /><span className="text-xs text-gray-400">Coach {selectedReport.coach}</span></span>
-                </div>
-                <div className="flex justify-between text-sm py-2 border-b border-gray-50">
-                  <span className="text-gray-500">Time</span>
-                  <span className="font-semibold text-gray-800">{selectedReport.date} {selectedReport.time}</span>
-                </div>
-                <div className="text-sm py-2">
-                  <span className="text-gray-500 block mb-1">Description</span>
-                  <p className="font-medium text-gray-800 bg-gray-50 p-3 rounded-xl border border-gray-100">{selectedReport.description || selectedReport.type}</p>
-                </div>
+              {/* Header */}
+              <div className="px-5 pt-5 pb-3 flex-shrink-0 border-b border-gray-50">
+                <button
+                  onClick={() => setSelectedReport(null)}
+                  className="absolute right-4 top-4 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+                >
+                  <XIcon size={16} />
+                </button>
+                <h3 className="text-lg font-bold text-gray-900 pr-10">
+                  Report Detail <span className="text-xs font-mono text-gray-400 font-normal">({selectedReport.id})</span>
+                </h3>
+                <span className={`inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_BADGE[selectedReport.status] ?? 'bg-gray-50 text-gray-400'}`}>
+                  {fmtStatus(selectedReport.status)}
+                </span>
               </div>
 
-              {selectedReport.status === 'Pending' && (
-                <div className="mt-5 pt-5 border-t border-gray-100 space-y-3">
-                  <textarea
-                    value={reportComment}
-                    onChange={(e) => setReportComment(e.target.value)}
-                    placeholder="Add a comment... (optional for escalate, required for cancel)"
-                    className="w-full text-sm p-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/20"
-                    rows={2}
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleUpdateStatus('Cancel')}
-                      disabled={isUpdatingStatus || !reportComment.trim()}
-                      className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold disabled:opacity-50"
-                    >
-                      Cancel Report
-                    </button>
-                    <button
-                      onClick={() => handleUpdateStatus('Escalate')}
-                      disabled={isUpdatingStatus}
-                      className="flex-1 py-3 text-white rounded-xl text-sm font-bold disabled:opacity-50 tracking-wide"
-                      style={{ backgroundColor: '#D34026' }}
-                    >
-                      Escalate
-                    </button>
+              {/* Scrollable body */}
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+
+                {/* Core details */}
+                <div className="space-y-0">
+                  <div className="flex justify-between text-sm py-2 border-b border-gray-50">
+                    <span className="text-gray-500">Line & Coach</span>
+                    <span className="font-semibold text-gray-800 text-right">
+                      {selectedReport.line}<br />
+                      <span className="text-xs text-gray-400">Coach {selectedReport.coach}</span>
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm py-2 border-b border-gray-50">
+                    <span className="text-gray-500">Time</span>
+                    <span className="font-semibold text-gray-800">{selectedReport.date} {selectedReport.time}</span>
+                  </div>
+                  <div className="text-sm py-2">
+                    <span className="text-gray-500 block mb-1">Description</span>
+                    <p className="font-medium text-gray-800 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                      {selectedReport.description || selectedReport.type}
+                    </p>
                   </div>
                 </div>
-              )}
+
+                {/* Audit trail */}
+                {auditSteps.length > 0 && (
+                  <div>
+                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Audit Trail</div>
+                    <div className="space-y-2">
+                      {auditSteps.map(s => (
+                        <div key={s.label} className="rounded-xl px-4 py-3" style={{ backgroundColor: s.bg }}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-bold" style={{ color: s.color }}>
+                              {s.label} By: {s.by ?? 'N/A'}
+                            </span>
+                            {s.at && (
+                              <span className="text-[10px] font-medium opacity-60" style={{ color: s.color }}>{s.at}</span>
+                            )}
+                          </div>
+                          <div className="text-[11px] italic text-gray-700 border-l-2 pl-3" style={{ borderColor: s.color + '50' }}>
+                            {s.comment ? `"${s.comment}"` : 'No comment'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions — only when pending */}
+                {selectedReport.status === 'pending' && (
+                  <div className="pt-2 border-t border-gray-100 space-y-3">
+                    <textarea
+                      value={reportComment}
+                      onChange={e => setReportComment(e.target.value)}
+                      placeholder="Add a comment… (optional for escalate, required for cancel)"
+                      className="w-full text-sm p-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/20"
+                      rows={2}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleUpdateStatus('Cancel')}
+                        disabled={isUpdatingStatus || !reportComment.trim()}
+                        className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold disabled:opacity-50"
+                      >
+                        Cancel Report
+                      </button>
+                      <button
+                        onClick={() => handleUpdateStatus('Escalate')}
+                        disabled={isUpdatingStatus}
+                        className="flex-1 py-3 text-white rounded-xl text-sm font-bold disabled:opacity-50 tracking-wide"
+                        style={{ backgroundColor: '#D34026' }}
+                      >
+                        Escalate
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

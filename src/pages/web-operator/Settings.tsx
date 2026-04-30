@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Clock, Bell, Lock } from 'lucide-react';
 import { useTime } from '../../context/TimeContext';
 
-const API = 'http://localhost:5293/api/data';
+const API = `${import.meta.env.VITE_API_URL}/api/data`;
 type Page = 'settings' | 'change-password';
 
 export function Settings({ onNavigate }: { onNavigate: (page: Page) => void }) {

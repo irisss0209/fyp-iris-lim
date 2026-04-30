@@ -54,7 +54,7 @@ export function SetupPasswordPage({ email, onSuccess, onBack }: SetupPasswordPag
 
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:5293/api/auth/setup-password', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/setup-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.toLowerCase(), password })
@@ -89,7 +89,7 @@ export function SetupPasswordPage({ email, onSuccess, onBack }: SetupPasswordPag
   const verifyOtp = async (code: string): Promise<boolean> => {
     if (!pendingMfa) return false;
     try {
-      const response = await fetch('http://localhost:5293/api/auth/login/verify', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

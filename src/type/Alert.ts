@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
-const API = 'http://localhost:5293/api/data';
+const API = `${import.meta.env.VITE_API_URL}/api/data`;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -60,14 +60,18 @@ export interface Alert {
 
 // ── API Functions ─────────────────────────────────────────────────────────────
 
-export async function fetchOperatorAlerts() {
-  const res = await fetch(`${API}/operator/alerts`);
+export async function fetchOperatorAlerts(token?: string) {
+  const res = await fetch(`${API}/operator/alerts`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
   if (!res.ok) throw new Error('Failed to fetch operator alerts');
   return res.json();
 }
 
-export async function fetchAuxiliaryAlerts(stationId: string) {
-  const res = await fetch(`${API}/auxiliary/alerts?stationId=${stationId}`);
+export async function fetchAuxiliaryAlerts(stationId: string, token?: string) {
+  const res = await fetch(`${API}/auxiliary/alerts?stationId=${stationId}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
   if (!res.ok) throw new Error('Failed to fetch auxiliary alerts');
   return res.json();
 }
@@ -77,11 +81,12 @@ export async function updateAlertStatus(
   status: AlertStatus,
   comment: string,
   token?: string,
-  userId?: string
+  userId?: string,
+  role?: 'operator' | 'auxiliary' | 'passenger'
 ) {
-  const endpoint = token 
-    ? `${API}/indicent-alerts/${id}/status`
-    : `${API}/auxiliary/alerts/${id}/status`;
+  const endpoint = role === 'auxiliary'
+    ? `${API}/auxiliary/alerts/${id}/status`
+    : `${API}/incident-alerts/${id}/status`;
 
   const res = await fetch(endpoint, {
     method: 'POST',
@@ -89,7 +94,7 @@ export async function updateAlertStatus(
       'Content-Type': 'application/json',
       ...(token && { 'Authorization': `Bearer ${token}` })
     },
-    body: JSON.stringify({ status, comment, userId }),
+    body: JSON.stringify({ status, comment }),
   });
   
   if (!res.ok) throw new Error('Failed to update alert status');

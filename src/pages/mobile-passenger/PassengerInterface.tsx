@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import {
   HomeIcon,
@@ -14,6 +14,7 @@ import { IncidentNearMe } from './IncidentNearMe';
 import { Insights } from './Insights';
 import { ChangePasswordPage } from '../auth/ChangePasswordPage';
 import { UserSession } from '../../App';
+import { flushPendingReports } from '../../utils/offlineQueue';
 
 export interface PassengerInterface {
   session: UserSession;
@@ -33,6 +34,16 @@ const TABS: { id: Tab; icon: React.ElementType; label: string }[] = [
 export function PassengerInterface({ session, onLogout }: PassengerInterface) {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [showChangePassword, setShowChangePassword] = useState(false);
+
+  useEffect(() => {
+    const handleOnline = async () => {
+      await flushPendingReports(import.meta.env.VITE_API_URL);
+    };
+    window.addEventListener('online', handleOnline);
+    // Also try on mount in case they were offline and came back
+    if (navigator.onLine) handleOnline();
+    return () => window.removeEventListener('online', handleOnline);
+  }, []);
 
   return (
     <div className="flex flex-col h-full relative w-full sm:max-w-md mx-auto overflow-hidden sm:shadow-2xl sm:rounded-[40px] sm:border-[8px] sm:border-white sm:ring-1 sm:ring-gray-100 min-h-screen sm:min-h-[850px] sm:max-h-[900px]" style={{ backgroundColor: '#FAF9F5' }}>
@@ -64,10 +75,10 @@ export function PassengerInterface({ session, onLogout }: PassengerInterface) {
       {/* ── Scrollable Content ── */}
       <div className="flex-1 overflow-y-auto" style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}>
         <AnimatePresence mode="wait">
-          {activeTab === 'home' && <Home key="home" onNavigate={setActiveTab} />}
+          {activeTab === 'home' && <Home key="home" onNavigate={setActiveTab} session={session} />}
           {activeTab === 'incident' && <IncidentNearMe key="incident" />}
           {activeTab === 'report' && <Report key="report" session={session} />}
-          {activeTab === 'insights' && <Insights key="insights" />}
+          {activeTab === 'insights' && <Insights key="insights" session={session} />}
           {activeTab === 'profile' && (
             showChangePassword ? (
               <ChangePasswordPage 

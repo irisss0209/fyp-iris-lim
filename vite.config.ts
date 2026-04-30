@@ -40,6 +40,17 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {
+            // API reads — serve last cached response when offline
+            urlPattern: ({ url }) => url.pathname.startsWith('/api/data'),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-reads-cache',
+              networkTimeoutSeconds: 4,
+              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 5 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
             options: {

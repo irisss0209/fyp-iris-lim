@@ -26,6 +26,7 @@ namespace backend.Services
             var regionEndpoint = RegionEndpoint.GetBySystemName(_region);
             
             _s3Client = new AmazonS3Client(credentials, regionEndpoint);
+            Console.WriteLine($"[S3 SERVICE] Initialized with Bucket: {_bucketName}, Region: {_region}");
         }
 
         public async Task<string> UploadFileAsync(IFormFile file, string folderName)
@@ -34,31 +35,76 @@ namespace backend.Services
             {
                 var fileName = $"{folderName}/{Guid.NewGuid()}_{file.FileName}";
                 
-                using (var newStream = new MemoryStream())
+                using (var stream = file.OpenReadStream())
                 {
-                    await file.CopyToAsync(newStream);
-                    
                     var uploadRequest = new TransferUtilityUploadRequest
                     {
-                        InputStream = newStream,
+                        InputStream = stream,
                         Key = fileName,
-                        BucketName = _bucketName,
-                        CannedACL = S3CannedACL.PublicRead // Making it public read for easy display
+                        BucketName = _bucketName
                     };
 
                     var fileTransferUtility = new TransferUtility(_s3Client);
                     await fileTransferUtility.UploadAsync(uploadRequest);
 
                     // Construct the public URL
-                    // URL format: https://bucket-name.s3.region.amazonaws.com/file-name
                     return $"https://{_bucketName}.s3.{_region}.amazonaws.com/{fileName}";
                 }
+            }
+            catch (AmazonS3Exception e)
+            {
+                Console.WriteLine($"[S3 ERROR] AWS Error Code: {e.ErrorCode}, Message: {e.Message}");
+                throw;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[S3 UPLOAD ERROR] {ex.Message}");
                 throw;
             }
+        }
+
+        public async Task<string> UploadFileWithKeyAsync(IFormFile file, string key)
+        {
+            try
+            {
+                using var stream = file.OpenReadStream();
+
+                var uploadRequest = new TransferUtilityUploadRequest
+                {
+                    InputStream = stream,
+                    Key = key,
+                    BucketName = _bucketName,
+                    ContentType = file.ContentType
+                    // Removed PublicRead ACL as it may cause Access Denied on buckets with Block Public Access
+                };
+
+                var fileTransferUtility = new TransferUtility(_s3Client);
+                await fileTransferUtility.UploadAsync(uploadRequest);
+
+                return $"https://{_bucketName}.s3.{_region}.amazonaws.com/{key}";
+            }
+            catch (AmazonS3Exception e)
+            {
+                Console.WriteLine($"[S3 ERROR] AWS Error Code: {e.ErrorCode}, Message: {e.Message}");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[S3 UPLOAD ERROR] {ex.Message}");
+                throw;
+            }
+        }
+
+        public string GeneratePresignedUrl(string key, int expiryMinutes = 60)
+        {
+            var request = new Amazon.S3.Model.GetPreSignedUrlRequest
+            {
+                BucketName = _bucketName,
+                Key = key,
+                Expires = DateTime.UtcNow.AddMinutes(expiryMinutes),
+                Verb = Amazon.S3.HttpVerb.GET
+            };
+            return _s3Client.GetPreSignedURL(request);
         }
 
         public async Task<bool> DeleteFileAsync(string fileUrl)

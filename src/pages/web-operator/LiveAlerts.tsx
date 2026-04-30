@@ -56,7 +56,7 @@ interface StatsState {
   dismissed: number;
 }
 
-export function LiveAlerts() {
+export function LiveAlerts({ initialAlertId, onClearInitial }: { initialAlertId?: string | number | null; onClearInitial?: () => void }) {
   // ── Data from DB ──────────────────────────────────────────────────────────────
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [lines, setLines] = useState<LineOption[]>([]);
@@ -80,7 +80,8 @@ export function LiveAlerts() {
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchOperatorAlerts();
+      const token: string | undefined = (() => { try { return JSON.parse(localStorage.getItem('user_session') ?? '{}')?.token; } catch { return undefined; } })();
+      const data = await fetchOperatorAlerts(token);
       setAlerts(data.alerts ?? []);
       setLines(data.lines ?? []);
       setStationsByLine(data.stationsByLine ?? []);
@@ -102,6 +103,18 @@ export function LiveAlerts() {
   }, []);
 
   useEffect(() => { fetchAlerts(); }, [fetchAlerts]);
+
+  // Handle initial selection from navigation
+  useEffect(() => {
+    if (initialAlertId && alerts.length > 0) {
+      const targetId = initialAlertId.toString();
+      const alert = alerts.find(a => a.id.toString() === targetId);
+      if (alert) {
+        setSelectedAlert(alert);
+        onClearInitial?.();
+      }
+    }
+  }, [initialAlertId, alerts, onClearInitial]);
 
   // ── Auto-refresh every 30 seconds ────────────────────────────────────────────
   useEffect(() => {
@@ -150,7 +163,7 @@ export function LiveAlerts() {
   const handleModalConfirm = async (comment: string) => {
     if (!pendingAction) return;
 
-    let newStatus: string;
+    let newStatus: AlertStatus;
     switch (pendingAction.type) {
       case 'verify': newStatus = 'verified'; break;
       case 'dismiss': newStatus = 'dismissed'; break;
@@ -159,27 +172,59 @@ export function LiveAlerts() {
     }
 
     const id = pendingAction.alertId;
+    const now = new Date().toISOString();
+    const session = (() => { try { return JSON.parse(localStorage.getItem('user_session') ?? '{}'); } catch { return {}; } })();
+    const token: string | undefined = session?.token;
+    const operatorName: string = session?.userName ?? 'Operator';
 
-    // Optimistic update
-    setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: newStatus as any } : a));
-    setSelectedAlert(prev => prev?.id === id ? { ...prev, status: newStatus as any } : prev);
+    // Build full optimistic patch: status + audit trail fields
+    const patch: Partial<Alert> = { status: newStatus };
+    if (pendingAction.type === 'verify') {
+      patch.verifiedAt = now;
+      patch.verifiedBy = operatorName;
+      patch.verifiedComment = comment || null;
+    } else if (pendingAction.type === 'dismiss') {
+      patch.dismissedAt = now;
+      patch.dismissedBy = operatorName;
+      patch.dismissedComment = comment || null;
+    } else if (pendingAction.type === 'escalate') {
+      patch.escalatedAt = now;
+      patch.escalatedBy = operatorName;
+      patch.escalatedComment = comment || null;
+    }
+
+    // Capture old status for stats update before mutating
+    const oldStatus = alerts.find(a => a.id === id)?.status;
+
+    // Optimistic update — status, audit trail, and stats all at once
+    setAlerts(prev => prev.map(a => a.id === id ? { ...a, ...patch } : a));
+    setSelectedAlert(prev => prev?.id === id ? { ...prev, ...patch } : prev);
+    setStats(prev => {
+      const next = { ...prev };
+      const dec: Record<string, keyof StatsState> = {
+        pending: 'pending', verified: 'verified', escalated: 'escalated',
+        en_route: 'enRoute', resolved: 'resolved', dismissed: 'dismissed',
+      };
+      const inc: Record<string, keyof StatsState> = { ...dec };
+      if (oldStatus && dec[oldStatus]) next[dec[oldStatus]] = Math.max(0, next[dec[oldStatus]] - 1);
+      if (inc[newStatus]) next[inc[newStatus]] = next[inc[newStatus]] + 1;
+      return next;
+    });
 
     // Track escalation timestamp for the 2-min re-escalate logic
     if (pendingAction.type === 'escalate') {
       setEscalatedAt(prev => ({ ...prev, [id]: Date.now() }));
     }
 
-    console.log(`[${pendingAction.type.toUpperCase()}] ${id}: ${comment}`);
-
-    const token = JSON.parse(localStorage.getItem('user_session') || '{}')?.token;
-
-    try {
-      await updateAlertStatus(id, newStatus as AlertStatus, comment, token);
-    } catch (err) {
-      console.error('Failed to update status', err);
-    }
     setModalOpen(false);
     setPendingAction(null);
+
+    try {
+      await updateAlertStatus(id, newStatus, comment, token);
+    } catch (err) {
+      console.error('[STATUS UPDATE] Failed:', err);
+      // Next auto-refresh (30s) will reconcile any drift
+    }
   };
 
   const openModal = (type: 'verify' | 'dismiss' | 'escalate', alertId: string, e?: React.MouseEvent) => {
@@ -387,7 +432,7 @@ export function LiveAlerts() {
                             </span>
                             {alert.source === 'ai' ? (
                               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#FEF2F0] text-[#D34026]">
-                                AI detected{alert.confidence !== null ? `, ${alert.confidence}% confidence` : ''}
+                                AI detected{alert.confidence != null ? `, ${Math.round(alert.confidence * 100)}% confidence` : ''}
                               </span>
                             ) : (
                               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E]">
@@ -459,7 +504,7 @@ export function LiveAlerts() {
                   <div className="mt-0.5">
                     {selectedAlert.source === 'ai' ? (
                       <span className="text-[11px] font-medium text-[#D34026]">
-                        AI detected{selectedAlert.confidence !== null ? `, ${selectedAlert.confidence}% confidence` : ''}
+                        AI detected{selectedAlert.confidence != null ? `, ${Math.round(selectedAlert.confidence * 100)}% confidence` : ''}
                       </span>
                     ) : (
                       <span className="text-[11px] font-medium text-[#92400E]">Passenger reported</span>
@@ -560,7 +605,7 @@ export function LiveAlerts() {
                             <div key={s.label} className="rounded-lg px-3 py-2.5" style={{ backgroundColor: s.bg }}>
                               <div className="flex items-center justify-between mb-0.5">
                                 <span className="text-xs font-semibold" style={{ color: s.color }}>{s.label} By: {s.by ? s.by : 'N/A'}</span>
-                                {s.at && <span className="text-[10px] text-gray-400">{s.at}</span>}
+                                {s.at && <span className="text-[10px] text-gray-400">{formatTime(s.at, format)}</span>}
                               </div>
 
 

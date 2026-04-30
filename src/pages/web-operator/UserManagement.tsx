@@ -20,7 +20,7 @@ import {
   XIcon
 } from 'lucide-react';
 const ACCENT = '#0B4F6C';
-const API = 'http://localhost:5293/api/data';
+const API = `${import.meta.env.VITE_API_URL}/api/data`;
 const mapToBackendStatus = (action: string) => {
   switch (action) {
     case 'Suspend': return 'Suspended';
@@ -63,7 +63,7 @@ export function UserManagement() {
   const [roleFilter, setRoleFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
 
-  const session = JSON.parse(localStorage.getItem('user_session') || localStorage.getItem('session') || '{}');
+  const session = JSON.parse(localStorage.getItem('user_session') || '{}');
   const loggedInUserId = session.userId;
 
   const showToast = (msg: string, ok = true) => {
@@ -73,7 +73,7 @@ export function UserManagement() {
 
   const fetchUsers = () => {
     setLoading(true);
-    const session = JSON.parse(localStorage.getItem("user_session") || localStorage.getItem("session") || "{}");
+    const session = JSON.parse(localStorage.getItem("user_session") || "{}");
     fetch(`${API}/operator/users`, {
       headers: { 'Authorization': `Bearer ${session.token}` }
     })
@@ -96,7 +96,7 @@ export function UserManagement() {
 
     setUpdatingId(userId);
     try {
-      const session = JSON.parse(localStorage.getItem("session") || "{}");
+      const session = JSON.parse(localStorage.getItem("user_session") || "{}");
       const res = await fetch(`${API}/operator/users/${userId}/status`, {
         method: 'PATCH',
         headers: {
@@ -162,7 +162,7 @@ export function UserManagement() {
     form.append('file', file);
 
     try {
-      const session = JSON.parse(localStorage.getItem("session") || "{}");
+      const session = JSON.parse(localStorage.getItem("user_session") || "{}");
 
       const res = await fetch(`${API}/operator/users/import`, {
         method: 'POST',

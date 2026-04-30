@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { detectNearbyLines } from '../../utils/location';
+import { UserSession } from '../../App';
 
 import {
   AlertTriangleIcon,
@@ -7,16 +8,29 @@ import {
   ChevronRightIcon,
   InfoIcon,
   Loader2,
+  ClockIcon,
+  FileTextIcon,
 } from 'lucide-react';
+
+const RECENT_STATUS_BADGE: Record<string, string> = {
+  verified: 'bg-green-50 text-green-600',
+  resolved: 'bg-green-50 text-green-600',
+  pending: 'bg-yellow-50 text-yellow-600',
+  en_route: 'bg-blue-50 text-blue-600',
+  escalated: 'bg-red-50 text-red-600',
+  dismissed: 'bg-gray-100 text-gray-400',
+};
 
 interface HomeProps {
   onNavigate: (tab: any) => void;
+  session?: UserSession | null;
 }
 
-export function Home({ onNavigate }: HomeProps) {
+export function Home({ onNavigate, session }: HomeProps) {
   const [incidents, setIncidents] = useState<any[]>([]);
   const [selectedLine, setSelectedLine] = useState('All Lines');
   const [lines, setLines] = useState<string[]>(['All Lines']);
+  const [recentReport, setRecentReport] = useState<any | null>(null);
 
   const [showLinePicker, setShowLinePicker] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
@@ -39,23 +53,25 @@ export function Home({ onNavigate }: HomeProps) {
   };
 
   useEffect(() => {
-    fetch('http://localhost:5293/api/data/incident-near-me')
+    fetch(`${import.meta.env.VITE_API_URL}/api/data/incident-near-me`)
       .then(res => res.json())
-      .then(data => {
-        setIncidents(data || []);
-      })
-      .catch(err => {
-        console.error('Failed to fetch incidents', err);
-      });
+      .then(data => setIncidents(data || []))
+      .catch(err => console.error('Failed to fetch incidents', err));
 
-    fetch('http://localhost:5293/api/data/lines')
+    fetch(`${import.meta.env.VITE_API_URL}/api/data/lines`)
       .then(res => res.json())
-      .then(data => {
-        const names = data.map((l: any) => l.lineName);
-        setLines(['All Lines', ...names]);
-      })
+      .then(data => setLines(['All Lines', ...data.map((l: any) => l.lineName)]))
       .catch(console.error);
-  }, []);
+
+    if (session?.userId && session?.token) {
+      fetch(`${import.meta.env.VITE_API_URL}/api/data/my-history?userId=${session.userId}`, {
+        headers: { Authorization: `Bearer ${session.token}` },
+      })
+        .then(res => res.json())
+        .then(data => setRecentReport(Array.isArray(data) && data.length > 0 ? data[0] : null))
+        .catch(console.error);
+    }
+  }, [session?.userId]);
 
   const todayDate = new Date().toISOString().split('T')[0];
 
@@ -152,6 +168,36 @@ export function Home({ onNavigate }: HomeProps) {
 
       {/* ── 2. ACTIONS: Main Content Area ── */}
       <div className="space-y-4">
+
+        {/* Recent Report Card */}
+        {recentReport && (
+          <button
+            onClick={() => onNavigate('report')}
+            className="w-full text-left bg-white rounded-[24px] p-4 border border-gray-100 shadow-sm active:scale-[0.98] transition-transform"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="w-9 h-9 rounded-xl bg-gray-50 flex-shrink-0 flex items-center justify-center text-gray-400">
+                <FileTextIcon size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Your Recent Report</p>
+                <p className="text-sm font-bold text-gray-900 truncate">{recentReport.id}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{recentReport.line} · Coach {recentReport.coach}</p>
+                <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+                  <ClockIcon size={11} />
+                  {recentReport.date} at {recentReport.time}
+                </p>
+              </div>
+              <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${RECENT_STATUS_BADGE[recentReport.status] ?? 'bg-gray-100 text-gray-400'}`}>
+                  {recentReport.status.replace('_', ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                </span>
+                <ChevronRightIcon size={14} className="text-gray-300" />
+              </div>
+            </div>
+          </button>
+        )}
+
         {/*
         <button
           onClick={() => onNavigate('incident')}

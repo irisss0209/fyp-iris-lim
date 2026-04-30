@@ -30,8 +30,8 @@ const getCurrentPosition = (options: LocationOptions = {}): Promise<GeolocationP
 /**
  * Fetch nearby station data from the API
  */
-export const fetchNearbyStations = async (lat: number, lng: number) => {
-  const res = await fetch(`http://localhost:5293/api/stations/nearby?lat=${lat}&lng=${lng}`);
+export const fetchNearbyStations = async (lat: number, lng: number, count: number = 5) => {
+  const res = await fetch(`${import.meta.env.VITE_API_URL}/api/stations/nearby?lat=${lat}&lng=${lng}&count=${count}`);
   if (!res.ok) throw new Error('Failed to connect to the station service.');
   return await res.json();
 };

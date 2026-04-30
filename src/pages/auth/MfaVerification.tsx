@@ -116,11 +116,11 @@ export function MfaVerification({
     >
       <div className="mb-5 sm:mb-7">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">
-          {method === 'google_authenticator' ? 'Google Authenticator' : 'Verify Email'}
+          {method === 'google_authenticator' ? 'Authenticator App' : 'Verify Email'}
         </h1>
         <p className="text-sm text-gray-400 mt-1">
           {method === 'google_authenticator' ? (
-            <>Enter the 6-digit code from your Google Authenticator app.</>
+            <>Enter the 6-digit code from your authenticator app.</>
           ) : (
             <>
               Enter the 6-digit code sent to{' '}

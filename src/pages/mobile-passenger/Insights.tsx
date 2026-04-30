@@ -2,11 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   BarChart2Icon,
   ChevronRightIcon,
-  ClockIcon,
   LightbulbIcon,
   Loader2,
   MapPinIcon,
-  TrainFrontIcon,
   TrendingDownIcon,
   TrendingUpIcon,
 } from 'lucide-react';
@@ -15,14 +13,14 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
+  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
 
-const API = 'http://localhost:5293/api/data';
+const API = `${import.meta.env.VITE_API_URL}/api/data`;
 const ACCENT = '#0B4F6C';
 const ALERT = '#D34026';
 const SAFE = '#2D7A5D';
@@ -52,14 +50,18 @@ interface OperatorAlert {
   trainId?: number | null;
   date?: string;
   time?: string;
+  status?: string;
 }
 
-interface PassengerLiveIncident {
-  line?: string;
-  station?: string;
-  trainId?: number | null;
-  time?: string;
+interface TrainChartPoint {
+  train: string;
+  pending: number;
+  verified: number;
+  enRoute: number;
+  escalated: number;
+  resolved: number;
 }
+
 
 interface LineResponse {
   lineName: string;
@@ -70,14 +72,13 @@ interface TopMetric {
   count: number;
 }
 
-interface ChartPoint {
-  slot: string;
-  count: number;
-}
 
-
-async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+async function getJson<T>(url: string, token?: string): Promise<T> {
+  const headers: HeadersInit = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const res = await fetch(url, { headers });
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);
   return res.json();
 }
@@ -122,21 +123,35 @@ function topFromList(values: string[]): TopMetric | null {
   return top ? { label: top[0], count: top[1] } : null;
 }
 
-function buildTodayHourChart(alerts: OperatorAlert[]): ChartPoint[] {
-  const hourCounts = Array.from({ length: 24 }, () => 0);
+function buildTrainStatusChart(alerts: OperatorAlert[]): TrainChartPoint[] {
+  const map = new Map<string, { pending: number; verified: number; enRoute: number; escalated: number; resolved: number }>();
 
   alerts.forEach(alert => {
-    const hour = parseHourFromTime(alert.time);
-    if (hour === null) return;
-    hourCounts[hour] += 1;
+    let trainPart = alert.trainId != null ? `T.${alert.trainId}` : '';
+    if (!trainPart) {
+      trainPart = alert.station && alert.station !== 'Unknown' ? `Stn: ${alert.station}` : 'Platform/Other';
+    }
+
+    const key = alert.line && alert.line !== 'Unknown' ? `${trainPart} (${alert.line})` : trainPart;
+
+    if (!map.has(key)) map.set(key, { pending: 0, verified: 0, enRoute: 0, escalated: 0, resolved: 0 });
+    const entry = map.get(key)!;
+    const s = alert.status?.toLowerCase() ?? '';
+    
+    if (s === 'pending') entry.pending++;
+    else if (s === 'verified') entry.verified++;
+    else if (s === 'en_route') entry.enRoute++;
+    else if (s === 'escalated') entry.escalated++;
+    else if (s === 'resolved') entry.resolved++;
   });
 
-  return Array.from({ length: 12 }, (_, i) => {
-    const start = i * 2;
-    const count = hourCounts[start] + hourCounts[start + 1];
-    const label = `${start.toString().padStart(2, '0')}-${(start + 1).toString().padStart(2, '0')}`;
-    return { slot: label, count };
-  });
+  return Array.from(map.entries())
+    .map(([train, counts]) => ({ train, ...counts }))
+    .sort((a, b) => 
+      (b.pending + b.verified + b.enRoute + b.escalated + b.resolved) - 
+      (a.pending + a.verified + a.enRoute + a.escalated + a.resolved)
+    )
+    .slice(0, 10);
 }
 
 function resolveTrend(stats?: ReportStats) {
@@ -175,7 +190,9 @@ function resolveTrend(stats?: ReportStats) {
   };
 }
 
-export function Insights() {
+import { UserSession } from '../../App';
+
+export function Insights({ session }: { session?: UserSession }) {
   const [selectedLine, setSelectedLine] = useState('All Lines');
   const [lines, setLines] = useState<string[]>(['All Lines']);
   const [loading, setLoading] = useState(true);
@@ -202,7 +219,6 @@ export function Insights() {
 
   const [monthlyReport, setMonthlyReport] = useState<OperatorReportsResponse | null>(null);
   const [operatorAlerts, setOperatorAlerts] = useState<OperatorAlert[]>([]);
-  const [liveIncidents, setLiveIncidents] = useState<PassengerLiveIncident[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -211,11 +227,10 @@ export function Insights() {
       setLoading(true);
       setErrorText('');
 
-      const [reportRes, alertsRes, linesRes, liveRes] = await Promise.allSettled([
-        getJson<OperatorReportsResponse>(`${API}/operator/reports`),
-        getJson<OperatorAlert[]>(`${API}/incident-alerts`),
-        getJson<LineResponse[]>(`${API}/lines`),
-        getJson<PassengerLiveIncident[]>(`${API}/incident-near-me`),
+      const [reportRes, alertsRes, linesRes] = await Promise.allSettled([
+        getJson<OperatorReportsResponse>(`${API}/operator/reports`, session?.token),
+        getJson<OperatorAlert[]>(`${API}/incident-alerts`, session?.token),
+        getJson<LineResponse[]>(`${API}/lines`, session?.token),
       ]);
 
       if (!active) return;
@@ -225,9 +240,6 @@ export function Insights() {
 
       if (alertsRes.status === 'fulfilled') setOperatorAlerts(Array.isArray(alertsRes.value) ? alertsRes.value : []);
       else setOperatorAlerts([]);
-
-      if (liveRes.status === 'fulfilled') setLiveIncidents(Array.isArray(liveRes.value) ? liveRes.value : []);
-      else setLiveIncidents([]);
 
       const backendLines = linesRes.status === 'fulfilled'
         ? linesRes.value.map(line => line.lineName).filter(Boolean)
@@ -246,8 +258,7 @@ export function Insights() {
 
       if (
         reportRes.status === 'rejected' &&
-        alertsRes.status === 'rejected' &&
-        liveRes.status === 'rejected'
+        alertsRes.status === 'rejected'
       ) {
         setErrorText('Unable to load insights from backend endpoints.');
       }
@@ -260,7 +271,7 @@ export function Insights() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [session]);
 
   useEffect(() => {
     if (!lines.includes(selectedLine)) setSelectedLine('All Lines');
@@ -275,17 +286,7 @@ export function Insights() {
     ? operatorAlerts
     : operatorAlerts.filter(alert => alert.line === selectedLine);
 
-  const filteredLive = selectedLine === 'All Lines'
-    ? liveIncidents
-    : liveIncidents.filter(incident => incident.line === selectedLine);
 
-  const monthTag = useMemo(() => {
-    if (!monthlyReport?.year || !monthlyReport?.month) return 'Current Month';
-    return new Date(monthlyReport.year, monthlyReport.month - 1, 1).toLocaleDateString('en-MY', {
-      month: 'long',
-      year: 'numeric',
-    });
-  }, [monthlyReport?.year, monthlyReport?.month]);
 
   const currentMonthKey = useMemo(() => {
     if (!monthlyReport?.year || !monthlyReport?.month) return '';
@@ -356,17 +357,13 @@ export function Insights() {
     const today = todayAlerts.length;
     const lastWeek = lastWeekTodayAlerts.length;
     const delta = today - lastWeek;
-    const direction = delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
-    return { today, lastWeek, delta, direction };
+    return { today, lastWeek, delta };
   }, [todayAlerts.length, lastWeekTodayAlerts.length]);
 
-  const liveNowCount = filteredLive.length;
   const trend = resolveTrend(monthlyReport?.stats);
-  const TrendIcon = trend.icon;
 
-  const hourChart = useMemo(() => buildTodayHourChart(todayAlerts), [todayAlerts]);
-  const chartHasData = hourChart.some(point => point.count > 0);
-  const maxChartCount = Math.max(...hourChart.map(point => point.count), 0);
+  const trainChart = useMemo(() => buildTrainStatusChart(todayAlerts), [todayAlerts]);
+  const chartHasData = trainChart.some(p => p.pending + p.verified + p.enRoute + p.escalated + p.resolved > 0);
 
   const travelAdvice = peakHour.count > 0
     ? `Avoid ${peakHour.label} when possible; incidents are highest in that hour today.`
@@ -464,36 +461,38 @@ export function Insights() {
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="text-sm font-black text-gray-900">Today Real-Time Pattern</h3>
-              </div>
-
+            <div className="mb-3">
+              <h3 className="text-sm font-black text-gray-900">Real-Time Pattern by Train</h3>
+              <p className="text-[10px] font-semibold text-gray-400 mt-0.5 uppercase tracking-widest">Incidents grouped by train · all active reports</p>
             </div>
 
             {chartHasData ? (
-              <div className="h-[190px]">
+              <div className="h-[210px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={hourChart} margin={{ top: 6, right: 0, left: -24, bottom: 0 }}>
+                  <BarChart data={trainChart} margin={{ top: 6, right: 4, left: -24, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                    <XAxis dataKey="slot" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} dy={6} />
+                    <XAxis dataKey="train" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} dy={6} />
                     <YAxis axisLine={false} tickLine={false} allowDecimals={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} />
                     <Tooltip
                       cursor={{ fill: '#F3F4F6' }}
                       contentStyle={{ border: 'none', borderRadius: 10, fontSize: 12, boxShadow: '0 8px 24px rgb(0 0 0 / 0.08)' }}
-                      formatter={(value: number) => [`${value} incidents`, 'Count']}
                     />
-                    <Bar dataKey="count" radius={[5, 5, 0, 0]}>
-                      {hourChart.map(point => (
-                        <Cell key={point.slot} fill={point.count === maxChartCount ? ALERT : ACCENT} />
-                      ))}
-                    </Bar>
+                    <Legend
+                      iconType="circle"
+                      iconSize={7}
+                      wrapperStyle={{ fontSize: 10, paddingTop: 8 }}
+                    />
+                    <Bar dataKey="pending" name="Pending" stackId="s" fill="#C2410C" />
+                    <Bar dataKey="verified" name="Verified" stackId="s" fill="#F59E0B" />
+                    <Bar dataKey="enRoute" name="En Route" stackId="s" fill={ACCENT} />
+                    <Bar dataKey="escalated" name="Escalated" stackId="s" fill="#D34026" />
+                    <Bar dataKey="resolved" name="Resolved" stackId="s" fill={SAFE} radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             ) : (
               <div className="bg-gray-50 rounded-xl p-4 text-center">
-                <p className="text-sm font-bold text-gray-700">No incidents logged for today yet</p>
+                <p className="text-sm font-bold text-gray-700">No active incidents right now</p>
               </div>
             )}
           </div>

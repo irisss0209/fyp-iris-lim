@@ -30,7 +30,7 @@ export function MfaSetup({
 
   const fetchSetupData = async () => {
     try {
-      const response = await fetch(`http://localhost:5293/api/auth/mfa/setup?email=${encodeURIComponent(email)}`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/mfa/setup?email=${encodeURIComponent(email)}`);
       if (response.ok) {
         const data = await response.json();
         setSetupData(data);
@@ -71,7 +71,7 @@ export function MfaSetup({
 
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:5293/api/auth/mfa/activate', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/mfa/activate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code: fullCode, challengeId }),
@@ -100,7 +100,7 @@ export function MfaSetup({
         </div>
         <h1 className="text-2xl font-bold text-gray-900">Secure Your Account</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Set up Google Authenticator to add an extra layer of security.
+          Set up an authenticator app to add an extra layer of security.
         </p>
       </div>
 
@@ -116,7 +116,7 @@ export function MfaSetup({
                     <QRCodeSVG value={setupData.qrCodeUri} size={180} />
                   </div>
                   <p className="text-xs text-gray-400 text-center max-w-[200px]">
-                    Scan this QR code with your Google Authenticator or Authy app.
+                    Scan this QR code with your authenticator app (e.g., Microsoft, Authy, or 1Password).
                   </p>
                 </>
               ) : (

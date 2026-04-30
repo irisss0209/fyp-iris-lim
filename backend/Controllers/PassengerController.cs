@@ -1,8 +1,11 @@
 using backend.Data;
 using backend.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using backend.Services;
+using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace backend.Controllers
 {
@@ -12,12 +15,18 @@ namespace backend.Controllers
     {
         private readonly AppDbContext _context;
         private readonly IAlertService _alertService;
+        private readonly IS3Service _s3Service;
 
-        public PassengerController(AppDbContext context, IAlertService alertService)
+        public PassengerController(AppDbContext context, IAlertService alertService, IS3Service s3Service)
         {
             _context = context;
             _alertService = alertService;
+            _s3Service = s3Service;
         }
+
+        private string? GetCurrentUserId() =>
+            User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
 
         [HttpGet("lines")]
         public async Task<IActionResult> GetLines()
@@ -36,20 +45,22 @@ namespace backend.Controllers
                                        .Distinct()
                                        .OrderBy(c => c)
                                        .ToList(),
-                // Expose the integer train_id so the frontend can use it for the composite FK
-                trainId = l.TrainAssets.Select(ta => ta.TrainId).FirstOrDefault()
+                trains = l.TrainAssets.Select(ta => ta.TrainId)
+                                      .OrderBy(id => id)
+                                      .ToList()
             });
 
             return Ok(result);
         }
 
+        [Authorize]
         [HttpPost("report")]
-        public async Task<IActionResult> SubmitReport([FromBody] SubmitReportRequest req, [FromQuery] string userId)
+        public async Task<IActionResult> SubmitReport([FromBody] SubmitReportRequest req)
         {
+            var userId = GetCurrentUserId();
             if (string.IsNullOrWhiteSpace(userId))
-                return BadRequest(new { error = "userId query parameter is required." });
+                return Unauthorized(new { error = "Unable to identify user from token." });
 
-            // Verify user exists
             var user = await _context.Users.FindAsync(userId);
             if (user == null)
                 return NotFound(new { error = "User not found." });
@@ -96,11 +107,51 @@ namespace backend.Controllers
             }
         }
 
-        [HttpGet("profile")]
-        public async Task<IActionResult> GetProfile([FromQuery] string userId)
+        [Authorize]
+        [HttpPost("report/{reportId}/image")]
+        public async Task<IActionResult> UploadReportImage(int reportId, [FromForm] IFormFile image)
         {
+            var userId = GetCurrentUserId();
             if (string.IsNullOrWhiteSpace(userId))
-                return BadRequest(new { error = "userId query parameter is required." });
+                return Unauthorized(new { error = "Unable to identify user from token." });
+
+            if (image == null || image.Length == 0)
+            {
+                Console.WriteLine($"[UPLOAD] Failed: No image received for report {reportId} (User: {userId})");
+                return BadRequest(new { error = "No image provided." });
+            }
+
+            Console.WriteLine($"[UPLOAD] Received image: {image.FileName}, Size: {image.Length} bytes for report {reportId}");
+
+            var report = await _context.UserReports.FindAsync(reportId);
+            if (report == null || report.UserId != userId)
+                return NotFound(new { error = "Report not found." });
+
+            var ext = Path.GetExtension(image.FileName).ToLowerInvariant();
+            if (string.IsNullOrEmpty(ext)) ext = ".jpg";
+
+            var key = $"snapshots/user-report/{userId}-{reportId}{ext}";
+
+            try
+            {
+                var url = await _s3Service.UploadFileWithKeyAsync(image, key);
+                report.ImageUrl = url;
+                await _context.SaveChangesAsync();
+                return Ok(new { imageUrl = url });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        [Authorize]
+        [HttpGet("profile")]
+        public async Task<IActionResult> GetProfile()
+        {
+            var userId = GetCurrentUserId();
+            if (string.IsNullOrWhiteSpace(userId))
+                return Unauthorized(new { error = "Unable to identify user from token." });
 
             var user = await _context.Users.FindAsync(userId);
             if (user == null) return NotFound();
@@ -164,11 +215,17 @@ namespace backend.Controllers
                                 .ThenInclude(ta => ta.TrainLine)
                 .Include(i => i.Detection)
                     .ThenInclude(d => d!.LineStation)
+                        .ThenInclude(ls => ls!.TrainLine)
+                .Include(i => i.Detection)
+                    .ThenInclude(d => d!.LineStation)
                         .ThenInclude(ls => ls!.Station)
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.TrainCoach)
                         .ThenInclude(tc => tc!.TrainAsset)
                             .ThenInclude(ta => ta.TrainLine)
+                .Include(i => i.UserReport)
+                    .ThenInclude(r => r!.LineStation)
+                        .ThenInclude(ls => ls!.TrainLine)
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.LineStation)
                         .ThenInclude(ls => ls!.Station)
@@ -202,6 +259,7 @@ CoachId = dto.CoachId,
             return Ok(result);
         }
 
+        [Authorize]
         [HttpGet("debug-reports")]
         public async Task<IActionResult> DebugReports()
         {
@@ -210,43 +268,78 @@ CoachId = dto.CoachId,
             return Ok(new { totalReports = reports.Count, totalReportIncidents = incidents.Count, reports = reports });
         }
 
+        [Authorize]
         [HttpGet("my-history")]
-        public async Task<IActionResult> GetMyHistory([FromQuery] string userId)
+        public async Task<IActionResult> GetMyHistory()
         {
+            var userId = GetCurrentUserId();
             if (string.IsNullOrWhiteSpace(userId))
-                return BadRequest(new { error = "userId query parameter is required." });
+                return Unauthorized(new { error = "Unable to identify user from token." });
 
             var incidents = await _context.Incidents
+                .AsNoTracking()
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.TrainCoach)
                         .ThenInclude(tc => tc!.TrainAsset)
                             .ThenInclude(ta => ta.TrainLine)
+                .Include(i => i.UserReport)
+                    .ThenInclude(r => r!.LineStation)
+                        .ThenInclude(ls => ls!.Station)
+                .Include(i => i.UserReport)
+                    .ThenInclude(r => r!.LineStation)
+                        .ThenInclude(ls => ls!.TrainLine)
+                .Include(i => i.VerifiedByUser)
+                .Include(i => i.EscalatedByUser)
+                .Include(i => i.EnrouteByUser)
+                .Include(i => i.ResolvedByUser)
+                .Include(i => i.DismissedByUser)
                 .Where(i => i.UserReport != null && i.UserReport.UserId == userId)
                 .OrderByDescending(i => i.CreatedAt)
                 .ToListAsync();
 
-            var result = incidents.Select(inc => new
-            {
-                id = "RPT-" + inc.IncidentId.ToString("D3"),
-                incidentId = inc.IncidentId,
-                type = inc.UserReport?.Description ?? "Violation",
-                date = inc.CreatedAt.ToString("MMM dd, yyyy"),
-                time = inc.CreatedAt.ToString("HH:mm"),
-                status = inc.Status.ToString(),
-                line = inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine?.LineName ?? "Unknown Line",
-                coach = inc.UserReport?.CoachId.ToString() ?? "Unknown Coach",
-                description = inc.UserReport?.Description,
-                imageUrl = inc.UserReport?.ImageUrl
+            var now = DateTime.UtcNow;
+            var result = incidents.Select(inc => {
+                var dto = _alertService.MapToAlertDTO(inc, now);
+                return new
+                {
+                    id = dto.Id,
+                    incidentId = inc.IncidentId,
+                    type = inc.UserReport?.Description ?? "Violation",
+                    date = dto.Date,
+                    time = dto.Time,
+                    status = dto.Status,
+                    line = dto.Line,
+                    coach = dto.CoachId.ToString() ?? "Unknown Coach",
+                    description = inc.UserReport?.Description,
+                    imageUrl = dto.ImageUrl,
+                    // Audit trail
+                    verifiedBy = dto.VerifiedBy,
+                    verifiedAt = dto.VerifiedAt,
+                    verifiedComment = dto.VerifiedComment,
+                    escalatedBy = dto.EscalatedBy,
+                    escalatedAt = dto.EscalatedAt,
+                    escalatedComment = dto.EscalatedComment,
+                    enrouteBy = dto.EnrouteBy,
+                    enrouteAt = dto.EnrouteAt,
+                    resolvedBy = dto.ResolvedBy,
+                    resolvedAt = dto.ResolvedAt,
+                    resolvedComment = dto.ResolvedComment,
+                    dismissedBy = dto.DismissedBy,
+                    dismissedAt = dto.DismissedAt,
+                    dismissedComment = dto.DismissedComment,
+                };
             });
 
             return Ok(result);
         }
 
+        [Authorize]
         [HttpPost("incident/{incidentId}/status")]
-        public async Task<IActionResult> UpdateIncidentStatus(int incidentId, [FromBody] UpdatePassengerStatusRequest req, [FromQuery] string userId)
+        public async Task<IActionResult> UpdateIncidentStatus(int incidentId, [FromBody] UpdatePassengerStatusRequest req)
         {
-            if (string.IsNullOrWhiteSpace(userId)) 
-                return BadRequest(new { error = "userId query parameter is required." });
+            var userId = GetCurrentUserId();
+            if (string.IsNullOrWhiteSpace(userId))
+                return Unauthorized(new { error = "Unable to identify user from token." });
 
             var incident = await _context.Incidents.Include(i => i.UserReport).FirstOrDefaultAsync(i => i.IncidentId == incidentId);
             if (incident == null) return NotFound();

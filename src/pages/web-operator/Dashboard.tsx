@@ -1,18 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-
   ClockIcon,
   CalendarIcon,
   RefreshCwIcon,
+  ChevronRightIcon,
 } from 'lucide-react';
+import { StatusTimeline, buildTimelineSteps } from '../../components/StatusTimeline';
 import type { NavPage } from './OperatorInterface';
 import { useTime } from '../../context/TimeContext';
 import { formatClockTime } from '../../utils/Time';
 
-const API = 'http://localhost:5293/api/data';
+const API = `${import.meta.env.VITE_API_URL}/api/data`;
 
 interface DashboardProps {
-  onNavigate?: (page: NavPage) => void;
+  onNavigate?: (page: NavPage, id?: string | number) => void;
 }
 
 type DateRange = 'today' | 'yesterday' | '7days' | '30days' | 'custom';
@@ -26,16 +27,24 @@ const RANGE_LABELS: Record<DateRange, string> = {
 };
 
 interface RecentAlert {
-  id: number;
+  id: string;
   trainId: number | string;
   coachId: number | string;
   line: string;
   lineId: string;
   station: string;
   time: string;
+  datetime: string;
   status: string;
   confidence: number | null;
   source: 'ai' | 'passenger';
+  reportedBy?: string | null;
+  passengerComment?: string | null;
+  verifiedBy?: string | null; verifiedAt?: string | null; verifiedComment?: string | null;
+  enrouteBy?: string | null; enrouteAt?: string | null;
+  resolvedBy?: string | null; resolvedAt?: string | null; resolvedComment?: string | null;
+  escalatedBy?: string | null; escalatedAt?: string | null; escalatedComment?: string | null;
+  dismissedBy?: string | null; dismissedAt?: string | null; dismissedComment?: string | null;
 }
 
 interface DashboardStats {
@@ -87,6 +96,8 @@ const STATUS_THEME: Record<string, { color: string, bg: string }> = {
   dismissed: { color: '#4A5568', bg: '#F7FAFC' }
 }
 
+const PAGE_SIZE = 10;
+
 export function Dashboard({ onNavigate }: DashboardProps) {
   const { format } = useTime();
   const [selectedRange, setSelectedRange] = useState<DateRange>('today');
@@ -96,6 +107,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [alerts, setAlerts] = useState<RecentAlert[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [alertPage, setAlertPage] = useState(1);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // ── Fetch from backend ────────────────────────────────────────────────────────
   const fetchDashboard = useCallback(async () => {
@@ -130,7 +143,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         query = `?from=${fromDate.toISOString()}&to=${toDate.toISOString()}`;
       }
 
-      const res = await fetch(`${API}/operator/dashboard${query}`);
+      const token: string | undefined = (() => { try { return JSON.parse(localStorage.getItem('user_session') ?? '{}')?.token; } catch { return undefined; } })();
+      const res = await fetch(`${API}/operator/dashboard${query}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       const data = await res.json();
       setStats(data.stats);
       setAlerts(data.recentAlerts ?? []);
@@ -141,7 +157,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     }
   }, [selectedRange, customFrom, customTo]);
 
-  useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
+  useEffect(() => { fetchDashboard(); setAlertPage(1); setExpandedId(null); }, [fetchDashboard]);
 
   // ── Dynamic subtitle ──────────────────────────────────────────────────────────
   const getSubtitle = () => {
@@ -305,103 +321,201 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       </div>
 
       {/* ── Recent Alerts ── */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 min-w-0">
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-2">
-            <h2 className="text-base font-bold text-gray-900">Recent Alerts</h2>
-            {!loading && alerts.length > 0 && (
-              <span className="text-xs bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full font-medium">
-                {alerts.length} latest
-              </span>
-            )}
-          </div>
-          <button
-            className="text-sm font-medium flex items-center gap-1 hover:opacity-80 transition-opacity"
-            style={{ color: '#0B4F6C' }}
-            onClick={() => onNavigate?.('live-alerts')}
-            aria-label="View all alerts"
-          >
-            View All <span aria-hidden="true">→</span>
-          </button>
-        </div>
+      {(() => {
+        const isToday = selectedRange === 'today';
+        const visibleAlerts = isToday ? alerts.slice(0, 5) : alerts.slice((alertPage - 1) * PAGE_SIZE, alertPage * PAGE_SIZE);
+        const totalPages = Math.ceil(alerts.length / PAGE_SIZE);
 
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 py-12">
-            <RefreshCwIcon size={18} className="text-gray-300 animate-spin" />
-            <span className="text-sm text-gray-400">Loading alerts…</span>
-          </div>
-        ) : alerts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <CalendarIcon size={32} className="text-gray-200 mb-3" />
-            <p className="text-sm font-medium text-gray-400">No incidents yet</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {alerts.slice(0, 5).map((alert) => {
-              const lineColor = getLineColor(alert.lineId);
-              return (
-                <div
-                  key={alert.id}
-                  className="bg-white rounded-xl border border-gray-100 overflow-hidden"
-                >
-                  <div className="flex">
-                    <div
-                      className="w-1 flex-shrink-0"
-                      style={{ backgroundColor: STATUS_THEME[alert.status]?.color || '#d1d5db' }}
-                    />
-                    <div className="flex-1 p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-sm text-gray-900">
-                              T.{alert.trainId} · C.{alert.coachId}
-                            </span>
-                            <span
-                              className="text-xs px-2 py-0.5 rounded-full font-medium"
-                              style={{ backgroundColor: lineColor + '18', color: lineColor }}
-                            >
-                              {alert.line}
-                            </span>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
-                              {alert.station}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 mt-2 flex-wrap">
-                            <span className="text-xs text-gray-500">
-                              <ClockIcon className="w-3 h-3 inline mr-1" />
-                              {formatClockTime(alert.time, format)}
-                            </span>
-                            {alert.source === 'ai' ? (
-                              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#FEF2F0] text-[#D34026]">
-                                AI detected{alert.confidence !== null ? `, ${alert.confidence}% confidence` : ''}
-                              </span>
-                            ) : (
-                              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E]">
-                                Passenger reported
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <span
-                            className="text-xs font-semibold px-2 py-1 rounded-md"
-                            style={{
-                              backgroundColor: STATUS_THEME[alert.status]?.bg || '#F7FAFC',
-                              color: STATUS_THEME[alert.status]?.color || '#718096',
-                            }}
-                          >
-                            {alert.status.toUpperCase()}
+        const dateLabel = (() => {
+          const now = new Date();
+          const fmtShort = (d: Date) => d.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' });
+          if (selectedRange === 'yesterday') {
+            const y = new Date(now); y.setDate(now.getDate() - 1);
+            return fmtShort(y);
+          }
+          if (selectedRange === '7days') {
+            const s = new Date(now); s.setDate(now.getDate() - 6);
+            return `${fmtShort(s)} – ${fmtShort(now)}`;
+          }
+          if (selectedRange === '30days') {
+            const s = new Date(now); s.setDate(now.getDate() - 29);
+            return `${fmtShort(s)} – ${fmtShort(now)}`;
+          }
+          if (selectedRange === 'custom' && customFrom && customTo)
+            return `${customFrom} – ${customTo}`;
+          return '';
+        })();
+
+        const AlertRow = ({ alert }: { alert: RecentAlert }) => {
+          const lineColor = getLineColor(alert.lineId);
+          const open = !isToday && expandedId === alert.id;
+          const steps = buildTimelineSteps({
+            source: alert.source,
+            datetime: alert.datetime,
+            reportedBy: alert.reportedBy,
+            passengerComment: alert.passengerComment,
+            confidence: alert.confidence,
+            verifiedBy: alert.verifiedBy, verifiedAt: alert.verifiedAt, verifiedComment: alert.verifiedComment,
+            enrouteBy: alert.enrouteBy, enrouteAt: alert.enrouteAt,
+            resolvedBy: alert.resolvedBy, resolvedAt: alert.resolvedAt, resolvedComment: alert.resolvedComment,
+            escalatedBy: alert.escalatedBy, escalatedAt: alert.escalatedAt, escalatedComment: alert.escalatedComment,
+            dismissedBy: alert.dismissedBy, dismissedAt: alert.dismissedAt, dismissedComment: alert.dismissedComment,
+          });
+
+          return (
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div
+                className="flex cursor-pointer hover:bg-gray-50/60 transition-colors"
+                onClick={() => {
+                  if (isToday) {
+                    onNavigate?.('live-alerts', alert.id);
+                  } else {
+                    setExpandedId(open ? null : alert.id);
+                  }
+                }}
+              >
+                <div className="w-1 flex-shrink-0" style={{ backgroundColor: STATUS_THEME[alert.status]?.color || '#d1d5db' }} />
+                <div className="flex-1 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {!isToday && (
+                          <ChevronRightIcon
+                            size={13}
+                            className="text-gray-400 flex-shrink-0 transition-transform duration-200"
+                            style={{ transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                          />
+                        )}
+                        <span className="font-bold text-sm text-gray-900">T.{alert.trainId} · C.{alert.coachId}</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: lineColor + '18', color: lineColor }}>
+                          {alert.line}
+                        </span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{alert.station}</span>
+                      </div>
+                      <div className="flex items-center gap-3 mt-2 flex-wrap">
+                        <span className="text-xs text-gray-500">
+                          <ClockIcon className="w-3 h-3 inline mr-1" />
+                          {formatClockTime(alert.time, format)}
+                        </span>
+                        {alert.source === 'ai' ? (
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#FEF2F0] text-[#D34026]">
+                            AI detected{alert.confidence != null ? `, ${Math.round(alert.confidence * 100)}% confidence` : ''}
                           </span>
-                        </div>
+                        ) : (
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E]">
+                            Passenger reported
+                          </span>
+                        )}
                       </div>
                     </div>
+                    <span
+                      className="text-xs font-semibold px-2 py-1 rounded-md flex-shrink-0"
+                      style={{ backgroundColor: STATUS_THEME[alert.status]?.bg || '#F7FAFC', color: STATUS_THEME[alert.status]?.color || '#718096' }}
+                    >
+                      {alert.status.toUpperCase()}
+                    </span>
                   </div>
                 </div>
-              );
-            })}
+              </div>
+              {open && (
+                <div className="px-5 pb-4 pt-2 bg-gray-50/80 border-t border-gray-100">
+                  <StatusTimeline steps={steps} />
+                </div>
+              )}
+            </div>
+          );
+        };
+
+        return (
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 min-w-0">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-gray-900">Recent Alerts</h2>
+                {!loading && alerts.length > 0 && (
+                  <span className="text-xs bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full font-medium">
+                    {isToday ? '5 latest' : `${alerts.length} total`}
+                  </span>
+                )}
+                {!isToday && dateLabel && (
+                  <span className="text-xs text-gray-400 font-medium">{dateLabel}</span>
+                )}
+              </div>
+              {isToday && (
+                <button
+                  className="text-sm font-medium flex items-center gap-1 hover:opacity-80 transition-opacity"
+                  style={{ color: '#0B4F6C' }}
+                  onClick={() => onNavigate?.('live-alerts')}
+                >
+                  View All <span aria-hidden="true">→</span>
+                </button>
+              )}
+            </div>
+
+            {/* Body */}
+            {loading ? (
+              <div className="flex items-center justify-center gap-2 py-12">
+                <RefreshCwIcon size={18} className="text-gray-300 animate-spin" />
+                <span className="text-sm text-gray-400">Loading alerts…</span>
+              </div>
+            ) : alerts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <CalendarIcon size={32} className="text-gray-200 mb-3" />
+                <p className="text-sm font-medium text-gray-400">No incidents for this period</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {visibleAlerts.map((alert) => <AlertRow key={alert.id} alert={alert} />)}
+              </div>
+            )}
+
+            {/* Pagination — non-today only */}
+            {!isToday && !loading && totalPages > 1 && (
+              <div className="flex items-center justify-between mt-5 pt-4 border-t border-gray-100">
+                <span className="text-xs text-gray-400">
+                  Page {alertPage} of {totalPages} · {alerts.length} alerts
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setAlertPage(p => Math.max(1, p - 1))}
+                    disabled={alertPage === 1}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    ← Prev
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(p => p === 1 || p === totalPages || Math.abs(p - alertPage) <= 1)
+                    .reduce<(number | '...')[]>((acc, p, idx, arr) => {
+                      if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('...');
+                      acc.push(p);
+                      return acc;
+                    }, [])
+                    .map((p, i) =>
+                      p === '...' ? (
+                        <span key={`ellipsis-${i}`} className="px-2 text-xs text-gray-400">…</span>
+                      ) : (
+                        <button
+                          key={p}
+                          onClick={() => setAlertPage(p as number)}
+                          className={`w-8 h-8 text-xs font-medium rounded-lg border transition-colors ${alertPage === p ? 'bg-[#0B4F6C] text-white border-[#0B4F6C]' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                        >
+                          {p}
+                        </button>
+                      )
+                    )}
+                  <button
+                    onClick={() => setAlertPage(p => Math.min(totalPages, p + 1))}
+                    disabled={alertPage === totalPages}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next →
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        );
+      })()}
     </div>
   );
 }
