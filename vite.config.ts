@@ -26,7 +26,7 @@ export default defineConfig({
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.ts',
-      includeAssets: ['favicon.ico', 'Railly_logo.png'],
+      includeAssets: ['favicon.ico'],
       manifest: {
         name: 'Railly',
         short_name: 'Railly',
@@ -40,7 +40,13 @@ export default defineConfig({
         categories: ['navigation', 'utilities'],
         icons: [
           {
-            src: 'Railly_logo.png',
+            src: 'https://railly.s3.ap-southeast-1.amazonaws.com/assets/Railly_logo.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any maskable'
+          }
+          {
+            src: 'https://railly.s3.ap-southeast-1.amazonaws.com/assets/Railly_logo.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'

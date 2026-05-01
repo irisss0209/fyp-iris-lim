@@ -54,8 +54,8 @@ self.addEventListener('push', (event: PushEvent) => {
   const title: string = data.title ?? 'Railly Alert'
   const options: NotificationOptions = {
     body: data.body ?? '',
-    icon: '/Railly_logo.png',
-    badge: '/Railly_logo.png',
+    icon: 'https://railly.s3.ap-southeast-1.amazonaws.com/assets/Railly_logo.png',
+    badge: 'https://railly.s3.ap-southeast-1.amazonaws.com/assets/Railly_logo.png',
     data: { url: data.url ?? '/' },
     tag: data.tag ?? 'railly-alert',
     renotify: true,
