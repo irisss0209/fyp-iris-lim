@@ -82,6 +82,7 @@ export function AlertsHistory({ userId, token }: { userId: string; token?: strin
     setLoading(true);
     fetch(`${import.meta.env.VITE_API_BASE}/api/data/auxiliary/history?userId=${userId}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: 'include'
     })
       .then(res => res.json())
       .then(data => { setCases(data); setLoading(false); })

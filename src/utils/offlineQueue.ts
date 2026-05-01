@@ -44,6 +44,7 @@ export async function flushPendingReports(apiBase: string): Promise<number> {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(report.payload),
+        credentials: 'include'
       });
       if (res.ok) {
         removeReport(report.id);

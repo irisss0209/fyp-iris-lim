@@ -30,7 +30,7 @@ export function MfaSetup({
 
   const fetchSetupData = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE}/api/auth/mfa/setup?email=${encodeURIComponent(email)}`);
+      const response = await fetch(`${import.meta.env.VITE_API_BASE}/api/auth/mfa/setup?email=${encodeURIComponent(email)}`, { credentials: 'include' });
       if (response.ok) {
         const data = await response.json();
         setSetupData(data);
@@ -75,6 +75,7 @@ export function MfaSetup({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code: fullCode, challengeId }),
+        credentials: 'include'
       });
 
       if (response.ok) {

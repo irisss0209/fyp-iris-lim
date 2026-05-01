@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { RefreshCwIcon } from 'lucide-react';
 
 export interface MfaVerificationProps {
   email: string;

@@ -40,6 +40,7 @@ export async function requestAndSubscribe(lat?: number, lng?: number): Promise<v
       latitude: lat ?? null,
       longitude: lng ?? null,
     }),
+    credentials: 'include'
   }).catch(err => console.warn('[PUSH] Subscribe sync failed:', err))
 }
 
@@ -50,5 +51,6 @@ export async function unsubscribeFromPush(): Promise<void> {
 
   await fetch(`${API}/api/notifications/unsubscribe`, {
     method: 'DELETE',
+    credentials: 'include'
   }).catch(() => {})
 }

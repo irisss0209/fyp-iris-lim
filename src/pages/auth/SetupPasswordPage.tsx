@@ -57,7 +57,8 @@ export function SetupPasswordPage({ email, onSuccess, onBack }: SetupPasswordPag
       const response = await fetch(`${import.meta.env.VITE_API_BASE}/api/auth/setup-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.toLowerCase(), password })
+        body: JSON.stringify({ email: email.toLowerCase(), password }),
+        credentials: 'include'
       });
 
       const data = await response.json();

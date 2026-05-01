@@ -35,7 +35,8 @@ export function ChangePasswordPage({ session, onBack }: ChangePasswordPageProps)
           email: session.email,
           currentPassword: currentPw,
           newPassword: newPw
-        })
+        }),
+        credentials: 'include'
       });
 
       if (res.ok) {

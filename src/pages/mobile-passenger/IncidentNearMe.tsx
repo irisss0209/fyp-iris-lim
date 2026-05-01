@@ -32,7 +32,7 @@ export function IncidentNearMe() {
   };
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_BASE}/api/data/incident-near-me`)
+    fetch(`${import.meta.env.VITE_API_BASE}/api/data/incident-near-me`, { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         setIncidents(data || []);
@@ -43,7 +43,7 @@ export function IncidentNearMe() {
         setLoading(false);
       });
 
-    fetch(`${import.meta.env.VITE_API_BASE}/api/data/lines`)
+    fetch(`${import.meta.env.VITE_API_BASE}/api/data/lines`, { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         const names = data.map((l: any) => l.lineName);
