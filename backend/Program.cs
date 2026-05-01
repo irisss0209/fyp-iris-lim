@@ -108,7 +108,6 @@ builder.Services.AddCors(options =>
 });
 var app = builder.Build(); 
 
-app.MapOpenApi();
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseCors("AllowFrontend");

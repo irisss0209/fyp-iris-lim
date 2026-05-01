@@ -9,6 +9,11 @@ using System.IdentityModel.Tokens.Jwt;
 
 namespace backend.Controllers
 {
+    public class ImageUploadDto
+    {
+        public IFormFile Image { get; set; } = null!;
+    }
+
     [ApiController]
     [Route("api/data")] // Maintained original route to not break frontend links
     public class PassengerController : ControllerBase
@@ -112,10 +117,10 @@ namespace backend.Controllers
 
         [Authorize]
         [Consumes("multipart/form-data")]
-
         [HttpPost("report/{reportId}/image")]
-        public async Task<IActionResult> UploadReportImage(int reportId, [FromForm] IFormFile image)
+        public async Task<IActionResult> UploadReportImage(int reportId, [FromForm] ImageUploadDto dto)
         {
+            var image = dto.Image;
             var userId = GetCurrentUserId();
             if (string.IsNullOrWhiteSpace(userId))
                 return Unauthorized(new { error = "Unable to identify user from token." });
