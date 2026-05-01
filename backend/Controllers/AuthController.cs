@@ -92,28 +92,33 @@ namespace backend.Controllers
         }
 
         [HttpPost("check-account")]
-        public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest request)
+public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest request)
+{
+    try
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.Email))
+            return BadRequest("Email is required.");
+
+        var normalized = request.Email.Trim().ToLower();
+
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == normalized);
+
+        if (user == null)
+            return Ok(new { exists = false });
+
+        return Ok(new
         {
-            if (string.IsNullOrWhiteSpace(request.Email))
-            {
-                return BadRequest(new { error = "Email is required." });
-            }
-
-            var normalized = request.Email.Trim().ToLower();
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == normalized);
-            if (user == null)
-            {
-                return Ok(new { exists = false });
-            }
-
-            return Ok(new
-            {
-                exists = true,
-                role = MapFrontendRole(user.Role),
-                isActive = user.Status == UserStatus.Active,
-                requiresSetup = (user.Role == UserRole.Auxiliary || user.Role == UserRole.Operator) && string.IsNullOrWhiteSpace(user.PasswordHash)
-            });
-        }
+            exists = true,
+            role = user.Role,          // 👈 remove ToString()
+            isActive = user.Status     // 👈 return raw
+        });
+    }
+    catch (Exception ex)
+    {
+        return StatusCode(500, ex.ToString()); // 🔥 THIS IS KEY
+    }
+}
 
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
