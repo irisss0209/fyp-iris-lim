@@ -80,7 +80,7 @@ export function AlertsHistory({ userId, token }: { userId: string; token?: strin
   useEffect(() => {
     if (!userId) { setLoading(false); return; }
     setLoading(true);
-    fetch(`${import.meta.env.VITE_API_URL}/api/data/auxiliary/history?userId=${userId}`, {
+    fetch(`${import.meta.env.VITE_API_BASE}/api/data/auxiliary/history?userId=${userId}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then(res => res.json())

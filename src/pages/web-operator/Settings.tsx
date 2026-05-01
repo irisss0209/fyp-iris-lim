@@ -3,7 +3,7 @@ import { Clock, Bell, Lock } from 'lucide-react';
 import { useTime } from '../../context/TimeContext';
 import { requestAndSubscribe, unsubscribeFromPush } from '../../utils/pushNotifications';
 
-const API = `${import.meta.env.VITE_API_URL}/api/data`;
+const API = `${import.meta.env.VITE_API_BASE}/api/data`;
 type Page = 'settings' | 'change-password';
 
 export function Settings({ onNavigate }: { onNavigate: (page: Page) => void }) {
@@ -21,7 +21,7 @@ export function Settings({ onNavigate }: { onNavigate: (page: Page) => void }) {
   useEffect(() => {
     // We no longer need to check for a token here because the global fetch patch
     // handles credentials (cookies) automatically.
-    fetch(`${API}/operator/settings`)
+    fetch(`${API}/operator/settings`, { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         if (data) {
@@ -49,7 +49,8 @@ export function Settings({ onNavigate }: { onNavigate: (page: Page) => void }) {
         body: JSON.stringify({
           soundAlerts,
           timeFormat
-        })
+        }),
+        credentials: 'include'
       });
 
       if (!res.ok) {

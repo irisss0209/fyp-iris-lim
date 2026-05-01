@@ -18,7 +18,7 @@ export function AuxiliaryProfile({ session, onLogout, onChangePassword }: Auxili
   const [openSection, setOpenSection] = useState<ProfileSection>(null);
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/api/data/profile`, {
+    fetch(`${import.meta.env.VITE_API_BASE}/api/data/profile`, {
       credentials: 'include'
     })
       .then(res => res.json())

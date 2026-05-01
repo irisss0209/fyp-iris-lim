@@ -69,7 +69,7 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
   };
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/api/data/lines`, { credentials: 'include' })
+    fetch(`${import.meta.env.VITE_API_BASE}/api/data/lines`, { credentials: 'include' })
       .then(res => res.json())
       .then(setLinesData)
       .catch(console.error);
@@ -77,7 +77,7 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
 
   useEffect(() => {
     if (selectedLineId) {
-      fetch(`${import.meta.env.VITE_API_URL}/api/data/stations-by-line/${selectedLineId}`, { credentials: 'include' })
+      fetch(`${import.meta.env.VITE_API_BASE}/api/data/stations-by-line/${selectedLineId}`, { credentials: 'include' })
         .then(res => res.json())
         .then(setStationsData)
         .catch(console.error);
@@ -128,7 +128,7 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
     }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/data/report`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE}/api/data/report`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -147,7 +147,7 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
           form.append('image', photoFile);
           try {
             await fetch(
-              `${import.meta.env.VITE_API_URL}/api/data/report/${reportId}/image`,
+              `${import.meta.env.VITE_API_BASE}/api/data/report/${reportId}/image`,
               {
                 method: 'POST',
                 headers: { ...(session.token && { Authorization: `Bearer ${session.token}` }) },

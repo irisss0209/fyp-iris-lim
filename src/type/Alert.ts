@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
-const API = `${import.meta.env.VITE_API_URL}/api/data`;
+const API = `${import.meta.env.VITE_API_BASE}/api/data`;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,6 +63,7 @@ export interface Alert {
 export async function fetchOperatorAlerts(token?: string) {
   const res = await fetch(`${API}/operator/alerts`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: 'include'
   });
   if (!res.ok) throw new Error('Failed to fetch operator alerts');
   return res.json();
@@ -71,6 +72,7 @@ export async function fetchOperatorAlerts(token?: string) {
 export async function fetchAuxiliaryAlerts(stationId: string, token?: string) {
   const res = await fetch(`${API}/auxiliary/alerts?stationId=${stationId}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: 'include'
   });
   if (!res.ok) throw new Error('Failed to fetch auxiliary alerts');
   return res.json();
@@ -95,6 +97,7 @@ export async function updateAlertStatus(
       ...(token && { 'Authorization': `Bearer ${token}` })
     },
     body: JSON.stringify({ status, comment }),
+    credentials: 'include'
   });
   
   if (!res.ok) throw new Error('Failed to update alert status');

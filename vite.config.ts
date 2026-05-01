@@ -28,9 +28,9 @@ export default defineConfig({
       filename: 'sw.ts',
       includeAssets: ['favicon.ico', 'Railly_logo.png'],
       manifest: {
-        name: 'Railly – Transit Safety App',
+        name: 'Railly',
         short_name: 'Railly',
-        description: 'Real-time transit safety monitoring for operators, passengers, and police.',
+        description: 'Real-time WOCs monitoring for operators, passengers, and auxiliary.',
         theme_color: '#1e1b4b',
         background_color: '#FAF9F5',
         display: 'standalone',
@@ -49,6 +49,7 @@ export default defineConfig({
       },
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024
       },
       devOptions: {
         enabled: true,

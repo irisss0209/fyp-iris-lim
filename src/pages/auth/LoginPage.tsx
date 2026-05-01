@@ -76,7 +76,7 @@ export function LoginPage({
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/check-account`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE}/api/auth/check-account`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: normalizedEmail }),
@@ -127,7 +127,7 @@ export function LoginPage({
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: normalizedEmail, password: trimmedPassword }),
@@ -175,7 +175,7 @@ export function LoginPage({
     setError('');
     setIsLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login/start-otp`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE}/api/auth/login/start-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: normalizedEmail }),
@@ -205,7 +205,7 @@ export function LoginPage({
   const verifyOtp = async (code: string): Promise<boolean> => {
     if (!pendingMfa) return false;
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login/verify`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE}/api/auth/login/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -233,7 +233,7 @@ export function LoginPage({
     setError('');
     try {
       // Re-trigger either password login or direct OTP login to get a new code
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login/start-otp`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE}/api/auth/login/start-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: pendingMfa.email }),

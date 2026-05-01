@@ -37,7 +37,7 @@ export function PassengerInterface({ session, onLogout }: PassengerInterface) {
 
   useEffect(() => {
     const handleOnline = async () => {
-      await flushPendingReports(import.meta.env.VITE_API_URL);
+      await flushPendingReports(import.meta.env.VITE_API_BASE);
     };
     window.addEventListener('online', handleOnline);
     // Also try on mount in case they were offline and came back

@@ -20,7 +20,7 @@ import {
   YAxis,
 } from 'recharts';
 
-const API = `${import.meta.env.VITE_API_URL}/api/data`;
+const API = `${import.meta.env.VITE_API_BASE}/api/data`;
 const ACCENT = '#0B4F6C';
 const ALERT = '#D34026';
 const SAFE = '#2D7A5D';
@@ -78,7 +78,7 @@ async function getJson<T>(url: string, token?: string): Promise<T> {
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  const res = await fetch(url, { headers });
+  const res = await fetch(url, { headers, credentials: 'include' });
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);
   return res.json();
 }

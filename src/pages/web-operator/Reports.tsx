@@ -15,7 +15,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import '../../Operator.css';
 
-const API = `${import.meta.env.VITE_API_URL}/api/data`;
+const API = `${import.meta.env.VITE_API_BASE}/api/data`;
 const ACCENT = '#0B4F6C';
 const LINE_PALETTE = ['#D34026', '#0B4F6C', '#2D7A5D', '#7B5EA7', '#B45309', '#0E7490'];
 const lineColorCache: Record<string, string> = {};
@@ -155,6 +155,7 @@ export function Reports() {
         const token: string | undefined = (() => { try { return JSON.parse(localStorage.getItem('user_session') ?? '{}')?.token; } catch { return undefined; } })();
         const res = await fetch(`${API}/operator/reports`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: 'include'
         });
         const json = await res.json();
         if (json.months?.length > 0) {
@@ -184,6 +185,7 @@ export function Reports() {
       const token: string | undefined = (() => { try { return JSON.parse(localStorage.getItem('user_session') ?? '{}')?.token; } catch { return undefined; } })();
       const res = await fetch(`${API}/operator/reports?year=${m.year}&month=${m.month}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'include'
       });
       const json = await res.json();
       setData(json);

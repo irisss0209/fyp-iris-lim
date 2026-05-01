@@ -41,8 +41,9 @@ export function Report({ session }: { session: any }) {
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   const fetchHistory = () => {
-    fetch(`${import.meta.env.VITE_API_URL}/api/data/my-history?userId=${session.userId}`, {
+    fetch(`${import.meta.env.VITE_API_BASE}/api/data/my-history?userId=${session.userId}`, {
       headers: session.token ? { Authorization: `Bearer ${session.token}` } : {},
+      credentials: 'include'
     })
       .then(res => res.json())
       .then(data => {
@@ -81,7 +82,7 @@ export function Report({ session }: { session: any }) {
     setIsUpdatingStatus(true);
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/data/incident/${selectedReport.incidentId}/status?userId=${session.userId}`,
+        `${import.meta.env.VITE_API_BASE}/api/data/incident/${selectedReport.incidentId}/status?userId=${session.userId}`,
         {
           method: 'POST',
           headers: {
@@ -89,6 +90,7 @@ export function Report({ session }: { session: any }) {
             ...(session.token && { Authorization: `Bearer ${session.token}` }),
           },
           body: JSON.stringify({ action: action === 'Cancel' ? 'Dismiss' : 'Escalate', comment }),
+          credentials: 'include'
         }
       );
       if (!res.ok) {

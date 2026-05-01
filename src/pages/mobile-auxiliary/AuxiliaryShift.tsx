@@ -27,7 +27,7 @@ export function AuxiliaryShift({ userId, token, onStationDetected }: AuxiliarySh
       onStationDetected?.(undefined);
       return;
     }
-    fetch(`${import.meta.env.VITE_API_URL}/api/data/auxiliary/shift?userId=${userId}`, {
+    fetch(`${import.meta.env.VITE_API_BASE}/api/data/auxiliary/shift?userId=${userId}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then(res => res.json())

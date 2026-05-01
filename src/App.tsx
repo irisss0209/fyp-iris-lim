@@ -8,7 +8,7 @@ import { SetupPasswordPage } from './pages/auth/SetupPasswordPage';
 import { UpdatePrompt } from './components/UpdatePrompt';
 import { requestAndSubscribe } from './utils/pushNotifications';
 
-const API = import.meta.env.VITE_API_URL as string;
+const API_BASE = import.meta.env.VITE_API_BASE as string;
 
 export type UserRole = 'operator' | 'passenger' | 'auxiliary';
 
@@ -41,7 +41,7 @@ export function App() {
   // Restore session from HttpOnly cookie if no localStorage session
   useEffect(() => {
     if (session) return;
-    fetch(`${API}/api/auth/me`, { credentials: 'include' })
+    fetch(`${API_BASE}/api/auth/me`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.userId) setSession(data); })
       .catch(() => {});
@@ -76,7 +76,7 @@ export function App() {
   }, [session?.userId]);
 
   const handleLogout = () => {
-    fetch(`${API}/api/auth/logout`, { 
+    fetch(`${API_BASE}/api/auth/logout`, { 
       method: 'POST',
       credentials: 'include'
     }).catch(() => {});

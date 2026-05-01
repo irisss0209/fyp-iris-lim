@@ -10,7 +10,7 @@ import type { NavPage } from './OperatorInterface';
 import { useTime } from '../../context/TimeContext';
 import { formatClockTime } from '../../utils/Time';
 
-const API = `${import.meta.env.VITE_API_URL}/api/data`;
+const API = `${import.meta.env.VITE_API_BASE}/api/data`;
 
 interface DashboardProps {
   onNavigate?: (page: NavPage, id?: string | number) => void;
@@ -146,6 +146,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       const token: string | undefined = (() => { try { return JSON.parse(localStorage.getItem('user_session') ?? '{}')?.token; } catch { return undefined; } })();
       const res = await fetch(`${API}/operator/dashboard${query}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'include'
       });
       const data = await res.json();
       setStats(data.stats);

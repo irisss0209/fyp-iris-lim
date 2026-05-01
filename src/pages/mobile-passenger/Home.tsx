@@ -53,18 +53,18 @@ export function Home({ onNavigate, session }: HomeProps) {
   };
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/api/data/incident-near-me`, { credentials: 'include' })
+    fetch(`${import.meta.env.VITE_API_BASE}/api/data/incident-near-me`, { credentials: 'include' })
       .then(res => res.json())
       .then(data => setIncidents(data || []))
       .catch(err => console.error('Failed to fetch incidents', err));
 
-    fetch(`${import.meta.env.VITE_API_URL}/api/data/lines`, { credentials: 'include' })
+    fetch(`${import.meta.env.VITE_API_BASE}/api/data/lines`, { credentials: 'include' })
       .then(res => res.json())
       .then(data => setLines(['All Lines', ...data.map((l: any) => l.lineName)]))
       .catch(console.error);
 
     if (session?.userId) {
-      fetch(`${import.meta.env.VITE_API_URL}/api/data/my-history`, {
+      fetch(`${import.meta.env.VITE_API_BASE}/api/data/my-history`, {
         credentials: 'include'
       })
         .then(res => res.json())

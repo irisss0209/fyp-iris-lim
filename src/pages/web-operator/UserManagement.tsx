@@ -20,7 +20,7 @@ import {
   XIcon
 } from 'lucide-react';
 const ACCENT = '#0B4F6C';
-const API = `${import.meta.env.VITE_API_URL}/api/data`;
+const API = `${import.meta.env.VITE_API_BASE}/api/data`;
 const mapToBackendStatus = (action: string) => {
   switch (action) {
     case 'Suspend': return 'Suspended';
@@ -75,7 +75,8 @@ export function UserManagement() {
     setLoading(true);
     const session = JSON.parse(localStorage.getItem("user_session") || "{}");
     fetch(`${API}/operator/users`, {
-      headers: { 'Authorization': `Bearer ${session.token}` }
+      headers: { 'Authorization': `Bearer ${session.token}` },
+      credentials: 'include'
     })
       .then(r => r.json())
       .then(setUsers)
@@ -104,6 +105,7 @@ export function UserManagement() {
           'Authorization': `Bearer ${session.token}`
         },
         body: JSON.stringify({ status: mapToBackendStatus(newStatus) }),
+        credentials: 'include'
       });
       if (!res.ok) {
         const err = await res.json();
@@ -169,7 +171,8 @@ export function UserManagement() {
         headers: {
           Authorization: `Bearer ${session.token}`
         },
-        body: form
+        body: form,
+        credentials: 'include'
       });
 
       if (!res.ok) {
