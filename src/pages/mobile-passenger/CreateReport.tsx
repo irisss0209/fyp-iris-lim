@@ -69,7 +69,7 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
   };
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/api/data/lines`)
+    fetch(`${import.meta.env.VITE_API_URL}/api/data/lines`, { credentials: 'include' })
       .then(res => res.json())
       .then(setLinesData)
       .catch(console.error);
@@ -77,7 +77,7 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
 
   useEffect(() => {
     if (selectedLineId) {
-      fetch(`${import.meta.env.VITE_API_URL}/api/data/stations-by-line/${selectedLineId}`)
+      fetch(`${import.meta.env.VITE_API_URL}/api/data/stations-by-line/${selectedLineId}`, { credentials: 'include' })
         .then(res => res.json())
         .then(setStationsData)
         .catch(console.error);
@@ -128,13 +128,14 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
     }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/data/report?userId=${session.userId}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/data/report`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(session.token && { Authorization: `Bearer ${session.token}` }),
         },
         body: JSON.stringify(reportPayload),
+        credentials: 'include'
       });
 
       if (response.ok) {
@@ -146,11 +147,12 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
           form.append('image', photoFile);
           try {
             await fetch(
-              `${import.meta.env.VITE_API_URL}/api/data/report/${reportId}/image?userId=${session.userId}`,
+              `${import.meta.env.VITE_API_URL}/api/data/report/${reportId}/image`,
               {
                 method: 'POST',
                 headers: { ...(session.token && { Authorization: `Bearer ${session.token}` }) },
                 body: form,
+                credentials: 'include'
               }
             );
           } catch (err) {

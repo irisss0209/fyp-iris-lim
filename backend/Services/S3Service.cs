@@ -22,10 +22,20 @@ namespace backend.Services
             _region = _config["AWS:Region"] ?? "ap-southeast-1";
             _bucketName = _config["AWS:BucketName"] ?? "railly";
 
-            var credentials = new BasicAWSCredentials(accessKey, secretKey);
             var regionEndpoint = RegionEndpoint.GetBySystemName(_region);
             
-            _s3Client = new AmazonS3Client(credentials, regionEndpoint);
+            if (!string.IsNullOrEmpty(accessKey) && !string.IsNullOrEmpty(secretKey) && 
+                accessKey != "your-access-key-id" && secretKey != "your-secret-access-key")
+            {
+                var credentials = new BasicAWSCredentials(accessKey, secretKey);
+                _s3Client = new AmazonS3Client(credentials, regionEndpoint);
+            }
+            else
+            {
+                _s3Client = new AmazonS3Client(regionEndpoint);
+                Console.WriteLine("[S3 SERVICE] Initialized using Default Credential Provider Chain.");
+            }
+
             Console.WriteLine($"[S3 SERVICE] Initialized with Bucket: {_bucketName}, Region: {_region}");
         }
 

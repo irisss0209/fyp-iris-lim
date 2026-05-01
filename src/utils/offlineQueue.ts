@@ -37,19 +37,12 @@ export async function flushPendingReports(apiBase: string): Promise<number> {
   const pending = getPendingReports();
   if (pending.length === 0) return 0;
 
-  const token: string | undefined = (() => {
-    try { return JSON.parse(localStorage.getItem('user_session') ?? '{}')?.token; } catch { return undefined; }
-  })();
-
   let flushed = 0;
   for (const report of pending) {
     try {
       const res = await fetch(`${apiBase}/api/data/report?userId=${report.userId}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(report.payload),
       });
       if (res.ok) {

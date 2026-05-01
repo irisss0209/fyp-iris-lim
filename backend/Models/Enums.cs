@@ -50,4 +50,11 @@ namespace backend.Models
         [PgName("Resolved")]  Resolved,
         [PgName("Dismissed")] Dismissed
     }
+
+    public enum SoundAlertMode
+    {
+        [PgName("on")]   On,
+        [PgName("off")]  Off,
+        [PgName("peak")] Peak
+    }
 }

@@ -35,6 +35,7 @@ dataSourceBuilder.MapEnum<CoachType>("coach_type");
 dataSourceBuilder.MapEnum<CameraStatus>("camera_status");
 dataSourceBuilder.MapEnum<IncidentSource>("incident_source");
 dataSourceBuilder.MapEnum<IncidentStatus>("incident_status");
+dataSourceBuilder.MapEnum<SoundAlertMode>("sound_alert_mode");
 dataSourceBuilder.EnableUnmappedTypes();
 
 var dataSource = dataSourceBuilder.Build();
@@ -49,6 +50,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         o.MapEnum<CameraStatus>("camera_status");
         o.MapEnum<IncidentSource>("incident_source");
         o.MapEnum<IncidentStatus>("incident_status");
+        o.MapEnum<SoundAlertMode>("sound_alert_mode");
     }));
 
 // JWT Authentication
@@ -60,6 +62,15 @@ var audience      = jwtSettings["Audience"]   ?? "railly.my";
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = ctx =>
+            {
+                if (ctx.Request.Cookies.TryGetValue("auth_token", out var cookieToken))
+                    ctx.Token = cookieToken;
+                return Task.CompletedTask;
+            }
+        };
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer           = true,
@@ -78,6 +89,7 @@ builder.Services.AddSingleton<AuthChallengeStore>();
 builder.Services.AddSingleton<ITotpService, TotpService>();
 builder.Services.AddScoped<IAlertService, AlertService>();
 builder.Services.AddScoped<IS3Service, S3Service>();
+builder.Services.AddSingleton<IPushNotificationService, PushNotificationService>();
 
 // CORS
 var allowedOrigins = builder.Configuration
@@ -90,7 +102,8 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(allowedOrigins)
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
 var app = builder.Build(); 

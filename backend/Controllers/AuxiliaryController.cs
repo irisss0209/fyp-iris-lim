@@ -15,13 +15,13 @@ namespace backend.Controllers
     public class AuxiliaryController : ControllerBase
     {
         private readonly AppDbContext _context;
-private readonly IAlertService _alertService;
+        private readonly IAlertService _alertService;
 
-public AuxiliaryController(AppDbContext context, IAlertService alertService)
-{
-    _context = context;
-    _alertService = alertService;
-}
+        public AuxiliaryController(AppDbContext context, IAlertService alertService)
+        {
+            _context = context;
+            _alertService = alertService;
+        }
 
         private string? GetCurrentUserId() =>
             User.FindFirst(ClaimTypes.NameIdentifier)?.Value
@@ -310,6 +310,7 @@ public AuxiliaryController(AppDbContext context, IAlertService alertService)
             }
 
             await _context.SaveChangesAsync();
+
             return Ok(new { message = "Status updated." });
         }
 

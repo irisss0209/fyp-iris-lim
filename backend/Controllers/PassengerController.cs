@@ -70,6 +70,9 @@ namespace backend.Controllers
                 // Parse composite FK values sent from the frontend
                 if (req.CoachId <= 0)
                     return BadRequest(new { error = "Coach selection is required." });
+                
+                if (string.IsNullOrEmpty(req.LineId) || string.IsNullOrEmpty(req.StationId))
+                    return BadRequest(new { error = "Line and Station selection is required." });
 
                 int coachId = req.CoachId;
 

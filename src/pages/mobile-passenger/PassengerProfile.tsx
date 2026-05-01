@@ -17,8 +17,8 @@ export function Profile({ session, onLogout, onChangePassword }: { session: User
 
   const [stats, setStats] = useState({ reports: 0, verified: 0 });
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/api/data/profile?userId=${session.userId}`, {
-      headers: session.token ? { Authorization: `Bearer ${session.token}` } : {},
+    fetch(`${import.meta.env.VITE_API_URL}/api/data/profile`, {
+      credentials: 'include'
     })
       .then(res => res.json())
       .then(data => {

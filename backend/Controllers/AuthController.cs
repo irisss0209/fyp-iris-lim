@@ -7,7 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-
+using Microsoft.AspNetCore.Authorization;
 namespace backend.Controllers
 {
     [ApiController]
@@ -250,6 +250,7 @@ namespace backend.Controllers
 
             var frontendRole = MapFrontendRole(user.Role);
             var token = GenerateJwtToken(user, frontendRole);
+            SetAuthCookie(token);
             return Ok(new
             {
                 userId = user.UserId,
@@ -257,7 +258,6 @@ namespace backend.Controllers
                 employeeId = user.EmployeeId,
                 email = user.Email,
                 role = frontendRole,
-                token,
                 description = user.Role.ToString()
             });
         }
@@ -421,8 +421,9 @@ namespace backend.Controllers
             }
 
             // Create temporary challenge
-            var challenge = _challengeStore.Create(request.Email, TimeSpan.FromMinutes(10));
-            var sent = await _emailVerificationSender.SendLoginOtpAsync(request.Email, request.Name, challenge.Code);
+            var normalizedEmail = request.Email.Trim().ToLower();
+            var challenge = _challengeStore.Create(normalizedEmail, TimeSpan.FromMinutes(10));
+            var sent = await _emailVerificationSender.SendLoginOtpAsync(normalizedEmail, request.Name, challenge.Code);
 
             if (!sent)
             {
@@ -441,7 +442,8 @@ namespace backend.Controllers
         public async Task<IActionResult> SignupComplete([FromBody] SignupCompleteRequest request)
         {
             // 1. Verify OTP
-            var result = _challengeStore.VerifyAndConsume(request.ChallengeId, request.Email, request.Code.Trim());
+            var normalizedEmail = request.Email.Trim().ToLower();
+            var result = _challengeStore.VerifyAndConsume(request.ChallengeId, normalizedEmail, request.Code.Trim());
             if (!result.IsValid)
             {
                 return Unauthorized(new { error = "Invalid or expired verification code." });
@@ -469,8 +471,9 @@ namespace backend.Controllers
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            // 4. Generate Token
+            // 4. Generate Token and set cookie
             var token = GenerateJwtToken(user, "passenger");
+            SetAuthCookie(token);
 
             return Ok(new
             {
@@ -478,9 +481,57 @@ namespace backend.Controllers
                 userName = user.UserName,
                 email = user.Email,
                 role = "passenger",
-                token,
                 description = "Passenger"
             });
+        }
+
+        private void SetAuthCookie(string token)
+        {
+            var expiryHours = int.Parse(_configuration["JwtSettings:ExpiryHours"] ?? "8");
+            Response.Cookies.Append("auth_token", token, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure   = !_environment.IsDevelopment(),
+                SameSite = SameSiteMode.Strict,
+                Expires  = DateTimeOffset.UtcNow.AddHours(expiryHours),
+                Path     = "/"
+            });
+        }
+
+        [Authorize]
+        [HttpGet("me")]
+        public async Task<IActionResult> Me()
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                      ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null) return Unauthorized();
+
+            var frontendRole = MapFrontendRole(user.Role);
+            return Ok(new
+            {
+                userId      = user.UserId,
+                userName    = user.UserName,
+                employeeId  = user.EmployeeId,
+                email       = user.Email,
+                role        = frontendRole,
+                description = user.Role.ToString()
+            });
+        }
+
+        [HttpPost("logout")]
+        public IActionResult Logout()
+        {
+            Response.Cookies.Delete("auth_token", new CookieOptions
+            {
+                HttpOnly = true,
+                Secure   = !_environment.IsDevelopment(),
+                SameSite = SameSiteMode.Strict,
+                Path     = "/"
+            });
+            return Ok(new { message = "Logged out." });
         }
 
         private List<string> ValidatePasswordStrength(string password)

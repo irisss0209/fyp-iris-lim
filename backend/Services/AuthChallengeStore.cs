@@ -45,21 +45,36 @@ namespace backend.Services
         {
             if (!_entries.TryGetValue(challengeId, out var entry))
             {
+                Console.WriteLine($"[AUTH STORE] Challenge ID {challengeId} not found.");
                 return (false, null);
             }
 
-            if (entry.ExpiresAtUtc < DateTime.UtcNow || !string.Equals(entry.UserId, userId, StringComparison.Ordinal))
+            if (entry.ExpiresAtUtc < DateTime.UtcNow)
             {
+                Console.WriteLine($"[AUTH STORE] Challenge {challengeId} expired at {entry.ExpiresAtUtc}. Current time: {DateTime.UtcNow}");
                 _entries.TryRemove(challengeId, out _);
                 return (false, null);
             }
 
-            var ok = string.Equals(entry.Code, submittedCode, StringComparison.Ordinal);
+            if (!string.Equals(entry.UserId, userId, StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine($"[AUTH STORE] User ID mismatch. Expected: '{entry.UserId}', Got: '{userId}'");
+                _entries.TryRemove(challengeId, out _);
+                return (false, null);
+            }
+
+            var ok = string.Equals(entry.Code.Trim(), submittedCode.Trim(), StringComparison.Ordinal);
+            if (!ok)
+            {
+                Console.WriteLine($"[AUTH STORE] Code mismatch for user {userId}. Expected: '{entry.Code}', Got: '{submittedCode}'");
+            }
+            
             string? metadata = null;
             if (ok)
             {
                 metadata = entry.Metadata;
                 _entries.TryRemove(challengeId, out _);
+                Console.WriteLine($"[AUTH STORE] Success for user {userId}");
             }
             return (ok, metadata);
         }

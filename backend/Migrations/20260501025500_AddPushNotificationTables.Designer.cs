@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using backend.Data;
@@ -12,9 +13,11 @@ using backend.Models;
 namespace backend.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260501025500_AddPushNotificationTables")]
+    partial class AddPushNotificationTables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -26,7 +29,6 @@ namespace backend.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "coach_type", new[] { "Mixed", "Womens_Only" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "incident_source", new[] { "AI_DETECTION", "USER_REPORT" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "incident_status", new[] { "Dismissed", "En_Route", "Escalated", "Pending", "Resolved", "Verified" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "sound_alert_mode", new[] { "off", "on", "peak" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "user_role", new[] { "Auxiliary", "Operator", "Passenger" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "user_status", new[] { "Active", "Archived", "Suspended" });
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -301,8 +303,10 @@ namespace backend.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("user_id");
 
-                    b.Property<SoundAlertMode>("SoundAlerts")
-                        .HasColumnType("sound_alert_mode")
+                    b.Property<string>("SoundAlerts")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
                         .HasColumnName("sound_alerts");
 
                     b.Property<string>("TimeFormat")

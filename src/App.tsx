@@ -6,6 +6,9 @@ import { LoginPage } from './pages/auth/LoginPage';
 import { SignupPage } from './pages/auth/SignupPage';
 import { SetupPasswordPage } from './pages/auth/SetupPasswordPage';
 import { UpdatePrompt } from './components/UpdatePrompt';
+import { requestAndSubscribe } from './utils/pushNotifications';
+
+const API = import.meta.env.VITE_API_URL as string;
 
 export type UserRole = 'operator' | 'passenger' | 'auxiliary';
 
@@ -35,6 +38,15 @@ export function App() {
   const [setupEmail, setSetupEmail] = useState('');
   const [pendingMfa, setPendingMfa] = useState<any>(null);
 
+  // Restore session from HttpOnly cookie if no localStorage session
+  useEffect(() => {
+    if (session) return;
+    fetch(`${API}/api/auth/me`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.userId) setSession(data); })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (session) {
       localStorage.setItem('user_session', JSON.stringify(session));
@@ -43,10 +55,48 @@ export function App() {
     }
   }, [session]);
 
+  // Subscribe to push notifications after login
+  useEffect(() => {
+    if (!session?.userId) return;
+
+    if (session.role === 'passenger') {
+      // Passengers include their location so the backend can do proximity checks
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          pos => requestAndSubscribe(pos.coords.latitude, pos.coords.longitude),
+          ()  => requestAndSubscribe()
+        );
+      } else {
+        requestAndSubscribe();
+      }
+    } else {
+      // Auxiliary and operator don't need location
+      requestAndSubscribe();
+    }
+  }, [session?.userId]);
+
   const handleLogout = () => {
+    fetch(`${API}/api/auth/logout`, { 
+      method: 'POST',
+      credentials: 'include'
+    }).catch(() => {});
     setSession(null);
     setAuthView('login');
   };
+
+  // Auto-logout when any API call returns 401 (cookie expired)
+  useEffect(() => {
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const res = await originalFetch(...args);
+      const url = typeof args[0] === 'string' ? args[0] : args[0] instanceof Request ? args[0].url : '';
+      if (res.status === 401 && session && !url.includes('/api/auth/')) {
+        handleLogout();
+      }
+      return res;
+    };
+    return () => { window.fetch = originalFetch; };
+  }, [session]);
 
   if (!session) {
     return (

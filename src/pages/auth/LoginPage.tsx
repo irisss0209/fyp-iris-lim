@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   EyeIcon,
   EyeOffIcon,
-  CheckCircleIcon,
   LockIcon,
   MailIcon,
 } from 'lucide-react';
@@ -80,7 +79,8 @@ export function LoginPage({
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/check-account`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: normalizedEmail })
+        body: JSON.stringify({ email: normalizedEmail }),
+        credentials: 'include'
       });
       const data = await response.json();
       if (!response.ok) {
@@ -130,7 +130,8 @@ export function LoginPage({
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: normalizedEmail, password: trimmedPassword })
+        body: JSON.stringify({ email: normalizedEmail, password: trimmedPassword }),
+        credentials: 'include'
       });
       const data = await response.json();
       if (!response.ok) {
@@ -177,7 +178,8 @@ export function LoginPage({
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login/start-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: normalizedEmail })
+        body: JSON.stringify({ email: normalizedEmail }),
+        credentials: 'include'
       });
       const data = await response.json();
       if (!response.ok) {
@@ -210,7 +212,8 @@ export function LoginPage({
           email: pendingMfa.email,
           code,
           challengeId: pendingMfa.challengeId
-        })
+        }),
+        credentials: 'include'
       });
       const data = await response.json();
       if (!response.ok) {
@@ -233,7 +236,8 @@ export function LoginPage({
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login/start-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: pendingMfa.email })
+        body: JSON.stringify({ email: pendingMfa.email }),
+        credentials: 'include'
       });
 
       const data = await response.json();
@@ -461,12 +465,6 @@ export function LoginPage({
             key="success"
             className="p-8 flex flex-col items-center justify-center text-center py-12 sm:py-14"
           >
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center mb-5"
-              style={{ backgroundColor: '#F0FBF6' }}
-            >
-              <CheckCircleIcon size={32} style={{ color: '#2D7A5D' }} />
-            </div>
             <h2 className="text-xl font-bold text-gray-900 mb-1">Identity Verified</h2>
             <p className="text-sm text-gray-400">
               Launching {resolvedUser?.description ?? 'your dashboard'}...

@@ -3,6 +3,10 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { registerSW } from "virtual:pwa-register";
 import { TimeProvider } from "@/context/TimeContext";
+
+// Always send the HttpOnly auth cookie with every request
+const _origFetch = window.fetch;
+window.fetch = (input, init) => _origFetch(input, { credentials: 'include', ...init });
 // Register service worker – auto-updates silently.
 // Callbacks fire custom DOM events so UpdatePrompt can react without prop-drilling.
 const updateSW = registerSW({

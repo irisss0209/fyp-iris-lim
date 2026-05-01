@@ -17,10 +17,22 @@ namespace backend.Services
             var accessKey = _config["AWS:AccessKey"];
             var secretKey = _config["AWS:SecretKey"];
             var region = _config["AWS:Region"] ?? "ap-southeast-1";
-            var credentials = new BasicAWSCredentials(accessKey, secretKey);
             var regionEndpoint = RegionEndpoint.GetBySystemName(region);
 
-            _client = new AmazonSimpleEmailServiceClient(credentials, regionEndpoint);
+            // Use BasicAWSCredentials only if real keys are provided.
+            // If keys are missing or set to the default placeholder, fallback to Default Credential Provider.
+            if (!string.IsNullOrEmpty(accessKey) && !string.IsNullOrEmpty(secretKey) && 
+                accessKey != "your-access-key-id" && secretKey != "your-secret-access-key")
+            {
+                var credentials = new BasicAWSCredentials(accessKey, secretKey);
+                _client = new AmazonSimpleEmailServiceClient(credentials, regionEndpoint);
+            }
+            else
+            {
+                // This constructor uses the Default Credential Provider Chain (Env Vars, IAM Roles, etc.)
+                _client = new AmazonSimpleEmailServiceClient(regionEndpoint);
+                Console.WriteLine("[EMAIL SERVICE] Initialized using Default Credential Provider Chain.");
+            }
         }
 
         public async Task<bool> SendLoginOtpAsync(string email, string name, string code)

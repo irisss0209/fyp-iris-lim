@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Clock, Bell, Lock } from 'lucide-react';
 import { useTime } from '../../context/TimeContext';
+import { requestAndSubscribe, unsubscribeFromPush } from '../../utils/pushNotifications';
 
 const API = `${import.meta.env.VITE_API_URL}/api/data`;
 type Page = 'settings' | 'change-password';
@@ -18,14 +19,9 @@ export function Settings({ onNavigate }: { onNavigate: (page: Page) => void }) {
   }, [format]);
 
   useEffect(() => {
-    const session = JSON.parse(localStorage.getItem("user_session") || "{}");
-    if (!session?.token) return;
-
-    fetch(`${API}/operator/settings`, {
-      headers: {
-        'Authorization': `Bearer ${session.token}`
-      }
-    })
+    // We no longer need to check for a token here because the global fetch patch
+    // handles credentials (cookies) automatically.
+    fetch(`${API}/operator/settings`)
       .then(res => res.json())
       .then(data => {
         if (data) {
@@ -45,17 +41,10 @@ export function Settings({ onNavigate }: { onNavigate: (page: Page) => void }) {
     localStorage.setItem("timeFormat", timeFormat);
 
     try {
-      const session = JSON.parse(localStorage.getItem("user_session") || "{}");
-      if (!session?.token) {
-        alert("Settings saved locally.");
-        return;
-      }
-
       const res = await fetch(`${API}/operator/settings`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           soundAlerts,
@@ -66,6 +55,13 @@ export function Settings({ onNavigate }: { onNavigate: (page: Page) => void }) {
       if (!res.ok) {
         alert("Settings applied locally. Could not sync to server.");
         return;
+      }
+
+      // Sync browser push subscription with the saved preference
+      if (soundAlerts === 'off') {
+        await unsubscribeFromPush();
+      } else {
+        await requestAndSubscribe();
       }
 
       alert("Settings saved successfully.");
@@ -99,19 +95,24 @@ export function Settings({ onNavigate }: { onNavigate: (page: Page) => void }) {
               <p className="text-sm text-gray-500">Choose how and when you want to be alerted about incoming incidents.</p>
             </div>
           </div>
-          <div className="relative w-full md:w-72">
-            <select
-              value={soundAlerts}
-              onChange={(e) => setSoundAlerts(e.target.value)}
-              className="appearance-none bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl focus:ring-[#0B4F6C] focus:border-[#0B4F6C] block w-full p-3 outline-none transition-all cursor-pointer"
-            >
-              <option value="on">Turn On (Always Alert)</option>
-              <option value="off">Turn Off (Mute All)</option>
-              <option value="peak">Peak Hours Only</option>
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
-              <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" /></svg>
-            </div>
+          <div className="flex bg-gray-100 p-1 rounded-xl w-full md:w-[400px]">
+            {[
+              { id: 'on', label: 'Always On' },
+              { id: 'off', label: 'Muted' },
+              { id: 'peak', label: 'Peak Only' }
+            ].map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => setSoundAlerts(opt.id)}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${
+                  soundAlerts === opt.id
+                    ? 'bg-white text-[#0B4F6C] shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
         </div>
 

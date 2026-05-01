@@ -96,7 +96,8 @@ export function SetupPasswordPage({ email, onSuccess, onBack }: SetupPasswordPag
           email: pendingMfa.email,
           code,
           challengeId: pendingMfa.challengeId
-        })
+        }),
+        credentials: 'include'
       });
       const data = await response.json();
       if (!response.ok) return false;

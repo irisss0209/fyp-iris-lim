@@ -69,7 +69,8 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/signup/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: trimmedName, email: trimmedEmail, password })
+        body: JSON.stringify({ name: trimmedName, email: trimmedEmail, password }),
+        credentials: 'include'
       });
 
       const data = await response.json();

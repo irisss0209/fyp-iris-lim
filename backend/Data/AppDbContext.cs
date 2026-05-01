@@ -1,11 +1,45 @@
 using backend.Models;
+using backend.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace backend.Data
 {
     public class AppDbContext : DbContext
     {
-        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+        private readonly IPushNotificationService? _push;
+
+        public AppDbContext(DbContextOptions<AppDbContext> options, IPushNotificationService? push = null)
+            : base(options)
+        {
+            _push = push;
+        }
+
+        public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            // Capture before saving so Added entries get their IDs after save
+            var newIncidents = ChangeTracker.Entries<Incident>()
+                .Where(e => e.State == EntityState.Added)
+                .Select(e => e.Entity)
+                .ToList();
+
+            var statusChanged = ChangeTracker.Entries<Incident>()
+                .Where(e => e.State == EntityState.Modified && e.Property(i => i.Status).IsModified)
+                .Select(e => e.Entity)
+                .ToList();
+
+            var result = await base.SaveChangesAsync(cancellationToken);
+
+            if (_push != null)
+            {
+                foreach (var i in newIncidents)
+                    _ = _push.NotifyNewIncident(i.IncidentId);
+
+                foreach (var i in statusChanged)
+                    _ = _push.NotifyStatusChange(i.IncidentId);
+            }
+
+            return result;
+        }
 
         // ── DbSets ──────────────────────────────────────────────────────────────
         public DbSet<User>        Users        => Set<User>();
@@ -19,6 +53,8 @@ namespace backend.Data
         public DbSet<UserReport>  UserReports  => Set<UserReport>();
         public DbSet<Incident>    Incidents    => Set<Incident>();
         public DbSet<AuxiliaryShift> AuxiliaryShifts => Set<AuxiliaryShift>();
+        public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
+        public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -93,6 +129,24 @@ namespace backend.Data
                 .WithMany()
                 .HasForeignKey(i => i.DismissedBy)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // ── PushSubscription → User ──────────────────────────────────────────
+            modelBuilder.Entity<PushSubscription>()
+                .HasOne(ps => ps.User)
+                .WithMany()
+                .HasForeignKey(ps => ps.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // ── NotificationPreference → User (PK is also the FK) ────────────────
+            modelBuilder.Entity<NotificationPreference>()
+                .HasOne(np => np.User)
+                .WithMany()
+                .HasForeignKey(np => np.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<NotificationPreference>()
+                .Property(np => np.SoundAlerts)
+                .HasColumnType("sound_alert_mode");
 
             // ── Incident: one-to-one with Detection / UserReport ─────────────────
             modelBuilder.Entity<Incident>()

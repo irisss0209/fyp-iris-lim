@@ -25,6 +25,10 @@ namespace backend.Controllers
             _s3Service = s3Service;
         }
 
+        private string? GetCurrentUserId() =>
+            User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+
         [Authorize]
         [HttpGet("home-stats")]
         public async Task<IActionResult> GetHomeStats()
@@ -1040,37 +1044,44 @@ if (error != null) return BadRequest(new { error });
         }
 
 
-        // ── Operator Settings ──────────────────────────────────────────────────────
-        private static readonly Dictionary<string, (string sound, string format)> _tempSettings = new();
+        // ── Operator Settings (DB-backed) ──────────────────────────────────────────
 
         [Authorize]
         [HttpGet("operator/settings")]
-        public IActionResult GetOperatorSettings()
+        public async Task<IActionResult> GetOperatorSettings()
         {
-            var userId = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+            var userId = GetCurrentUserId();
             if (userId == null) return Unauthorized();
 
-            if (!_tempSettings.TryGetValue(userId, out var settings))
-            {
-                settings = ("on", "24h");
-            }
-
+            var pref = await _context.NotificationPreferences.FindAsync(userId);
             return Ok(new
             {
-                soundAlerts = settings.sound,
-                timeFormat = settings.format
+                soundAlerts = (pref?.SoundAlerts ?? SoundAlertMode.On).ToString().ToLower(),
+                timeFormat = pref?.TimeFormat ?? "24h"
             });
         }
 
         [Authorize]
         [HttpPost("operator/settings")]
-        public IActionResult SaveOperatorSettings([FromBody] OperatorSettingsRequest request)
+        public async Task<IActionResult> SaveOperatorSettings([FromBody] OperatorSettingsRequest request)
         {
-            var userId = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+            var userId = GetCurrentUserId();
             if (userId == null) return Unauthorized();
 
-            _tempSettings[userId] = (request.SoundAlerts, request.TimeFormat);
+            var pref = await _context.NotificationPreferences.FindAsync(userId);
+            if (pref == null)
+            {
+                pref = new Models.NotificationPreference { UserId = userId };
+                _context.NotificationPreferences.Add(pref);
+            }
 
+            if (request.SoundAlerts != null &&
+                Enum.TryParse<SoundAlertMode>(request.SoundAlerts, ignoreCase: true, out var mode))
+                pref.SoundAlerts = mode;
+
+            pref.TimeFormat = request.TimeFormat ?? pref.TimeFormat;
+
+            await _context.SaveChangesAsync();
             return Ok(new { success = true });
         }
 
