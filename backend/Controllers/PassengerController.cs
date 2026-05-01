@@ -111,6 +111,8 @@ namespace backend.Controllers
         }
 
         [Authorize]
+        [Consumes("multipart/form-data")]
+
         [HttpPost("report/{reportId}/image")]
         public async Task<IActionResult> UploadReportImage(int reportId, [FromForm] IFormFile image)
         {
