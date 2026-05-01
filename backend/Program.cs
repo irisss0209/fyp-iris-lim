@@ -114,6 +114,6 @@ app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapGet("/health", () => "OK");
 app.Urls.Add("http://0.0.0.0:8080");
 app.Run();
-app.MapGet("/health", () => "OK");
