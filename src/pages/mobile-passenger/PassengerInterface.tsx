@@ -46,7 +46,14 @@ export function PassengerInterface({ session, onLogout }: PassengerInterface) {
   }, []);
 
   return (
-    <div className="flex flex-col h-full relative w-full sm:max-w-md mx-auto overflow-hidden sm:shadow-2xl sm:rounded-[40px] sm:border-[8px] sm:border-white sm:ring-1 sm:ring-gray-100 min-h-screen sm:min-h-[850px] sm:max-h-[900px]" style={{ backgroundColor: '#FAF9F5' }}>
+    <div 
+      className="flex flex-col relative w-full sm:max-w-md mx-auto overflow-hidden sm:shadow-2xl sm:rounded-[40px] sm:border-[8px] sm:border-white sm:ring-1 sm:ring-gray-100" 
+      style={{ 
+        backgroundColor: '#FAF9F5',
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+        height: '100dvh' 
+      }}
+    >
 
       {/* ── Top Header (Commented Out) ── */}
       {/* 
@@ -100,7 +107,7 @@ export function PassengerInterface({ session, onLogout }: PassengerInterface) {
 
       {/* ── Bottom Nav ── */}
       <div
-        className="absolute bottom-0 left-0 right-0 w-full bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] border-t border-gray-100 flex p-1.5 z-20"
+        className="fixed bottom-0 left-0 right-0 sm:absolute w-full bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] border-t border-gray-100 flex p-1.5 z-20 flex-shrink-0"
         style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}
       >
         {TABS.map(({ id, icon: Icon, label }) => {

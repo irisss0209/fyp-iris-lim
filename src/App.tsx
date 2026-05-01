@@ -6,6 +6,7 @@ import { LoginPage } from './pages/auth/LoginPage';
 import { SignupPage } from './pages/auth/SignupPage';
 import { SetupPasswordPage } from './pages/auth/SetupPasswordPage';
 import { UpdatePrompt } from './components/UpdatePrompt';
+import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { requestAndSubscribe } from './utils/pushNotifications';
 
 const API_BASE = import.meta.env.VITE_API_BASE as string;
@@ -102,6 +103,7 @@ export function App() {
     return (
       <>
         <UpdatePrompt />
+        <PWAInstallPrompt />
 
         {authView === 'login' && (
           <LoginPage

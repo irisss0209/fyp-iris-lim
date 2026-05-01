@@ -40,13 +40,13 @@ export default defineConfig({
         categories: ['navigation', 'utilities'],
         icons: [
           {
-            src: 'https://railly.s3.ap-southeast-1.amazonaws.com/assets/Railly_logo.png',
+            src: 'https://railly.s3.ap-southeast-1.amazonaws.com/assets/Railly_logo_192x192.png',
             sizes: '192x192',
             type: 'image/png',
             purpose: 'any maskable'
-          }
+          },
           {
-            src: 'https://railly.s3.ap-southeast-1.amazonaws.com/assets/Railly_logo.png',
+            src: 'https://railly.s3.ap-southeast-1.amazonaws.com/assets/Railly_logo_512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'
