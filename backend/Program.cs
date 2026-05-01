@@ -97,7 +97,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend", policy =>
     {
         policy.WithOrigins(
-            "http://railly-app-659587495443-ap-southeast-1-an.s3-website-ap-southeast-1.amazonaws.com"
+            "https://d1drl5x1o2kpyq.cloudfront.net"
         )
         .AllowAnyHeader()
         .AllowAnyMethod()
