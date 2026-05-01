@@ -100,7 +100,7 @@ namespace backend.Controllers
             }
 
             var normalized = request.Email.Trim().ToLower();
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalized);
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == normalized);
             if (user == null)
             {
                 return Ok(new { exists = false });
@@ -123,7 +123,7 @@ namespace backend.Controllers
                 return BadRequest(new { error = "Email is required." });
             }
 
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email == normalized);
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
 
             if (user == null)
             {
