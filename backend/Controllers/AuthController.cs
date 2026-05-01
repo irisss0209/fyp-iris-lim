@@ -496,7 +496,7 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
             Response.Cookies.Append("auth_token", token, new CookieOptions
             {
                 HttpOnly = true,
-                Secure   = false,
+                Secure   = true,
                 SameSite = SameSiteMode.None,
                 Expires  = DateTimeOffset.UtcNow.AddHours(expiryHours),
                 Path     = "/"
@@ -532,7 +532,7 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
             Response.Cookies.Delete("auth_token", new CookieOptions
             {
                 HttpOnly = true,
-                Secure   = false,
+                Secure   = true,
                 SameSite = SameSiteMode.None,
                 Path     = "/"
             });
