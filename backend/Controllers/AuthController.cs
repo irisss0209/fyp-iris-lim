@@ -110,13 +110,13 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
         return Ok(new
         {
             exists = true,
-            role = user.Role,          // 👈 remove ToString()
-            isActive = user.Status     // 👈 return raw
+            role = user.Role,          
+            isActive = user.Status    
         });
     }
     catch (Exception ex)
     {
-        return StatusCode(500, ex.ToString()); // 🔥 THIS IS KEY
+        return StatusCode(500, ex.ToString()); 
     }
 }
 
@@ -496,8 +496,8 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
             Response.Cookies.Append("auth_token", token, new CookieOptions
             {
                 HttpOnly = true,
-                Secure   = !_environment.IsDevelopment(),
-                SameSite = SameSiteMode.Strict,
+                Secure   = false,
+                SameSite = SameSiteMode.None,
                 Expires  = DateTimeOffset.UtcNow.AddHours(expiryHours),
                 Path     = "/"
             });
@@ -532,8 +532,8 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
             Response.Cookies.Delete("auth_token", new CookieOptions
             {
                 HttpOnly = true,
-                Secure   = !_environment.IsDevelopment(),
-                SameSite = SameSiteMode.Strict,
+                Secure   = false,
+                SameSite = SameSiteMode.None,
                 Path     = "/"
             });
             return Ok(new { message = "Logged out." });
