@@ -1,8 +1,8 @@
 /// <reference lib="WebWorker" />
 /// <reference types="vite-plugin-pwa/client" />
 
-import { precacheAndRoute } from 'workbox-precaching'
-import { registerRoute } from 'workbox-routing'
+import { precacheAndRoute, matchPrecache } from 'workbox-precaching'
+import { registerRoute, setCatchHandler } from 'workbox-routing'
 import { NetworkFirst, CacheFirst } from 'workbox-strategies'
 import { ExpirationPlugin } from 'workbox-expiration'
 import { CacheableResponsePlugin } from 'workbox-cacheable-response'
@@ -46,6 +46,26 @@ registerRoute(
     ],
   })
 )
+
+// S3 assets (app icons, images) — cache for 30 days so they work offline
+registerRoute(
+  ({ url }) => url.hostname === 'railly.s3.ap-southeast-1.amazonaws.com',
+  new CacheFirst({
+    cacheName: 's3-assets-cache',
+    plugins: [
+      new ExpirationPlugin({ maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 30 }),
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+    ],
+  })
+)
+
+// Offline fallback — serve /offline.html for any uncached navigation request
+setCatchHandler(async ({ event }) => {
+  if ((event as FetchEvent).request.destination === 'document') {
+    return (await matchPrecache('/offline.html')) ?? Response.error()
+  }
+  return Response.error()
+})
 
 // ── Push notifications ─────────────────────────────────────────────────────
 

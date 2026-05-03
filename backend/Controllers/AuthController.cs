@@ -8,6 +8,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 namespace backend.Controllers
 {
     [ApiController]
@@ -116,10 +117,12 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
     }
     catch (Exception ex)
     {
-        return StatusCode(500, ex.ToString()); 
+        Console.WriteLine($"[AUTH] check-account error: {ex}");
+        return StatusCode(500, new { error = "An unexpected error occurred." });
     }
 }
 
+        [EnableRateLimiting("auth")]
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
@@ -180,6 +183,7 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
             return await StartEmailOtpForUser(user, frontendRole);
         }
 
+        [EnableRateLimiting("auth")]
         [HttpPost("login/start-otp")]
         public async Task<IActionResult> StartOtpLogin([FromBody] CheckAccountRequest request)
         {
@@ -203,6 +207,7 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
             return await StartEmailOtpForUser(user, frontendRole);
         }
 
+        [EnableRateLimiting("auth")]
         [HttpPost("login/verify")]
         public async Task<IActionResult> VerifyLogin([FromBody] VerifyLoginRequest request)
         {
@@ -369,6 +374,7 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
             return await StartEmailOtpForUser(user, frontendRole, challenge.ChallengeId, challenge.Code);
         }
 
+        [Authorize]
         [HttpPost("change-password")]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
         {
@@ -403,6 +409,7 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
             return Ok(new { message = "Password updated successfully." });
         }
 
+        [EnableRateLimiting("auth")]
         [HttpPost("signup/start")]
         public async Task<IActionResult> SignupStart([FromBody] SignupStartRequest request)
         {
@@ -488,6 +495,76 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
                 role = "passenger",
                 description = "Passenger"
             });
+        }
+
+        public class ForgotPasswordStartRequest
+        {
+            public string Email { get; set; } = string.Empty;
+        }
+
+        public class ForgotPasswordResetRequest
+        {
+            public string Email { get; set; } = string.Empty;
+            public string ChallengeId { get; set; } = string.Empty;
+            public string Code { get; set; } = string.Empty;
+            public string NewPassword { get; set; } = string.Empty;
+        }
+
+        [EnableRateLimiting("auth")]
+        [HttpPost("forgot-password/start")]
+        public async Task<IActionResult> ForgotPasswordStart([FromBody] ForgotPasswordStartRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.Email))
+                return BadRequest(new { error = "Email is required." });
+
+            var normalized = request.Email.Trim().ToLower();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == normalized);
+
+            if (user == null)
+                return NotFound(new { error = "No account found with this email." });
+
+            if (user.Status != UserStatus.Active)
+                return BadRequest(new { error = "Account is not active. Please contact support." });
+
+            var challenge = _challengeStore.Create(user.UserId, TimeSpan.FromMinutes(10));
+            var sent = await _emailVerificationSender.SendLoginOtpAsync(user.Email, user.UserName, challenge.Code);
+
+            if (!sent && !_environment.IsDevelopment())
+                return StatusCode(500, new { error = "Unable to send reset code. Please try again." });
+
+            return Ok(new
+            {
+                challengeId = challenge.ChallengeId,
+                maskedDestination = MaskEmail(user.Email),
+                expiresInSeconds = (int)(challenge.ExpiresAtUtc - DateTime.UtcNow).TotalSeconds,
+                debugOtp = _environment.IsDevelopment() ? challenge.Code : null
+            });
+        }
+
+        [EnableRateLimiting("auth")]
+        [HttpPost("forgot-password/reset")]
+        public async Task<IActionResult> ForgotPasswordReset([FromBody] ForgotPasswordResetRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.ChallengeId) ||
+                string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.NewPassword))
+                return BadRequest(new { error = "All fields are required." });
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
+            if (user == null || user.Status != UserStatus.Active)
+                return Unauthorized(new { error = "Invalid reset attempt." });
+
+            var result = _challengeStore.VerifyAndConsume(request.ChallengeId, user.UserId, request.Code.Trim());
+            if (!result.IsValid)
+                return Unauthorized(new { error = "Invalid or expired verification code." });
+
+            var missing = ValidatePasswordStrength(request.NewPassword);
+            if (missing.Any())
+                return BadRequest(new { error = $"Password must contain: {string.Join(", ", missing)}." });
+
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Password reset successfully." });
         }
 
         private void SetAuthCookie(string token)

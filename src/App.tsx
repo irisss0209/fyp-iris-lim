@@ -5,9 +5,11 @@ import { AuxiliaryInterface } from './pages/mobile-auxiliary/AuxiliaryInterface'
 import { LoginPage } from './pages/auth/LoginPage';
 import { SignupPage } from './pages/auth/SignupPage';
 import { SetupPasswordPage } from './pages/auth/SetupPasswordPage';
+import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { UpdatePrompt } from './components/UpdatePrompt';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
-import { requestAndSubscribe } from './utils/pushNotifications';
+import { requestAndSubscribe, unsubscribeFromPush } from './utils/pushNotifications';
+import { flushPendingReports } from './utils/offlineQueue';
 
 const API_BASE = import.meta.env.VITE_API_BASE as string;
 
@@ -24,37 +26,24 @@ export interface UserSession {
   description?: string;
 }
 
-type AuthView = 'login' | 'signup' | 'setup-password';
+type AuthView = 'login' | 'signup' | 'setup-password' | 'forgot-password';
 
 export function App() {
-  const [session, setSession] = useState<UserSession | null>(() => {
-    const saved = localStorage.getItem('user_session');
-    try {
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [session, setSession] = useState<UserSession | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [authView, setAuthView] = useState<AuthView>('login');
   const [setupEmail, setSetupEmail] = useState('');
   const [pendingMfa, setPendingMfa] = useState<any>(null);
 
-  // Restore session from HttpOnly cookie if no localStorage session
+  // On mount, restore session from HttpOnly cookie only
   useEffect(() => {
-    if (session) return;
+    localStorage.removeItem('user_session'); // clear any legacy stored session
     fetch(`${API_BASE}/api/auth/me`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.userId) setSession(data); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
   }, []);
-
-  useEffect(() => {
-    if (session) {
-      localStorage.setItem('user_session', JSON.stringify(session));
-    } else {
-      localStorage.removeItem('user_session');
-    }
-  }, [session]);
 
   // Subscribe to push notifications after login
   useEffect(() => {
@@ -76,11 +65,20 @@ export function App() {
     }
   }, [session?.userId]);
 
+  // Auto-flush queued offline reports when connection is restored
+  useEffect(() => {
+    if (!session) return;
+    const handleOnline = () => flushPendingReports(API_BASE);
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [session]);
+
   const handleLogout = () => {
-    fetch(`${API_BASE}/api/auth/logout`, { 
+    fetch(`${API_BASE}/api/auth/logout`, {
       method: 'POST',
       credentials: 'include'
     }).catch(() => {});
+    unsubscribeFromPush().catch(() => {});
     setSession(null);
     setAuthView('login');
   };
@@ -99,72 +97,103 @@ export function App() {
     return () => { window.fetch = originalFetch; };
   }, [session]);
 
-  if (!session) {
+  if (isLoading) {
     return (
-      <>
-        <UpdatePrompt />
-        <PWAInstallPrompt />
-
-        {authView === 'login' && (
-          <LoginPage
-            onLoginSuccess={(s) => {
-              setSession(s);
-              setPendingMfa(null);
+      <div className="min-h-screen w-full bg-[#FAF9F5] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div
+            className="w-14 h-14 rounded-xl"
+            style={{
+              backgroundImage: 'url(https://railly.s3.ap-southeast-1.amazonaws.com/assets/Railly_logo.png)',
+              backgroundSize: '100%',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
             }}
-            onNavigateSignup={() => setAuthView('signup')}
-            onNavigateSetupPassword={(email) => {
-              setSetupEmail(email);
-              setAuthView('setup-password');
-            }}
-            initialMfaState={pendingMfa}
-            initialEmail={setupEmail}
           />
-        )}
-
-        {authView === 'signup' && (
-          <SignupPage
-            onSignupSuccess={(s) => setSession(s)}
-            onNavigateLogin={() => setAuthView('login')}
-          />
-        )}
-
-        {authView === 'setup-password' && (
-          <SetupPasswordPage
-            email={setupEmail}
-            onSuccess={(session) => {
-              setSession(session);
-            }}
-            onBack={() => setAuthView('login')}
-          />
-        )}
-      </>
+          <div className="flex gap-1">
+            <div className="w-1.5 h-1.5 bg-[#0B4F6C] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+            <div className="w-1.5 h-1.5 bg-[#0B4F6C] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+            <div className="w-1.5 h-1.5 bg-[#0B4F6C] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+        </div>
+      </div>
     );
   }
 
-  // ✅ Logged in → route based on role
-  switch (session.role) {
-    case 'operator':
-      return (
-        <div className="min-h-screen w-full" style={{ backgroundColor: '#FAF9F5' }}>
-          <OperatorInterface session={session} onLogout={handleLogout} />
-        </div>
-      );
+  return (
+    <>
+      <UpdatePrompt />
+      <PWAInstallPrompt />
 
-    case 'passenger':
-      return (
-        <div className="min-h-screen w-full flex justify-center bg-[#FAF9F5]">
-          <PassengerInterface session={session} onLogout={handleLogout} />
-        </div>
-      );
+      {!session ? (
+        <>
+          {authView === 'login' && (
+            <LoginPage
+              onLoginSuccess={(s) => {
+                setSession(s);
+                setPendingMfa(null);
+              }}
+              onNavigateSignup={() => setAuthView('signup')}
+              onNavigateSetupPassword={(email) => {
+                setSetupEmail(email);
+                setAuthView('setup-password');
+              }}
+              onNavigateForgotPassword={() => setAuthView('forgot-password')}
+              initialMfaState={pendingMfa}
+              initialEmail={setupEmail}
+            />
+          )}
 
-    case 'auxiliary':
-      return (
-        <div className="min-h-screen w-full flex justify-center bg-[#FAF9F5]">
-          <AuxiliaryInterface session={session} onLogout={handleLogout} />
-        </div>
-      );
+          {authView === 'signup' && (
+            <SignupPage
+              onSignupSuccess={(s) => setSession(s)}
+              onNavigateLogin={() => setAuthView('login')}
+            />
+          )}
 
-    default:
-      return null;
-  }
+          {authView === 'setup-password' && (
+            <SetupPasswordPage
+              email={setupEmail}
+              onSuccess={(session) => {
+                setSession(session);
+              }}
+              onBack={() => setAuthView('login')}
+            />
+          )}
+
+          {authView === 'forgot-password' && (
+            <ForgotPasswordPage
+              onBack={() => setAuthView('login')}
+            />
+          )}
+        </>
+      ) : (
+        // ✅ Logged in → route based on role
+        (() => {
+          switch (session.role) {
+            case 'operator':
+              return (
+                <div className="min-h-screen w-full" style={{ backgroundColor: '#FAF9F5' }}>
+                  <OperatorInterface session={session} onLogout={handleLogout} />
+                </div>
+              );
+            case 'passenger':
+              return (
+                <div className="min-h-screen w-full flex justify-center bg-[#FAF9F5]">
+                  <PassengerInterface session={session} onLogout={handleLogout} />
+                </div>
+              );
+            case 'auxiliary':
+              return (
+                <div className="min-h-screen w-full flex justify-center bg-[#FAF9F5]">
+                  <AuxiliaryInterface session={session} onLogout={handleLogout} />
+                </div>
+              );
+            default:
+              return null;
+          }
+        })()
+      )}
+    </>
+  );
 }

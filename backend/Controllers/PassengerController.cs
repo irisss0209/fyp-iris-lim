@@ -111,7 +111,8 @@ namespace backend.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { error = ex.InnerException?.Message ?? ex.Message });
+                Console.WriteLine($"[REPORT] Submit error: {ex}");
+                return StatusCode(500, new { error = "Failed to submit report. Please try again." });
             }
         }
 
@@ -130,6 +131,14 @@ namespace backend.Controllers
                 Console.WriteLine($"[UPLOAD] Failed: No image received for report {reportId} (User: {userId})");
                 return BadRequest(new { error = "No image provided." });
             }
+
+            const long maxBytes = 5 * 1024 * 1024;
+            if (image.Length > maxBytes)
+                return BadRequest(new { error = "Image must be smaller than 5 MB." });
+
+            var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp" };
+            if (!allowedTypes.Contains(image.ContentType.ToLowerInvariant()))
+                return BadRequest(new { error = "Only JPEG, PNG, GIF, and WebP images are accepted." });
 
             Console.WriteLine($"[UPLOAD] Received image: {image.FileName}, Size: {image.Length} bytes for report {reportId}");
 
@@ -151,7 +160,8 @@ namespace backend.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { error = ex.Message });
+                Console.WriteLine($"[UPLOAD] S3 error: {ex}");
+                return StatusCode(500, new { error = "Failed to upload image. Please try again." });
             }
         }
 

@@ -24,6 +24,7 @@ interface LoginPageProps {
   onLoginSuccess: (session: UserSession) => void;
   onNavigateSignup: () => void;
   onNavigateSetupPassword: (email: string) => void;
+  onNavigateForgotPassword: () => void;
   initialMfaState?: PendingMfaState | null;
   initialEmail?: string;
 }
@@ -32,6 +33,7 @@ export function LoginPage({
   onLoginSuccess,
   onNavigateSignup,
   onNavigateSetupPassword,
+  onNavigateForgotPassword,
   initialMfaState,
   initialEmail
 }: LoginPageProps) {
@@ -336,7 +338,7 @@ export function LoginPage({
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
                 style={{ backgroundColor: '#0B4F6C' }}
               >
-                {isLoading ? <span className="flex items-center gap-2"><Spinner /> Checking...</span> : <>Continue</>}
+                {isLoading ? <span className="flex items-center gap-2"><Spinner /> </span> : <>Continue</>}
               </button>
 
               <div className="mt-4 text-center">
@@ -417,13 +419,21 @@ export function LoginPage({
                 </button>
               )}
 
-              <div className="mt-4 text-center">
+              <div className="mt-4 flex items-center justify-between">
                 <button
                   type="button"
                   onClick={() => { setStep('account'); setPassword(''); setError(''); }}
                   className="text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
                 >
                   Use Another Email
+                </button>
+                <button
+                  type="button"
+                  onClick={onNavigateForgotPassword}
+                  className="text-sm font-semibold hover:underline transition-colors focus:outline-none"
+                  style={{ color: '#0B4F6C' }}
+                >
+                  Forgot password?
                 </button>
               </div>
             </form>

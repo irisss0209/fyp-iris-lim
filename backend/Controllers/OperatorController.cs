@@ -265,7 +265,7 @@ namespace backend.Controllers
             });
         }
 
-        [Authorize]
+        [Authorize(Roles = "operator")]
         [HttpGet("operator/dashboard")]
         public async Task<IActionResult> GetOperatorDashboard([FromQuery] DateTime? from, [FromQuery] DateTime? to)
         {
@@ -351,7 +351,7 @@ namespace backend.Controllers
             });
         }
 
-        [Authorize]
+        [Authorize(Roles = "operator")]
         [HttpGet("operator/alerts")]
         public async Task<IActionResult> GetOperatorAlerts()
         {
@@ -475,7 +475,7 @@ namespace backend.Controllers
 
         // ── Reports ────────────────────────────────────────────────────────────────
 
-        [Authorize]
+        [Authorize(Roles = "operator")]
         [HttpGet("operator/reports")]
         public async Task<IActionResult> GetOperatorReports(
             [FromQuery] int year  = 0,
@@ -746,7 +746,7 @@ namespace backend.Controllers
 
         // ── User Management ───────────────────────────────────────────────────
 
-        [Authorize]
+        [Authorize(Roles = "operator")]
         [HttpGet("operator/users")]
         public async Task<IActionResult> GetAllUsers()
         {
@@ -766,7 +766,7 @@ namespace backend.Controllers
             return Ok(users);
         }
 
-        [Authorize]
+        [Authorize(Roles = "operator")]
         [HttpPatch("operator/users/{userId}/status")]
         public async Task<IActionResult> UpdateUserStatus(string userId, [FromBody] PatchUserStatusRequest req)
         {
@@ -889,7 +889,7 @@ namespace backend.Controllers
 
         // ── Excel bulk import ───────────────────────────────────────────────────────
 
-        [Authorize]
+        [Authorize(Roles = "operator")]
         [HttpPost("operator/shifts/import")]
         [ApiExplorerSettings(IgnoreApi = true)]
         public async Task<IActionResult> ImportShifts([FromForm] IFormFile file)
@@ -973,7 +973,7 @@ namespace backend.Controllers
             return Ok(new { inserted, errors });
         }
 
-        [Authorize]
+        [Authorize(Roles = "operator")]
         [HttpPost("operator/users/import")]
         [ApiExplorerSettings(IgnoreApi = true)]
         public async Task<IActionResult> ImportUsers([FromForm] IFormFile file)
@@ -1046,7 +1046,7 @@ if (error != null) return BadRequest(new { error });
 
         // ── Operator Settings (DB-backed) ──────────────────────────────────────────
 
-        [Authorize]
+        [Authorize(Roles = "operator")]
         [HttpGet("operator/settings")]
         public async Task<IActionResult> GetOperatorSettings()
         {
@@ -1061,7 +1061,7 @@ if (error != null) return BadRequest(new { error });
             });
         }
 
-        [Authorize]
+        [Authorize(Roles = "operator")]
         [HttpPost("operator/settings")]
         public async Task<IActionResult> SaveOperatorSettings([FromBody] OperatorSettingsRequest request)
         {

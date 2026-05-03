@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using backend.Data;
 using System.Text.Json;
@@ -22,6 +23,7 @@ namespace backend.Controllers
         }
 
         // GET /api/stations/geocode/preview
+        [Authorize(Roles = "operator")]
         [HttpGet("geocode/preview")]
         public async Task<IActionResult> Preview()
         {
@@ -44,6 +46,7 @@ namespace backend.Controllers
 
         // POST /api/stations/geocode
         // Fallback chain: Wikipedia (coordinates + wikitext) → Wikidata → Overpass → Nominatim → Google
+        [Authorize(Roles = "operator")]
         [HttpPost("geocode")]
         public async Task<IActionResult> GeocodeStations()
         {
@@ -492,6 +495,7 @@ namespace backend.Controllers
 
         // ── GET /api/stations/nearby ───────────────────────────────────────────────
 
+        [Authorize]
         [HttpGet("nearby")]
         public async Task<IActionResult> GetNearbyStations([FromQuery] double lat, [FromQuery] double lng, [FromQuery] int count = 5)
         {
