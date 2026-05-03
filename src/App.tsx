@@ -8,6 +8,7 @@ import { SetupPasswordPage } from './pages/auth/SetupPasswordPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { UpdatePrompt } from './components/UpdatePrompt';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
+import { OfflineBanner } from './components/OfflineBanner';
 import { requestAndSubscribe, unsubscribeFromPush } from './utils/pushNotifications';
 import { flushPendingReports } from './utils/offlineQueue';
 
@@ -122,6 +123,7 @@ export function App() {
 
   return (
     <>
+      <OfflineBanner />
       <UpdatePrompt />
       <PWAInstallPrompt />
 

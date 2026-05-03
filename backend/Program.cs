@@ -4,6 +4,7 @@ using backend.Data;
 using backend.Models;
 using backend.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -144,7 +145,14 @@ builder.Services.AddCors(options =>
         .AllowCredentials();
     });
 });
-var app = builder.Build(); 
+var app = builder.Build();
+
+// Trust the ALB's forwarded headers so ASP.NET Core sees the correct scheme (HTTPS)
+// and client IP. Required when ALB terminates SSL and forwards as HTTP internally.
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
 
 app.UseSwagger();
 app.UseSwaggerUI();

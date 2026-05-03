@@ -7,14 +7,12 @@ export function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   useEffect(() => {
-    // 1. Detect if already in standalone mode
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches
       || (window.navigator as any).standalone
       || document.referrer.includes('android-app://');
 
     if (isStandalone) return;
 
-    // 2. Detect Platform
     const ua = window.navigator.userAgent.toLowerCase();
     if (/iphone|ipad|ipod/.test(ua)) {
       setPlatform('ios');
@@ -22,20 +20,17 @@ export function PWAInstallPrompt() {
       setPlatform('android');
     }
 
-    // 3. Handle Android's beforeinstallprompt
+    let promptHandled = false;
     const handler = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      // Give it a small delay so it doesn't pop up immediately on page load
+      promptHandled = true;
       setTimeout(() => setShow(true), 2000);
     };
 
     window.addEventListener('beforeinstallprompt', handler);
 
-    // 4. Show after delay if not standalone (Fallback for both iOS and Android)
-    if (!isStandalone) {
-      setTimeout(() => setShow(true), 3000);
-    }
+    setTimeout(() => { if (!promptHandled) setShow(true); }, 3000);
 
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
@@ -44,17 +39,22 @@ export function PWAInstallPrompt() {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setShow(false);
-    }
+    if (outcome === 'accepted') setShow(false);
     setDeferredPrompt(null);
   };
 
   if (!show) return null;
 
+  const isDesktop = platform === 'other';
+
   return (
-    <div className="fixed inset-x-0 bottom-6 z-[9999] px-4 flex justify-center pointer-events-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className={`fixed z-[9999] pointer-events-none ${
+      isDesktop
+        ? 'top-[60px] right-4 animate-in fade-in slide-in-from-top-4 duration-500'
+        : 'inset-x-0 bottom-6 px-4 flex justify-center animate-in fade-in slide-in-from-bottom-4 duration-500'
+    }`}>
       <div className="w-full max-w-[320px] bg-white rounded-[28px] shadow-[0_15px_50px_rgba(0,0,0,0.2)] pointer-events-auto relative flex flex-col items-center">
+
         {/* Close button */}
         <button
           onClick={() => setShow(false)}
@@ -89,29 +89,39 @@ export function PWAInstallPrompt() {
               </div>
               <span>then "Add to Home Screen"</span>
             </div>
-          ) : (
-            deferredPrompt ? (
-              <button
-                onClick={handleAndroidInstall}
-                className="flex items-center gap-2 text-[#0B4F6C] font-bold text-sm hover:opacity-80 transition-opacity"
-              >
-                <Download size={18} />
-                <span>Tap to Install Now</span>
-              </button>
-            ) : (
-              <div className="flex items-center gap-1.5 text-sm text-gray-700">
-                <span>Tap the three dots</span>
-                <div className="p-1 bg-white border border-gray-100 rounded-md shadow-sm">
-                  <MoreVertical size={16} className="text-gray-600" />
-                </div>
-                <span>then "Add to Home Screen"</span>
+          ) : deferredPrompt ? (
+            <button
+              onClick={handleAndroidInstall}
+              className="flex items-center gap-2 text-[#0B4F6C] font-bold text-sm hover:opacity-80 transition-opacity"
+            >
+              <Download size={18} />
+              <span>Tap to Install Now</span>
+            </button>
+          ) : isDesktop ? (
+            <div className="flex items-center gap-1.5 text-sm text-gray-700">
+              <span>Click</span>
+              <div className="p-1 bg-white border border-gray-100 rounded-md shadow-sm">
+                <Download size={16} className="text-gray-600" />
               </div>
-            )
+              <span>in the address bar above</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 text-sm text-gray-700">
+              <span>Tap the three dots</span>
+              <div className="p-1 bg-white border border-gray-100 rounded-md shadow-sm">
+                <MoreVertical size={16} className="text-gray-600" />
+              </div>
+              <span>then "Add to Home Screen"</span>
+            </div>
           )}
         </div>
 
-        {/* Speech bubble tail */}
-        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white rotate-45" />
+        {/* Speech bubble tail — points up toward address bar on desktop, down on mobile */}
+        {isDesktop ? (
+          <div className="absolute -top-2 right-8 w-4 h-4 bg-white rotate-45 shadow-[-2px_-2px_4px_rgba(0,0,0,0.06)]" />
+        ) : (
+          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white rotate-45" />
+        )}
       </div>
     </div>
   );

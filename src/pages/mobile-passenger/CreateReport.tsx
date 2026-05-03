@@ -107,6 +107,15 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
     return Object.keys(newErrors).length === 0;
   };
 
+  const registerBackgroundSync = async () => {
+    if ('serviceWorker' in navigator && 'SyncManager' in window) {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        await (reg as any).sync.register('flush-reports');
+      } catch { /* background sync not supported, online flush will handle it */ }
+    }
+  };
+
   const handleSubmit = async () => {
     if (!validate()) return;
     setStep('sending');
@@ -121,7 +130,8 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
     };
 
     if (!navigator.onLine) {
-      queueReport(session.userId, reportPayload);
+      await queueReport(session.userId, reportPayload, photoFile);
+      await registerBackgroundSync();
       setStep('queued');
       setTimeout(() => onBack(), 3000);
       return;
@@ -172,9 +182,9 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
         setErrors({ desc: errorMsg });
         setStep('form');
       }
-    } catch (err) {
-      // Network failed mid-request — queue it
-      queueReport(session.userId, reportPayload);
+    } catch {
+      await queueReport(session.userId, reportPayload, photoFile);
+      await registerBackgroundSync();
       setStep('queued');
       setTimeout(() => onBack(), 3000);
     }

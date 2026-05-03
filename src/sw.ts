@@ -67,6 +67,76 @@ setCatchHandler(async ({ event }) => {
   return Response.error()
 })
 
+// ── Background Sync — flush queued offline reports ─────────────────────────
+
+const IDB_NAME = 'railly-offline';
+const IDB_STORE = 'pending-reports';
+
+function openIDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = self.indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE, { keyPath: 'id' });
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function flushQueuedReports(): Promise<void> {
+  const db = await openIDB();
+  const reports: any[] = await new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readonly');
+    const req = tx.objectStore(IDB_STORE).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+
+  const apiBase = import.meta.env.VITE_API_BASE as string;
+
+  for (const report of reports) {
+    try {
+      const res = await fetch(`${apiBase}/api/data/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(report.payload),
+        credentials: 'include',
+      });
+      if (!res.ok) continue;
+
+      const { reportId } = await res.json().catch(() => ({}));
+
+      if (report.photoData && report.photoMime && reportId) {
+        try {
+          const binary = atob(report.photoData);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          const blob = new Blob([bytes], { type: report.photoMime });
+          const form = new FormData();
+          form.append('image', blob, 'photo.jpg');
+          await fetch(`${apiBase}/api/data/report/${reportId}/image`, {
+            method: 'POST', body: form, credentials: 'include',
+          });
+        } catch { /* photo upload failure is non-fatal */ }
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).delete(report.id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch {
+      break; // still offline
+    }
+  }
+  db.close();
+}
+
+self.addEventListener('sync', (event: Event) => {
+  if ((event as any).tag === 'flush-reports') {
+    (event as any).waitUntil(flushQueuedReports());
+  }
+});
+
 // ── Push notifications ─────────────────────────────────────────────────────
 
 self.addEventListener('push', (event: PushEvent) => {
