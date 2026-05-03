@@ -1,3 +1,5 @@
+using Amazon.SecretsManager;
+using Amazon.SecretsManager.Model;
 using backend.Data;
 using backend.Models;
 using backend.Services;
@@ -24,6 +26,29 @@ builder.Services.AddControllers()
     });
 
 builder.Services.AddOpenApi();
+
+// Fetch all secrets from AWS Secrets Manager at startup.
+// Overrides appsettings values when running in AWS (EC2/ECS with an IAM role).
+// Falls back silently to appsettings values for local development.
+try
+{
+    using var smClient = new AmazonSecretsManagerClient(Amazon.RegionEndpoint.APSoutheast1);
+    var smResults = await Task.WhenAll(
+        GetSecret(smClient, "railly/jwt-secret"),
+        GetSecret(smClient, "railly/db-connection-string"),
+        GetSecret(smClient, "railly/vapid-private-key"),
+        GetSecret(smClient, "railly/google-geocoding-api-key")
+    );
+    if (smResults[0] is { } jwt)    builder.Configuration["JwtSettings:SecretKey"]              = jwt;
+    if (smResults[1] is { } db)     builder.Configuration["ConnectionStrings:DefaultConnection"] = db;
+    if (smResults[2] is { } vapid)  builder.Configuration["Vapid:PrivateKey"]                   = vapid;
+    if (smResults[3] is { } google) builder.Configuration["Google:GeocodingApiKey"]              = google;
+    Console.WriteLine("[STARTUP] Secrets loaded from AWS Secrets Manager.");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"[STARTUP] Secrets Manager unavailable — using appsettings values. ({ex.Message})");
+}
 
 // PostgreSQL setup
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -57,7 +82,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // JWT Authentication
 var jwtSettings   = builder.Configuration.GetSection("JwtSettings");
-var secretKey     = jwtSettings["SecretKey"]  ?? "a_very_long_and_secure_secret_key_for_testing_12345";
+var secretKey     = jwtSettings["SecretKey"] ?? throw new InvalidOperationException("JwtSettings:SecretKey is not configured.");
 var issuer        = jwtSettings["Issuer"]     ?? "railly.my";
 var audience      = jwtSettings["Audience"]   ?? "railly.my";
 
@@ -131,3 +156,13 @@ app.MapControllers();
 app.MapGet("/health", () => "OK");
 app.Urls.Add("http://0.0.0.0:8080");
 app.Run();
+
+static async Task<string?> GetSecret(AmazonSecretsManagerClient client, string secretId)
+{
+    try
+    {
+        var r = await client.GetSecretValueAsync(new GetSecretValueRequest { SecretId = secretId });
+        return r.SecretString;
+    }
+    catch { return null; }
+}
