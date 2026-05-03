@@ -148,8 +148,7 @@ builder.Services.AddCors(options =>
 });
 var app = builder.Build();
 
-// Trust the ALB's forwarded headers so ASP.NET Core sees the correct scheme (HTTPS)
-// and client IP. Required when ALB terminates SSL and forwards as HTTP internally.
+
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
