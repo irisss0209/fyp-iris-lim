@@ -169,15 +169,21 @@ namespace backend.Controllers
                 .Where(ls => lineIds.Contains(ls.LineId))
                 .ToListAsync();
 
-            var allowedStationLinePairs = new HashSet<(string lineId, string stationId)>();
+            // Collect all stationIds within ±2 sequence positions across every line
+            // the officer's assigned station belongs to.
+            // We use a plain HashSet<string> of stationIds so that incidents tagged to
+            // *any* line at a physically nearby station are still surfaced (a station can
+            // belong to multiple lines, and the incident's own lineId may differ from the
+            // line used to derive proximity).
+            var allowedStationIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var ul in userLines)
             {
                 var nearby = allLineStations
                     .Where(ls => ls.LineId == ul.LineId && Math.Abs(ls.SequenceOrder - ul.SequenceOrder) <= 2)
-                    .Select(ls => (ls.LineId, ls.StationId));
+                    .Select(ls => ls.StationId);
 
-                foreach (var pair in nearby)
-                    allowedStationLinePairs.Add(pair);
+                foreach (var sid in nearby)
+                    allowedStationIds.Add(sid);
             }
 
             // 3. Fetch and Filter Incidents
@@ -221,10 +227,12 @@ namespace backend.Controllers
                     var original = incidents.FirstOrDefault(x => x.IncidentId == incidentId);
                     if (original == null) return false;
 
+                    // Match on stationId only — incidents at any physically nearby station
+                    // are shown regardless of which line the incident itself was tagged to.
                     string? incidentStationId = original.Detection?.StationId ?? original.UserReport?.StationId;
                     if (string.IsNullOrEmpty(incidentStationId)) return false;
 
-                    return allowedStationLinePairs.Contains((dto.LineId, incidentStationId));
+                    return allowedStationIds.Contains(incidentStationId);
                 })
                 .Select(dto =>
                 {
@@ -239,6 +247,8 @@ namespace backend.Controllers
                         dto.Status, dto.Source, dto.Time, dto.Date, dto.Elapsed,
                         dto.Confidence, dto.DeviceId, dto.ImageUrl,
                         reportedBy = dto.ReportedBy,
+                        // Include the passenger's own description so the audit trail can display it
+                        passengerComment = i.UserReport?.Description ?? dto.PassengerComment,
                         verifiedBy = i.VerifiedByUser?.UserName ?? dto.VerifiedBy,
                         verifiedAt = dto.VerifiedAt,
                         verifiedComment = dto.VerifiedComment,

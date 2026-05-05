@@ -142,8 +142,13 @@ namespace backend.Controllers
                     .ToList();
             }
 
+            // Default window: last 35 days (covers today + last-week comparison + current month
+            // that the Insights page needs). Filter at DB level — never return all-time data.
+            var windowStart = DateTime.UtcNow.Date.AddDays(-35);
+
             var incidentsQuery = _context.Incidents
                 .AsNoTracking()
+                .Where(i => i.CreatedAt >= windowStart)
                 .Include(i => i.Detection)
                     .ThenInclude(d => d!.Camera)
                         .ThenInclude(c => c!.TrainCoach)
@@ -269,13 +274,32 @@ namespace backend.Controllers
         [HttpGet("operator/dashboard")]
         public async Task<IActionResult> GetOperatorDashboard([FromQuery] DateTime? from, [FromQuery] DateTime? to)
         {
-            // Force UTC kind so Npgsql does not reject the DateTime comparison
-            DateTime? fromUtc = from.HasValue ? DateTime.SpecifyKind(from.Value, DateTimeKind.Utc) : null;
-            DateTime? toUtc   = to.HasValue   ? DateTime.SpecifyKind(to.Value,   DateTimeKind.Utc) : null;
+            // Ensure UTC kind — ASP.NET query-string binding may produce DateTimeKind.Unspecified
+            // or DateTimeKind.Local even for ISO-8601 strings ending with 'Z'. We must convert
+            // properly: Unspecified is assumed UTC (value is already correct), Local is converted.
+            DateTime? fromUtc = from.HasValue
+                ? DateTime.SpecifyKind(
+                    from.Value.Kind == DateTimeKind.Local ? from.Value.ToUniversalTime() : from.Value,
+                    DateTimeKind.Utc)
+                : null;
+            DateTime? toUtc = to.HasValue
+                ? DateTime.SpecifyKind(
+                    to.Value.Kind == DateTimeKind.Local ? to.Value.ToUniversalTime() : to.Value,
+                    DateTimeKind.Utc)
+                : null;
+
+            // If no range supplied at all, default to today in MYT (UTC+8)
+            if (!fromUtc.HasValue && !toUtc.HasValue)
+            {
+                var mytToday = DateTime.UtcNow.AddHours(8).Date; // today's date in MYT
+                fromUtc = DateTime.SpecifyKind(mytToday.AddHours(-8), DateTimeKind.Utc); // MYT midnight → UTC
+                toUtc   = fromUtc.Value.AddDays(1);
+            }
 
             var baseIncidents = _context.Incidents.AsQueryable();
             if (fromUtc.HasValue) baseIncidents = baseIncidents.Where(i => i.CreatedAt >= fromUtc.Value);
-            if (toUtc.HasValue)   baseIncidents = baseIncidents.Where(i => i.CreatedAt < toUtc.Value);
+            if (toUtc.HasValue)   baseIncidents = baseIncidents.Where(i => i.CreatedAt <  toUtc.Value);
+
 
             // Stats
             var pending   = await baseIncidents.CountAsync(i => i.Status == IncidentStatus.Pending);
