@@ -69,11 +69,19 @@ namespace backend.Controllers
             public string? ChallengeId { get; set; }
         }
 
+        public class ChangePasswordStartRequest
+        {
+            public string Email { get; set; } = string.Empty;
+            public string CurrentPassword { get; set; } = string.Empty;
+        }
+
         public class ChangePasswordRequest
         {
             public string Email { get; set; } = string.Empty;
             public string CurrentPassword { get; set; } = string.Empty;
             public string NewPassword { get; set; } = string.Empty;
+            public string Code { get; set; } = string.Empty;
+            public string ChallengeId { get; set; } = string.Empty;
         }
 
         public class SignupStartRequest
@@ -375,34 +383,64 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
         }
 
         [Authorize]
-        [HttpPost("change-password")]
-        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+        [EnableRateLimiting("auth")]
+        [HttpPost("change-password/start")]
+        public async Task<IActionResult> ChangePasswordStart([FromBody] ChangePasswordStartRequest request)
         {
+            if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.CurrentPassword))
+                return BadRequest(new { error = "Email and current password are required." });
+
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
             if (user == null) return NotFound(new { error = "User not found." });
 
-            // 1. Verify current password
             if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
-            {
                 return BadRequest(new { error = "Incorrect current password." });
-            }
 
-            // 2. Validate new password strength
+            var challenge = _challengeStore.Create(user.UserId, TimeSpan.FromMinutes(10));
+            var sent = await _emailVerificationSender.SendLoginOtpAsync(user.Email, user.UserName, challenge.Code);
+
+            if (!sent && !_environment.IsDevelopment())
+                return StatusCode(500, new { error = "Unable to send verification code. Please try again." });
+
+            return Ok(new
+            {
+                challengeId = challenge.ChallengeId,
+                maskedDestination = MaskEmail(user.Email),
+                expiresInSeconds = (int)(challenge.ExpiresAtUtc - DateTime.UtcNow).TotalSeconds,
+                debugOtp = _environment.IsDevelopment() ? challenge.Code : null
+            });
+        }
+
+        [Authorize]
+        [EnableRateLimiting("auth")]
+        [HttpPost("change-password")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.ChallengeId) || string.IsNullOrWhiteSpace(request.Code))
+                return BadRequest(new { error = "Verification code is required." });
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
+            if (user == null) return NotFound(new { error = "User not found." });
+
+            // 1. Verify OTP — must happen before password update
+            var result = _challengeStore.VerifyAndConsume(request.ChallengeId, user.UserId, request.Code.Trim());
+            if (!result.IsValid)
+                return Unauthorized(new { error = "Invalid or expired verification code." });
+
+            // 2. Re-verify current password (replay attack protection)
+            if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+                return BadRequest(new { error = "Incorrect current password." });
+
+            // 3. Validate new password strength
             var missing = ValidatePasswordStrength(request.NewPassword);
-
             if (missing.Any())
-            {
                 return BadRequest(new { error = $"Password must contain: {string.Join(", ", missing)}." });
-            }
 
-            // 3. Check password history
-            // Cannot be the current password
+            // 4. Cannot reuse current password
             if (BCrypt.Net.BCrypt.Verify(request.NewPassword, user.PasswordHash))
-            {
                 return BadRequest(new { error = "New password cannot be the same as your current password." });
-            }
 
-            // 4. Update password
+            // 5. Update password
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
             await _context.SaveChangesAsync();
 

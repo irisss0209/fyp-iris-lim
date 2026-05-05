@@ -60,6 +60,7 @@ interface TrainChartPoint {
   enRoute: number;
   escalated: number;
   resolved: number;
+  dismissed: number;
 }
 
 
@@ -87,8 +88,8 @@ function pluralize(count: number, singular: string, pluralWord: string) {
   return `${count} ${count === 1 ? singular : pluralWord}`;
 }
 
-function toUtcDateString(date: Date) {
-  return date.toISOString().slice(0, 10);
+function toMalaysiaDateString(date: Date) {
+  return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kuala_Lumpur' });
 }
 
 function parseHourFromTime(time?: string) {
@@ -124,7 +125,7 @@ function topFromList(values: string[]): TopMetric | null {
 }
 
 function buildTrainStatusChart(alerts: OperatorAlert[]): TrainChartPoint[] {
-  const map = new Map<string, { pending: number; verified: number; enRoute: number; escalated: number; resolved: number }>();
+  const map = new Map<string, { pending: number; verified: number; enRoute: number; escalated: number; resolved: number; dismissed: number }>();
 
   alerts.forEach(alert => {
     let trainPart = alert.trainId != null ? `T.${alert.trainId}` : '';
@@ -134,22 +135,23 @@ function buildTrainStatusChart(alerts: OperatorAlert[]): TrainChartPoint[] {
 
     const key = alert.line && alert.line !== 'Unknown' ? `${trainPart} (${alert.line})` : trainPart;
 
-    if (!map.has(key)) map.set(key, { pending: 0, verified: 0, enRoute: 0, escalated: 0, resolved: 0 });
+    if (!map.has(key)) map.set(key, { pending: 0, verified: 0, enRoute: 0, escalated: 0, resolved: 0, dismissed: 0 });
     const entry = map.get(key)!;
     const s = alert.status?.toLowerCase() ?? '';
-    
+
     if (s === 'pending') entry.pending++;
     else if (s === 'verified') entry.verified++;
     else if (s === 'en_route') entry.enRoute++;
     else if (s === 'escalated') entry.escalated++;
     else if (s === 'resolved') entry.resolved++;
+    else if (s === 'dismissed') entry.dismissed++;
   });
 
   return Array.from(map.entries())
     .map(([train, counts]) => ({ train, ...counts }))
-    .sort((a, b) => 
-      (b.pending + b.verified + b.enRoute + b.escalated + b.resolved) - 
-      (a.pending + a.verified + a.enRoute + a.escalated + a.resolved)
+    .sort((a, b) =>
+      (b.pending + b.verified + b.enRoute + b.escalated + b.resolved + b.dismissed) -
+      (a.pending + a.verified + a.enRoute + a.escalated + a.resolved + a.dismissed)
     )
     .slice(0, 10);
 }
@@ -299,11 +301,11 @@ export function Insights({ session }: { session?: UserSession }) {
     return filteredAlerts.filter(alert => (alert.date ?? '').startsWith(currentMonthKey));
   }, [filteredAlerts, currentMonthKey]);
 
-  const todayUtc = useMemo(() => toUtcDateString(new Date()), []);
+  const todayUtc = useMemo(() => toMalaysiaDateString(new Date()), []);
   const lastWeekUtc = useMemo(() => {
     const d = new Date();
-    d.setUTCDate(d.getUTCDate() - 7);
-    return toUtcDateString(d);
+    d.setDate(d.getDate() - 7);
+    return toMalaysiaDateString(d);
   }, []);
 
   const todayAlerts = useMemo(
@@ -341,17 +343,17 @@ export function Insights({ session }: { session?: UserSession }) {
   }, [monthlyAlerts]);
 
   const topTrain = useMemo(() => {
-    const monthlyTrainIds = filteredMonthly
-      .map(incident => incident.trainId)
+    const todayTrainIds = todayAlerts
+      .map(alert => alert.trainId)
       .filter((trainId): trainId is number => typeof trainId === 'number');
 
     const map = new Map<number, number>();
-    monthlyTrainIds.forEach(trainId => map.set(trainId, (map.get(trainId) ?? 0) + 1));
+    todayTrainIds.forEach(trainId => map.set(trainId, (map.get(trainId) ?? 0) + 1));
     const [top] = Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
 
     if (!top) return { label: '-', count: 0 };
     return { label: `Train ${top[0]}`, count: top[1] };
-  }, [filteredMonthly]);
+  }, [todayAlerts]);
 
   const comparison = useMemo(() => {
     const today = todayAlerts.length;
@@ -363,7 +365,7 @@ export function Insights({ session }: { session?: UserSession }) {
   const trend = resolveTrend(monthlyReport?.stats);
 
   const trainChart = useMemo(() => buildTrainStatusChart(todayAlerts), [todayAlerts]);
-  const chartHasData = trainChart.some(p => p.pending + p.verified + p.enRoute + p.escalated + p.resolved > 0);
+  const chartHasData = trainChart.some(p => p.pending + p.verified + p.enRoute + p.escalated + p.resolved + p.dismissed > 0);
 
   const travelAdvice = peakHour.count > 0
     ? `Avoid ${peakHour.label} when possible; incidents are highest in that hour today.`
@@ -452,7 +454,7 @@ export function Insights({ session }: { session?: UserSession }) {
 
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
 
-              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Most Incident Train</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Most Incident Train (Today)</p>
               <p className="text-lg font-black text-gray-900 mt-1">{topTrain.label}</p>
               <p className="text-xs font-semibold text-gray-400 mt-1">
                 {topTrain.count > 0 ? pluralize(topTrain.count, 'case', 'cases') : 'No train data'}
@@ -463,15 +465,32 @@ export function Insights({ session }: { session?: UserSession }) {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
             <div className="mb-3">
               <h3 className="text-sm font-black text-gray-900">Real-Time Pattern by Train</h3>
-              <p className="text-[10px] font-semibold text-gray-400 mt-0.5 uppercase tracking-widest">Incidents grouped by train · all active reports</p>
+              <p className="text-[10px] font-semibold text-gray-400 mt-0.5 uppercase tracking-widest">Incidents grouped by train · today only</p>
             </div>
 
             {chartHasData ? (
-              <div className="h-[210px]">
+              <div className="h-[240px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={trainChart} margin={{ top: 6, right: 4, left: -24, bottom: 0 }}>
+                  <BarChart data={trainChart} margin={{ top: 6, right: 4, left: -24, bottom: 16 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                    <XAxis dataKey="train" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} dy={6} />
+                    <XAxis
+                      dataKey="train"
+                      axisLine={false}
+                      tickLine={false}
+                      interval={0}
+                      angle={-35}
+                      textAnchor="end"
+                      height={56}
+                      tick={{ fontSize: 9, fill: '#9CA3AF' }}
+                      tickFormatter={(v: string) => {
+                        // "T.5 (LRT Kelana Jaya)" → "T.5"
+                        // "Stn: KL Sentral (LRT KJ)" → "KL Sentral"
+                        const paren = v.indexOf(' (');
+                        const short = paren > -1 ? v.slice(0, paren) : v;
+                        const label = short.replace(/^Stn: /, '');
+                        return label.length > 12 ? label.slice(0, 11) + '…' : label;
+                      }}
+                    />
                     <YAxis axisLine={false} tickLine={false} allowDecimals={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} />
                     <Tooltip
                       cursor={{ fill: '#F3F4F6' }}
@@ -486,13 +505,14 @@ export function Insights({ session }: { session?: UserSession }) {
                     <Bar dataKey="verified" name="Verified" stackId="s" fill="#F59E0B" />
                     <Bar dataKey="enRoute" name="En Route" stackId="s" fill={ACCENT} />
                     <Bar dataKey="escalated" name="Escalated" stackId="s" fill="#D34026" />
-                    <Bar dataKey="resolved" name="Resolved" stackId="s" fill={SAFE} radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="resolved" name="Resolved" stackId="s" fill={SAFE} />
+                    <Bar dataKey="dismissed" name="Dismissed" stackId="s" fill="#9CA3AF" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             ) : (
               <div className="bg-gray-50 rounded-xl p-4 text-center">
-                <p className="text-sm font-bold text-gray-700">No active incidents right now</p>
+                <p className="text-sm font-bold text-gray-700">No incidents today</p>
               </div>
             )}
           </div>

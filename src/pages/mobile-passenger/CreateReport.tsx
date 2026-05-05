@@ -194,9 +194,7 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
     const isQueued = step === 'queued';
     return (
       <div className="flex flex-col items-center justify-center px-4 py-20 text-center">
-        <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-5 shadow-sm ${isQueued ? 'bg-amber-50' : 'bg-green-50'}`}>
-          <CheckCircleIcon size={40} className={isQueued ? 'text-amber-500' : 'text-green-500'} />
-        </div>
+
         <h3 className="text-xl font-bold text-gray-900 mb-2">
           {isQueued ? 'Report Saved' : 'Report Submitted'}
         </h3>

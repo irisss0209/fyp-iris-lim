@@ -308,7 +308,7 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
                   style={{ backgroundColor: ACCENT }}
                 >
                   {isLoading
-                    ? <span className="flex items-center gap-2"><Spinner /> Creating…</span>
+                    ? <span className="flex items-center gap-2"><Spinner /> </span>
                     : <>Sign Up</>}
                 </button>
 
@@ -343,15 +343,9 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
             <div
               className="p-8 flex flex-col items-center justify-center text-center py-12 sm:py-14"
             >
-              <div
-                className="w-16 h-16 rounded-full flex items-center justify-center mb-5"
-                style={{ backgroundColor: '#F0FBF6' }}
-              >
-                <CheckCircleIcon size={32} style={{ color: '#2D7A5D' }} />
-              </div>
               <h2 className="text-xl font-bold text-gray-900 mb-1">Account Created</h2>
               <p className="text-sm text-gray-400">
-                Launching passenger safety app…
+                Directing to app
               </p>
               <div className="mt-6 flex gap-1">
                 {[0, 1, 2].map((i) => (

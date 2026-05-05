@@ -35,7 +35,8 @@ namespace backend.Controllers
             if (string.IsNullOrWhiteSpace(userId))
                 return Unauthorized(new { error = "Unable to identify user from token." });
 
-            var now = DateTime.Now;
+            // Shifts are stored in MYT (UTC+8), so always compare against MYT time
+            var now = DateTime.UtcNow.AddHours(8);
             var today = now.Date;
             var nowTime = now.TimeOfDay;
 
@@ -130,23 +131,23 @@ namespace backend.Controllers
                 return Unauthorized(new { error = "Unable to identify user from token." });
 
             // 1. Shift Verification
-            // Following the logic from GetAuxiliaryShift: shifts are defined in local time
-            var nowLocal = DateTime.Now;
-            var todayLocal = nowLocal.Date;
-            var nowTime = nowLocal.TimeOfDay;
+            // Shifts are stored in MYT (UTC+8), so always compare against MYT time
+            var nowMyt = DateTime.UtcNow.AddHours(8);
+            var todayMyt = nowMyt.Date;
+            var nowTimeMyt = nowMyt.TimeOfDay;
 
             var shift = await _context.AuxiliaryShifts
-                .Where(s => s.UserId == userId && s.ShiftDate.Date == todayLocal)
+                .Where(s => s.UserId == userId && s.ShiftDate.Date == todayMyt)
                 .FirstOrDefaultAsync();
 
             if (shift == null)
                 return Ok(new List<object>()); // No shift today
 
-            bool isOnDuty = false;
+            bool isOnDuty;
             if (shift.EndTime > shift.StartTime)
-                isOnDuty = shift.StartTime <= nowTime && shift.EndTime > nowTime;
+                isOnDuty = shift.StartTime <= nowTimeMyt && shift.EndTime > nowTimeMyt;
             else
-                isOnDuty = nowTime >= shift.StartTime || nowTime < shift.EndTime;
+                isOnDuty = nowTimeMyt >= shift.StartTime || nowTimeMyt < shift.EndTime;
 
             if (!isOnDuty)
                 return Ok(new List<object>()); // Not currently on duty

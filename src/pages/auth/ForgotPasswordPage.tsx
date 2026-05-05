@@ -13,7 +13,7 @@ interface ForgotPasswordPageProps {
   onBack: () => void;
 }
 
-type ForgotStep = 'email' | 'password' | 'otp' | 'success';
+type ForgotStep = 'email' | 'otp' | 'password' | 'success';
 
 export function ForgotPasswordPage({ onBack }: ForgotPasswordPageProps) {
   const [step, setStep] = useState<ForgotStep>('email');
@@ -26,6 +26,7 @@ export function ForgotPasswordPage({ onBack }: ForgotPasswordPageProps) {
   const [error, setError] = useState('');
   const [challengeId, setChallengeId] = useState('');
   const [maskedDestination, setMaskedDestination] = useState('');
+  const [verifiedCode, setVerifiedCode] = useState('');
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,7 +54,7 @@ export function ForgotPasswordPage({ onBack }: ForgotPasswordPageProps) {
 
       setChallengeId(data.challengeId);
       setMaskedDestination(data.maskedDestination);
-      setStep('password');
+      setStep('otp');
     } catch {
       setError('Connection error. Please try again.');
     } finally {
@@ -61,7 +62,7 @@ export function ForgotPasswordPage({ onBack }: ForgotPasswordPageProps) {
     }
   };
 
-  const handlePasswordSubmit = (e: React.FormEvent) => {
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -82,10 +83,7 @@ export function ForgotPasswordPage({ onBack }: ForgotPasswordPageProps) {
       return;
     }
 
-    setStep('otp');
-  };
-
-  const verifyOtp = async (code: string): Promise<boolean> => {
+    setIsLoading(true);
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE}/api/auth/forgot-password/reset`, {
         method: 'POST',
@@ -93,19 +91,33 @@ export function ForgotPasswordPage({ onBack }: ForgotPasswordPageProps) {
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
           challengeId,
-          code,
+          code: verifiedCode,
           newPassword: password
         }),
         credentials: 'include'
       });
 
-      if (!response.ok) return false;
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || 'Failed to reset password. Please try again.');
+        return;
+      }
 
       setStep('success');
-      return true;
     } catch {
-      return false;
+      setError('Connection error. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const verifyOtp = async (code: string): Promise<boolean> => {
+    // Validate the OTP format client-side; the code is verified by the server
+    // when the user submits their new password via handlePasswordSubmit.
+    if (!code || code.trim().length === 0) return false;
+    setVerifiedCode(code.trim());
+    setStep('password');
+    return true;
   };
 
   const handleResendOtp = async (): Promise<void> => {
@@ -217,7 +229,7 @@ export function ForgotPasswordPage({ onBack }: ForgotPasswordPageProps) {
                 style={{ backgroundColor: '#0B4F6C' }}
               >
                 {isLoading
-                  ? <span className="flex items-center gap-2"><Spinner /> Sending...</span>
+                  ? <span className="flex items-center gap-2"><Spinner /></span>
                   : 'Send Reset Code'}
               </button>
             </form>
@@ -316,7 +328,7 @@ export function ForgotPasswordPage({ onBack }: ForgotPasswordPageProps) {
           <MfaVerification
             email={email}
             onVerify={verifyOtp}
-            onBack={() => setStep('password')}
+            onBack={() => setStep('email')}
             accentColor="#0B4F6C"
             method="email_otp"
             destinationHint={maskedDestination}
@@ -324,7 +336,7 @@ export function ForgotPasswordPage({ onBack }: ForgotPasswordPageProps) {
           />
         )}
 
-        {step !== 'otp' && (
+        {step !== 'otp' && step !== 'password' && (
           <div className="px-5 sm:px-8 py-3 sm:py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-center">
             <span className="text-xs text-gray-400">
               Secured with end-to-end encryption - Railly v2.1

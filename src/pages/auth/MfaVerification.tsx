@@ -26,6 +26,7 @@ export function MfaVerification({
   const [countdown, setCountdown] = useState(60);
   const [isResending, setIsResending] = useState(false);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const otpLatest = useRef(['', '', '', '', '', '']);
 
   useEffect(() => {
     let timer: any;
@@ -52,15 +53,16 @@ export function MfaVerification({
 
   const handleOtpChange = (index: number, value: string) => {
     const cleaned = value.replace(/\D/g, '').slice(-1);
-    const next = [...otp];
+    const next = [...otpLatest.current];
     next[index] = cleaned;
-    setOtp(next);
+    otpLatest.current = next;
+    setOtp([...next]);
     setOtpError('');
     if (cleaned && index < 5) {
       otpRefs.current[index + 1]?.focus();
     }
     if (cleaned && index === 5) {
-      const full = [...next].join('');
+      const full = next.join('');
       if (full.length === 6) handleOtpSubmit(full);
     }
   };
@@ -75,7 +77,9 @@ export function MfaVerification({
     e.preventDefault();
     const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
     if (pasted.length === 6) {
-      setOtp(pasted.split(''));
+      const split = pasted.split('');
+      otpLatest.current = split;
+      setOtp(split);
       handleOtpSubmit(pasted);
     }
   };
@@ -92,6 +96,7 @@ export function MfaVerification({
 
     if (!success) {
       setOtpError('Incorrect code. Please try again.');
+      otpLatest.current = ['', '', '', '', '', ''];
       setOtp(['', '', '', '', '', '']);
       setTimeout(() => otpRefs.current[0]?.focus(), 50);
     }

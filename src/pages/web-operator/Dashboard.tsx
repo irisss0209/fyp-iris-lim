@@ -118,24 +118,32 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       let fromDate: Date | null = null;
       let toDate: Date | null = null;
 
+      // Returns a UTC Date representing midnight MYT (UTC+8) for the given local date
+      const toMytMidnightUtc = (d: Date): Date => {
+        const mytStr = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kuala_Lumpur' });
+        return new Date(`${mytStr}T00:00:00+08:00`);
+      };
+      const shiftDays = (d: Date, n: number): Date => {
+        const r = new Date(d);
+        r.setDate(r.getDate() + n);
+        return r;
+      };
+
       if (selectedRange === 'today') {
-        fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        toDate = new Date(fromDate);
-        toDate.setDate(toDate.getDate() + 1);
+        fromDate = toMytMidnightUtc(now);
+        toDate   = toMytMidnightUtc(shiftDays(now, 1));
       } else if (selectedRange === 'yesterday') {
-        fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-        toDate = new Date(fromDate);
-        toDate.setDate(toDate.getDate() + 1);
+        fromDate = toMytMidnightUtc(shiftDays(now, -1));
+        toDate   = toMytMidnightUtc(now);
       } else if (selectedRange === '7days') {
-        fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-        toDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        fromDate = toMytMidnightUtc(shiftDays(now, -6));
+        toDate   = toMytMidnightUtc(shiftDays(now, 1));
       } else if (selectedRange === '30days') {
-        fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
-        toDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        fromDate = toMytMidnightUtc(shiftDays(now, -29));
+        toDate   = toMytMidnightUtc(shiftDays(now, 1));
       } else if (selectedRange === 'custom' && customFrom && customTo) {
-        fromDate = new Date(customFrom);
-        toDate = new Date(customTo);
-        toDate.setDate(toDate.getDate() + 1);
+        fromDate = toMytMidnightUtc(new Date(customFrom));
+        toDate   = toMytMidnightUtc(shiftDays(new Date(customTo), 1));
       }
 
       let query = '';

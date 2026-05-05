@@ -269,9 +269,13 @@ namespace backend.Controllers
         [HttpGet("operator/dashboard")]
         public async Task<IActionResult> GetOperatorDashboard([FromQuery] DateTime? from, [FromQuery] DateTime? to)
         {
+            // Force UTC kind so Npgsql does not reject the DateTime comparison
+            DateTime? fromUtc = from.HasValue ? DateTime.SpecifyKind(from.Value, DateTimeKind.Utc) : null;
+            DateTime? toUtc   = to.HasValue   ? DateTime.SpecifyKind(to.Value,   DateTimeKind.Utc) : null;
+
             var baseIncidents = _context.Incidents.AsQueryable();
-            if (from.HasValue) baseIncidents = baseIncidents.Where(i => i.CreatedAt >= from.Value);
-            if (to.HasValue) baseIncidents = baseIncidents.Where(i => i.CreatedAt < to.Value);
+            if (fromUtc.HasValue) baseIncidents = baseIncidents.Where(i => i.CreatedAt >= fromUtc.Value);
+            if (toUtc.HasValue)   baseIncidents = baseIncidents.Where(i => i.CreatedAt < toUtc.Value);
 
             // Stats
             var pending   = await baseIncidents.CountAsync(i => i.Status == IncidentStatus.Pending);
