@@ -19,13 +19,15 @@ namespace backend.Services
         private readonly string _vapidPublicKey;
         private readonly string _vapidPrivateKey;
         private readonly string _vapidSubject;
+        private readonly ILogger<PushNotificationService> _logger;
 
-        public PushNotificationService(IServiceScopeFactory scopeFactory, IConfiguration config)
+        public PushNotificationService(IServiceScopeFactory scopeFactory, IConfiguration config, ILogger<PushNotificationService> logger)
         {
             _scopeFactory = scopeFactory;
             _vapidPublicKey = config["Vapid:PublicKey"]!;
             _vapidPrivateKey = config["Vapid:PrivateKey"]!;
             _vapidSubject = config["Vapid:Subject"] ?? "mailto:admin@railly.my";
+            _logger = logger;
         }
 
         public async Task NotifyNewIncident(int incidentId)
@@ -92,7 +94,8 @@ namespace backend.Services
             var station = await context.Stations.FindAsync(stationId);
             if (station == null || (station.Latitude == 0 && station.Longitude == 0)) return;
 
-            var todayUtc = DateTime.UtcNow.Date;
+            var mytToday = DateTime.UtcNow.AddHours(8).Date;
+            var todayUtc = DateTime.SpecifyKind(mytToday.AddHours(-8), DateTimeKind.Utc);
 
             var activeCount = await context.Incidents
                 .Include(i => i.Detection)
@@ -146,7 +149,7 @@ namespace backend.Services
                 foreach (var sid in nearby) allowedStationIds.Add(sid);
             }
 
-            var today = DateTime.Now.Date;
+            var today = DateTime.UtcNow.AddHours(8).Date; // MYT (UTC+8), consistent with shift storage
             var auxUserIds = await context.AuxiliaryShifts
                 .Where(s => s.ShiftDate.Date == today && allowedStationIds.Contains(s.StationId))
                 .Select(s => s.UserId)
@@ -175,7 +178,7 @@ namespace backend.Services
 
         private async Task NotifyOperators(AppDbContext context, string title, string body, string alertId)
         {
-            var now = DateTime.Now.TimeOfDay;
+            var now = DateTime.UtcNow.AddHours(8).TimeOfDay; // MYT (UTC+8)
 
             var operatorSubs = await context.PushSubscriptions
                 .Include(s => s.User)
@@ -226,7 +229,7 @@ namespace backend.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[PUSH] Failed for user {sub.UserId}: {ex.Message}");
+                _logger.LogWarning(ex, "Push notification failed for user {UserId}", sub.UserId);
             }
         }
 

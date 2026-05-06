@@ -14,6 +14,12 @@ namespace backend.Services
         }
 
         private readonly ConcurrentDictionary<string, ChallengeEntry> _entries = new();
+        private readonly ILogger<AuthChallengeStore> _logger;
+
+        public AuthChallengeStore(ILogger<AuthChallengeStore> logger)
+        {
+            _logger = logger;
+        }
 
         public (string ChallengeId, string Code, DateTime ExpiresAtUtc) Create(string userId, TimeSpan ttl, string? metadata = null)
         {
@@ -41,24 +47,38 @@ namespace backend.Services
             return null;
         }
 
+        public string? GetUserId(string challengeId)
+        {
+            if (_entries.TryGetValue(challengeId, out var entry))
+            {
+                if (entry.ExpiresAtUtc < DateTime.UtcNow)
+                {
+                    _entries.TryRemove(challengeId, out _);
+                    return null;
+                }
+                return entry.UserId;
+            }
+            return null;
+        }
+
         public (bool IsValid, string? Metadata) VerifyAndConsume(string challengeId, string userId, string submittedCode)
         {
             if (!_entries.TryGetValue(challengeId, out var entry))
             {
-                Console.WriteLine($"[AUTH STORE] Challenge ID {challengeId} not found.");
+                _logger.LogWarning("Challenge ID {ChallengeId} not found", challengeId);
                 return (false, null);
             }
 
             if (entry.ExpiresAtUtc < DateTime.UtcNow)
             {
-                Console.WriteLine($"[AUTH STORE] Challenge {challengeId} expired at {entry.ExpiresAtUtc}. Current time: {DateTime.UtcNow}");
+                _logger.LogWarning("Challenge {ChallengeId} expired at {ExpiresAt}", challengeId, entry.ExpiresAtUtc);
                 _entries.TryRemove(challengeId, out _);
                 return (false, null);
             }
 
             if (!string.Equals(entry.UserId, userId, StringComparison.OrdinalIgnoreCase))
             {
-                Console.WriteLine($"[AUTH STORE] User ID mismatch. Expected: '{entry.UserId}', Got: '{userId}'");
+                _logger.LogWarning("Challenge {ChallengeId} user ID mismatch for user {UserId}", challengeId, userId);
                 _entries.TryRemove(challengeId, out _);
                 return (false, null);
             }
@@ -66,15 +86,14 @@ namespace backend.Services
             var ok = string.Equals(entry.Code.Trim(), submittedCode.Trim(), StringComparison.Ordinal);
             if (!ok)
             {
-                Console.WriteLine($"[AUTH STORE] Code mismatch for user {userId}. Expected: '{entry.Code}', Got: '{submittedCode}'");
+                _logger.LogWarning("OTP code mismatch for user {UserId} on challenge {ChallengeId}", userId, challengeId);
             }
-            
+
             string? metadata = null;
             if (ok)
             {
                 metadata = entry.Metadata;
                 _entries.TryRemove(challengeId, out _);
-                Console.WriteLine($"[AUTH STORE] Success for user {userId}");
             }
             return (ok, metadata);
         }

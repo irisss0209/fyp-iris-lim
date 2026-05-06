@@ -1,11 +1,10 @@
 using backend.Data;
 using backend.Models;
+using backend.Models.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using backend.Services;
-using System.Security.Claims;
-using System.IdentityModel.Tokens.Jwt;
 
 namespace backend.Controllers
 {
@@ -16,22 +15,20 @@ namespace backend.Controllers
 
     [ApiController]
     [Route("api/data")] // Maintained original route to not break frontend links
-    public class PassengerController : ControllerBase
+    public class PassengerController : BaseApiController
     {
         private readonly AppDbContext _context;
         private readonly IAlertService _alertService;
         private readonly IS3Service _s3Service;
+        private readonly ILogger<PassengerController> _logger;
 
-        public PassengerController(AppDbContext context, IAlertService alertService, IS3Service s3Service)
+        public PassengerController(AppDbContext context, IAlertService alertService, IS3Service s3Service, ILogger<PassengerController> logger)
         {
             _context = context;
             _alertService = alertService;
             _s3Service = s3Service;
+            _logger = logger;
         }
-
-        private string? GetCurrentUserId() =>
-            User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-            ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
 
         [HttpGet("lines")]
         public async Task<IActionResult> GetLines()
@@ -41,18 +38,18 @@ namespace backend.Controllers
                 .ThenInclude(ta => ta.TrainCoaches)
                 .ToListAsync();
 
-            var result = lines.Select(l => new
+            var result = lines.Select(l => new TrainLineDto
             {
-                lineId = l.LineId,
-                lineName = l.LineName,
-                coaches = l.TrainAssets.SelectMany(ta => ta.TrainCoaches)
-                                       .Select(c => c.CoachId)
-                                       .Distinct()
-                                       .OrderBy(c => c)
-                                       .ToList(),
-                trains = l.TrainAssets.Select(ta => ta.TrainId)
-                                      .OrderBy(id => id)
-                                      .ToList()
+                LineId   = l.LineId,
+                LineName = l.LineName,
+                Coaches  = l.TrainAssets.SelectMany(ta => ta.TrainCoaches)
+                                        .Select(c => c.CoachId)
+                                        .Distinct()
+                                        .OrderBy(c => c)
+                                        .ToList(),
+                Trains   = l.TrainAssets.Select(ta => ta.TrainId)
+                                        .OrderBy(id => id)
+                                        .ToList()
             });
 
             return Ok(result);
@@ -75,11 +72,13 @@ namespace backend.Controllers
                 // Parse composite FK values sent from the frontend
                 if (req.CoachId <= 0)
                     return BadRequest(new { error = "Coach selection is required." });
-                
+
                 if (string.IsNullOrEmpty(req.LineId) || string.IsNullOrEmpty(req.StationId))
                     return BadRequest(new { error = "Line and Station selection is required." });
 
                 int coachId = req.CoachId;
+
+                await using var tx = await _context.Database.BeginTransactionAsync();
 
                 var report = new UserReport
                 {
@@ -95,7 +94,7 @@ namespace backend.Controllers
                 _context.UserReports.Add(report);
                 await _context.SaveChangesAsync();
 
-                // Auto-create incident
+                // Auto-create incident atomically with the report
                 var incident = new Incident
                 {
                     Source    = IncidentSource.USER_REPORT,
@@ -106,12 +105,13 @@ namespace backend.Controllers
 
                 _context.Incidents.Add(incident);
                 await _context.SaveChangesAsync();
+                await tx.CommitAsync();
 
-                return Ok(new { success = true, reportId = report.ReportId });
+                return StatusCode(StatusCodes.Status201Created, new ReportSubmitResponseDto { Success = true, ReportId = report.ReportId });
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[REPORT] Submit error: {ex}");
+                _logger.LogError(ex, "Failed to submit report for user {UserId}", userId);
                 return StatusCode(500, new { error = "Failed to submit report. Please try again." });
             }
         }
@@ -140,14 +140,19 @@ namespace backend.Controllers
             if (!allowedTypes.Contains(image.ContentType.ToLowerInvariant()))
                 return BadRequest(new { error = "Only JPEG, PNG, GIF, and WebP images are accepted." });
 
-            Console.WriteLine($"[UPLOAD] Received image: {image.FileName}, Size: {image.Length} bytes for report {reportId}");
-
             var report = await _context.UserReports.FindAsync(reportId);
             if (report == null || report.UserId != userId)
                 return NotFound(new { error = "Report not found." });
 
-            var ext = Path.GetExtension(image.FileName).ToLowerInvariant();
-            if (string.IsNullOrEmpty(ext)) ext = ".jpg";
+            // Derive extension from the validated content-type, not the user-controlled filename
+            var ext = image.ContentType.ToLowerInvariant() switch
+            {
+                "image/jpeg" => ".jpg",
+                "image/png"  => ".png",
+                "image/gif"  => ".gif",
+                "image/webp" => ".webp",
+                _            => ".jpg"
+            };
 
             var key = $"snapshots/user-report/{userId}-{reportId}{ext}";
 
@@ -156,11 +161,11 @@ namespace backend.Controllers
                 var url = await _s3Service.UploadFileWithKeyAsync(image, key);
                 report.ImageUrl = url;
                 await _context.SaveChangesAsync();
-                return Ok(new { imageUrl = url });
+                return Ok(new ImageUploadResponseDto { ImageUrl = url });
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[UPLOAD] S3 error: {ex}");
+                _logger.LogError(ex, "S3 upload failed for report {ReportId}", reportId);
                 return StatusCode(500, new { error = "Failed to upload image. Please try again." });
             }
         }
@@ -178,31 +183,22 @@ namespace backend.Controllers
 
             if (user.Role == UserRole.Auxiliary)
             {
-                // Calculate average reaction time: EnrouteAt - CreatedAt
-                var reactedIncidents = await _context.Incidents
+                var avgMinutes = await _context.Incidents
                     .Where(i => i.EnrouteBy == userId && i.EnrouteAt != null)
-                    .ToListAsync();
+                    .Select(i => (double?)(i.EnrouteAt!.Value - i.CreatedAt).TotalMinutes)
+                    .AverageAsync() ?? 0;
 
-                double avgMinutes = 0;
-                if (reactedIncidents.Any())
-                {
-                    avgMinutes = reactedIncidents
-                        .Select(i => (i.EnrouteAt!.Value - i.CreatedAt).TotalMinutes)
-                        .Average();
-                }
-
-                // Resolved count
                 var resolvedCount = await _context.Incidents
                     .CountAsync(i => i.ResolvedBy == userId && i.Status == IncidentStatus.Resolved);
 
-                return Ok(new
+                return Ok(new AuxiliaryProfileDto
                 {
-                    userId = user.UserId,
-                    userName = user.UserName,
-                    email = user.Email,
-                    role = user.Role,
-                    avgReactionTime = Math.Round(avgMinutes, 1),
-                    resolved = resolvedCount
+                    UserId          = user.UserId,
+                    UserName        = user.UserName,
+                    Email           = user.Email,
+                    Role            = user.Role.ToString(),
+                    AvgReactionTime = Math.Round(avgMinutes, 1),
+                    Resolved        = resolvedCount
                 });
             }
             else
@@ -210,16 +206,17 @@ namespace backend.Controllers
                 var reportsCount = await _context.UserReports.CountAsync(r => r.UserId == userId);
                 var validReports = await _context.Incidents
                     .Include(i => i.UserReport)
-                    .CountAsync(i => i.UserReport != null && i.UserReport.UserId == userId && (i.Status == IncidentStatus.Verified || i.Status == IncidentStatus.Resolved || i.Status == IncidentStatus.Escalated));
+                    .CountAsync(i => i.UserReport != null && i.UserReport.UserId == userId &&
+                        (i.Status == IncidentStatus.Verified || i.Status == IncidentStatus.Resolved || i.Status == IncidentStatus.Escalated));
 
-                return Ok(new
+                return Ok(new PassengerProfileDto
                 {
-                    userId = user.UserId,
-                    userName = user.UserName,
-                    email = user.Email,
-                    role = user.Role,
-                    reports = reportsCount,
-                    verified = validReports
+                    UserId   = user.UserId,
+                    UserName = user.UserName,
+                    Email    = user.Email,
+                    Role     = user.Role.ToString(),
+                    Reports  = reportsCount,
+                    Verified = validReports
                 });
             }
         }
@@ -227,6 +224,9 @@ namespace backend.Controllers
         [HttpGet("incident-near-me")]
         public async Task<IActionResult> GetIncidentNearMe()
         {
+            var mytToday = DateTime.UtcNow.AddHours(8).Date;
+            var todayUtc = DateTime.SpecifyKind(mytToday.AddHours(-8), DateTimeKind.Utc);
+
             var incidents = await _context.Incidents
                 .Include(i => i.Detection)
                     .ThenInclude(d => d!.Camera)
@@ -249,7 +249,7 @@ namespace backend.Controllers
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.LineStation)
                         .ThenInclude(ls => ls!.Station)
-                .Where(i => (i.Status == IncidentStatus.Pending || i.Status == IncidentStatus.Verified || i.Status == IncidentStatus.En_Route || i.Status == IncidentStatus.Escalated) && i.CreatedAt >= DateTime.UtcNow.Date)
+                .Where(i => (i.Status == IncidentStatus.Pending || i.Status == IncidentStatus.Verified || i.Status == IncidentStatus.En_Route || i.Status == IncidentStatus.Escalated) && i.CreatedAt >= todayUtc)
                 .OrderByDescending(i => i.CreatedAt)
                 .Take(10)
                 .ToListAsync();
@@ -259,33 +259,22 @@ namespace backend.Controllers
             var result = incidents.Select(i =>
             {
                 var dto = _alertService.MapToAlertDTO(i, now);
-
-                return new
+                return new NearbyIncidentDto
                 {
-                    dto.Id,
-                    dto.Line,
-                    dto.Station,
-                    dto.TrainId,
-CoachId = dto.CoachId,
-                    type = dto.Source == "ai" ? "AI Detection" : "Passenger Report",
-                    time = dto.Time,
-                    date = dto.Date,
-                    status = dto.Status,
-                    dto.ImageUrl
+                    Id       = dto.Id,
+                    Line     = dto.Line,
+                    Station  = dto.Station,
+                    TrainId  = dto.TrainId,
+                    CoachId  = dto.CoachId,
+                    Type     = dto.Source == "ai" ? "AI Detection" : "Passenger Report",
+                    Time     = dto.Time,
+                    Date     = dto.Date,
+                    Status   = dto.Status,
+                    ImageUrl = dto.ImageUrl
                 };
             });
 
-           
             return Ok(result);
-        }
-
-        [Authorize]
-        [HttpGet("debug-reports")]
-        public async Task<IActionResult> DebugReports()
-        {
-            var reports = await _context.UserReports.ToListAsync();
-            var incidents = await _context.Incidents.Where(i => i.ReportId != null).ToListAsync();
-            return Ok(new { totalReports = reports.Count, totalReportIncidents = incidents.Count, reports = reports });
         }
 
         [Authorize]
@@ -318,35 +307,35 @@ CoachId = dto.CoachId,
                 .ToListAsync();
 
             var now = DateTime.UtcNow;
-            var result = incidents.Select(inc => {
+            var result = incidents.Select(inc =>
+            {
                 var dto = _alertService.MapToAlertDTO(inc, now);
-                return new
+                return new IncidentHistoryItemDto
                 {
-                    id = dto.Id,
-                    incidentId = inc.IncidentId,
-                    type = inc.UserReport?.Description ?? "Violation",
-                    date = dto.Date,
-                    time = dto.Time,
-                    status = dto.Status,
-                    line = dto.Line,
-                    coach = dto.CoachId.ToString() ?? "Unknown Coach",
-                    description = inc.UserReport?.Description,
-                    imageUrl = dto.ImageUrl,
-                    // Audit trail
-                    verifiedBy = dto.VerifiedBy,
-                    verifiedAt = dto.VerifiedAt,
-                    verifiedComment = dto.VerifiedComment,
-                    escalatedBy = dto.EscalatedBy,
-                    escalatedAt = dto.EscalatedAt,
-                    escalatedComment = dto.EscalatedComment,
-                    enrouteBy = dto.EnrouteBy,
-                    enrouteAt = dto.EnrouteAt,
-                    resolvedBy = dto.ResolvedBy,
-                    resolvedAt = dto.ResolvedAt,
-                    resolvedComment = dto.ResolvedComment,
-                    dismissedBy = dto.DismissedBy,
-                    dismissedAt = dto.DismissedAt,
-                    dismissedComment = dto.DismissedComment,
+                    Id          = dto.Id,
+                    IncidentId  = inc.IncidentId,
+                    Type        = inc.UserReport?.Description ?? "Violation",
+                    Date        = dto.Date,
+                    Time        = dto.Time,
+                    Status      = dto.Status,
+                    Line        = dto.Line,
+                    Coach       = dto.CoachId?.ToString() ?? "Unknown Coach",
+                    Description = inc.UserReport?.Description,
+                    ImageUrl    = dto.ImageUrl,
+                    VerifiedBy       = dto.VerifiedBy,
+                    VerifiedAt       = dto.VerifiedAt,
+                    VerifiedComment  = dto.VerifiedComment,
+                    EscalatedBy      = dto.EscalatedBy,
+                    EscalatedAt      = dto.EscalatedAt,
+                    EscalatedComment = dto.EscalatedComment,
+                    EnrouteBy        = dto.EnrouteBy,
+                    EnrouteAt        = dto.EnrouteAt,
+                    ResolvedBy       = dto.ResolvedBy,
+                    ResolvedAt       = dto.ResolvedAt,
+                    ResolvedComment  = dto.ResolvedComment,
+                    DismissedBy      = dto.DismissedBy,
+                    DismissedAt      = dto.DismissedAt,
+                    DismissedComment = dto.DismissedComment,
                 };
             });
 
@@ -403,10 +392,10 @@ CoachId = dto.CoachId,
                 .Where(ls => ls.LineId == lineId)
                 .Include(ls => ls.Station)
                 .OrderBy(ls => ls.SequenceOrder)
-                .Select(ls => new
+                .Select(ls => new StationDto
                 {
-                    stationId = ls.StationId,
-                    stationName = ls.Station.StationName
+                    StationId   = ls.StationId,
+                    StationName = ls.Station.StationName
                 })
                 .ToListAsync();
 

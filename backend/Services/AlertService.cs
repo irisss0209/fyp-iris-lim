@@ -10,10 +10,12 @@ namespace backend.Services
     public class AlertService : IAlertService
     {
         private readonly IS3Service _s3Service;
+        private readonly ILogger<AlertService> _logger;
 
-        public AlertService(IS3Service s3Service)
+        public AlertService(IS3Service s3Service, ILogger<AlertService> logger)
         {
             _s3Service = s3Service;
+            _logger = logger;
         }
 
         public AlertDTO MapToAlertDTO(Incident i, DateTime now)
@@ -81,14 +83,13 @@ namespace backend.Services
                         }
 
                         var presignedUrl = _s3Service.GeneratePresignedUrl(key, 60);
-                        Console.WriteLine($"[ALERT SERVICE] Presigned URL generated for key: {key}");
-                        // Console.WriteLine($"[DEBUG URL] {presignedUrl}"); // Uncomment if needed for deep debug
+                        _logger.LogDebug("Presigned URL generated for key: {Key}", key);
                         imageUrl = presignedUrl;
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[ALERT SERVICE] Failed to presign URL: {ex.Message}");
+                    _logger.LogWarning(ex, "Failed to presign URL for image");
                 }
             }
 

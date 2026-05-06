@@ -5,14 +5,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using backend.Models.DTOs;
 using backend.Services;
-using System.Security.Claims;
-using System.IdentityModel.Tokens.Jwt;
-
 namespace backend.Controllers
 {
     [ApiController]
+    [Authorize(Roles = "auxiliary")]
     [Route("api/data")] // Maintained original route to not break frontend links
-    public class AuxiliaryController : ControllerBase
+    public class AuxiliaryController : BaseApiController
     {
         private readonly AppDbContext _context;
         private readonly IAlertService _alertService;
@@ -23,11 +21,6 @@ namespace backend.Controllers
             _alertService = alertService;
         }
 
-        private string? GetCurrentUserId() =>
-            User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-            ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-
-        [Authorize]
         [HttpGet("auxiliary/shift")]
         public async Task<IActionResult> GetAuxiliaryShift()
         {
@@ -70,7 +63,7 @@ namespace backend.Controllers
             }
 
             if (shift == null)
-                return Ok(new { active = false });
+                return Ok(new AuxiliaryShiftDto { Active = false });
 
             // Calculate isOnDuty only for today's shifts
             bool isOnDuty = false;
@@ -82,47 +75,44 @@ namespace backend.Controllers
                     isOnDuty = nowTime >= shift.StartTime || nowTime < shift.EndTime;
             }
 
-            return Ok(new
+            return Ok(new AuxiliaryShiftDto
             {
-                active = true,
-                onDuty = isOnDuty,
-                shiftId = shift.ShiftId,
-                station = shift.Station.StationName,
-                stationId = shift.StationId,
-                shiftStart = shift.StartTime.ToString(@"hh\:mm"),
-                shiftEnd = shift.EndTime.ToString(@"hh\:mm"),
-                shiftDate = shift.ShiftDate.ToString("yyyy-MM-dd")
+                Active     = true,
+                OnDuty     = isOnDuty,
+                ShiftId    = shift.ShiftId,
+                Station    = shift.Station.StationName,
+                StationId  = shift.StationId,
+                ShiftStart = shift.StartTime.ToString(@"hh\:mm"),
+                ShiftEnd   = shift.EndTime.ToString(@"hh\:mm"),
+                ShiftDate  = shift.ShiftDate.ToString("yyyy-MM-dd")
             });
         }
 
         
 
-        [Authorize]
         [HttpGet("auxiliary/users")]
         public async Task<IActionResult> GetAuxiliaryUsers()
         {
             var users = await _context.Users
                 .Where(u => u.Role == UserRole.Auxiliary)
-                .Select(u => new { userId = u.UserId, userName = u.UserName })
+                .Select(u => new UserSummaryDto { UserId = u.UserId, UserName = u.UserName })
                 .ToListAsync();
 
             return Ok(users);
         }
 
-        [Authorize]
         [HttpGet("auxiliary/stations")]
         public async Task<IActionResult> GetStations()
         {
             var stations = await _context.Stations
-                .Select(s => new { stationId = s.StationId, stationName = s.StationName })
-                .OrderBy(s => s.stationName)
+                .Select(s => new StationDto { StationId = s.StationId, StationName = s.StationName })
+                .OrderBy(s => s.StationName)
                 .ToListAsync();
 
             return Ok(stations);
         }
 
         // ── Live alerts for a station (RecentAlerts tab) ───────────────────────
-        [Authorize]
         [HttpGet("auxiliary/alerts")]
         public async Task<IActionResult> GetAlertsByStation([FromQuery] string? stationId)
         {
@@ -188,7 +178,8 @@ namespace backend.Controllers
 
             // 3. Fetch and Filter Incidents
             var nowUtc = DateTime.UtcNow;
-            var todayUtc = nowUtc.Date;
+            var mytToday = nowUtc.AddHours(8).Date;
+            var todayUtc = DateTime.SpecifyKind(mytToday.AddHours(-8), DateTimeKind.Utc);
 
             var incidents = await _context.Incidents
                 .Include(i => i.Detection)
@@ -270,7 +261,6 @@ namespace backend.Controllers
             return Ok(alerts);
         }
 
-    [Authorize]
     [HttpPost("auxiliary/alerts/{id}/status")]
     public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateStatusRequest req)
     {
@@ -325,7 +315,6 @@ namespace backend.Controllers
             return Ok(new { message = "Status updated." });
         }
 
-       [Authorize]
        [HttpGet("auxiliary/history")]
     public async Task<IActionResult> GetHistoryByUser()
     {

@@ -3,8 +3,7 @@ using backend.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
-using System.Security.Claims;
-using System.IdentityModel.Tokens.Jwt;
+using Microsoft.AspNetCore.RateLimiting;
 using backend.Models.DTOs;
 using backend.Services;
 using OfficeOpenXml;
@@ -12,24 +11,22 @@ namespace backend.Controllers
 {
     [ApiController]
     [Route("api/data")]
-    public class OperatorController : ControllerBase
+    public class OperatorController : BaseApiController
     {
         private readonly AppDbContext _context;
         private readonly IAlertService _alertService;
         private readonly IS3Service _s3Service;
+        private readonly ILogger<OperatorController> _logger;
 
-        public OperatorController(AppDbContext context, IAlertService alertService, IS3Service s3Service)
+        public OperatorController(AppDbContext context, IAlertService alertService, IS3Service s3Service, ILogger<OperatorController> logger)
         {
             _context = context;
             _alertService = alertService;
             _s3Service = s3Service;
+            _logger = logger;
         }
 
-        private string? GetCurrentUserId() =>
-            User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-            ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-
-        [Authorize]
+        [Authorize(Roles = "operator")]
         [HttpGet("home-stats")]
         public async Task<IActionResult> GetHomeStats()
         {
@@ -88,21 +85,26 @@ namespace backend.Controllers
             var allLinesTrend = Enumerable.Range(0, 7).Select(d => new
             {
                 day = dayNames[d],
-                count = allIncidents.Count(i => (int)i.CreatedAt.DayOfWeek == d)
+                count = allIncidents.Count(i => (int)i.CreatedAt.AddHours(8).DayOfWeek == d)
             }).ToList();
 
             var trendData = new Dictionary<string, object> { { "All Lines", allLinesTrend } };
+
+            // Pre-group by lineId to avoid O(n×m) in-memory filtering in the loop below
+            var incidentsByLine = allIncidents
+                .GroupBy(i => ResolveLineId(i))
+                .ToDictionary(g => g.Key ?? "unknown", g => g.ToList());
 
             // Per-line trends + summary
             var lineSummary = new List<object>();
             foreach (var line in lines)
             {
-                var lineIncidents = allIncidents.Where(i => ResolveLineId(i) == line.LineId).ToList();
+                var lineIncidents = incidentsByLine.GetValueOrDefault(line.LineId, new List<Incident>());
 
                 var lineTrend = Enumerable.Range(0, 7).Select(d => new
                 {
                     day = dayNames[d],
-                    count = lineIncidents.Count(i => (int)i.CreatedAt.DayOfWeek == d)
+                    count = lineIncidents.Count(i => (int)i.CreatedAt.AddHours(8).DayOfWeek == d)
                 }).ToList();
 
                 trendData[line.LineName] = lineTrend;
@@ -144,7 +146,8 @@ namespace backend.Controllers
 
             // Default window: last 35 days (covers today + last-week comparison + current month
             // that the Insights page needs). Filter at DB level — never return all-time data.
-            var windowStart = DateTime.UtcNow.Date.AddDays(-35);
+            var mytToday = DateTime.UtcNow.AddHours(8).Date;
+            var windowStart = DateTime.SpecifyKind(mytToday.AddHours(-8), DateTimeKind.Utc).AddDays(-35);
 
             var incidentsQuery = _context.Incidents
                 .AsNoTracking()
@@ -198,7 +201,7 @@ namespace backend.Controllers
             return Ok(alerts);
         }
 
-        [Authorize]
+        [Authorize(Roles = "operator")]
         [HttpPost("incident-alerts/{id}/status")]
         public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateStatusRequest request)
         {
@@ -227,8 +230,7 @@ namespace backend.Controllers
 
             incident.Status = parsedStatus;
 
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                        ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+            var userId = GetCurrentUserId();
 
             switch (parsedStatus)
             {
@@ -406,8 +408,9 @@ namespace backend.Controllers
                     }).ToList()
                 }).ToList();
 
-            // All incidents from today
-            var today = DateTime.UtcNow.Date;
+            // All incidents from today in MYT (UTC+8)
+            var mytToday = DateTime.UtcNow.AddHours(8).Date;
+            var today = DateTime.SpecifyKind(mytToday.AddHours(-8), DateTimeKind.Utc);
             var incidents = await _context.Incidents
                 .AsNoTracking()
                 .Where(i => i.CreatedAt >= today)
@@ -511,10 +514,12 @@ namespace backend.Controllers
         {
             // Default to current month if not specified
             var now = DateTime.UtcNow;
-            if (year  == 0) year  = now.Year;
-            if (month == 0) month = now.Month;
+            var nowMyt = now.AddHours(8);
+            if (year  == 0) year  = nowMyt.Year;
+            if (month == 0) month = nowMyt.Month;
 
-            var from = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
+            var fromMyt = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Unspecified);
+            var from = DateTime.SpecifyKind(fromMyt.AddHours(-8), DateTimeKind.Utc);
             var to   = from.AddMonths(1);
 
             // Pre-load station→line mapping; bypasses composite FK nav that fails when line_id is null
@@ -638,7 +643,7 @@ namespace backend.Controllers
             // Build an object per day: { day, [lineName]: count, ... }
             var dailyData = Enumerable.Range(0, 7).Select(d =>
             {
-                var dayIncs = incidents.Where(i => (int)i.CreatedAt.DayOfWeek == d).ToList();
+                var dayIncs = incidents.Where(i => (int)i.CreatedAt.AddHours(8).DayOfWeek == d).ToList();
                 var dayObj  = new Dictionary<string, object> { ["day"] = dayNames[d] };
                 foreach (var (lineId, lineName) in lineGroups)
                     dayObj[lineName] = dayIncs.Count(i => ResolveLineInfo(i).lineId == lineId);
@@ -700,8 +705,9 @@ namespace backend.Controllers
             var months = new List<object>();
             if (oldestIncident.HasValue)
             {
-                var cursor = new DateTime(oldestIncident.Value.Year, oldestIncident.Value.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-                var latest = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+                var oldestMyt = oldestIncident.Value.AddHours(8);
+                var cursor = new DateTime(oldestMyt.Year, oldestMyt.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+                var latest = new DateTime(nowMyt.Year, nowMyt.Month, 1, 0, 0, 0, DateTimeKind.Utc);
                 while (cursor <= latest)
                 {
                     months.Add(new { year = cursor.Year, month = cursor.Month,
@@ -775,23 +781,30 @@ namespace backend.Controllers
         // ── User Management ───────────────────────────────────────────────────
 
         [Authorize(Roles = "operator")]
+        [EnableRateLimiting("api")]
         [HttpGet("operator/users")]
-        public async Task<IActionResult> GetAllUsers()
+        public async Task<IActionResult> GetAllUsers([FromQuery] int page = 1, [FromQuery] int pageSize = 50)
         {
+            if (page < 1) page = 1;
+            if (pageSize < 1 || pageSize > 200) pageSize = 50;
+
+            var total = await _context.Users.CountAsync();
             var users = await _context.Users
                 .OrderBy(u => u.UserName)
-                .Select(u => new
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(u => new UserListItemDto
                 {
-                    userId    = u.UserId,
-                    userName  = u.UserName,
-                    email     = u.Email,
-                    role      = u.Role.ToString(),
-                    status    = u.Status.ToString(),
-                    createdAt = u.CreatedAt
+                    UserId    = u.UserId,
+                    UserName  = u.UserName,
+                    Email     = u.Email,
+                    Role      = u.Role.ToString(),
+                    Status    = u.Status.ToString(),
+                    CreatedAt = u.CreatedAt
                 })
                 .ToListAsync();
 
-            return Ok(users);
+            return Ok(new UserListPageDto { Total = total, Page = page, PageSize = pageSize, Users = users });
         }
 
         [Authorize(Roles = "operator")]
@@ -845,17 +858,17 @@ namespace backend.Controllers
                     .FirstOrDefault(ls => ls.StationId == s.StationId)
                     ?.TrainLine?.LineName ?? "—";
 
-                return new
+                return new OperatorShiftListItemDto
                 {
-                    shiftId     = s.ShiftId,
-                    userId      = s.UserId,
-                    userName    = s.User.UserName,
-                    stationId   = s.StationId,
-                    stationName = s.Station.StationName,
-                    lineName,
-                    shiftDate   = s.ShiftDate,
-                    startTime   = s.StartTime.ToString(@"hh\:mm"),
-                    endTime     = s.EndTime.ToString(@"hh\:mm")
+                    ShiftId     = s.ShiftId,
+                    UserId      = s.UserId,
+                    UserName    = s.User.UserName,
+                    StationId   = s.StationId,
+                    StationName = s.Station.StationName,
+                    LineName    = lineName,
+                    ShiftDate   = s.ShiftDate,
+                    StartTime   = s.StartTime.ToString(@"hh\:mm"),
+                    EndTime     = s.EndTime.ToString(@"hh\:mm")
                 };
             }).ToList();
 
@@ -1122,6 +1135,12 @@ if (error != null) return BadRequest(new { error });
         public class PatchUserStatusRequest
         {
             public string Status { get; set; } = null!;
-            }
-}
+        }
+    }
+
+    public class UpdateStatusRequest
+    {
+        public string? Status { get; set; }
+        public string? Comment { get; set; }
+    }
 }

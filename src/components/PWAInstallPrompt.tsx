@@ -7,6 +7,8 @@ export function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   useEffect(() => {
+    if (localStorage.getItem('pwa_prompt_dismissed') === 'true') return;
+
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches
       || (window.navigator as any).standalone
       || document.referrer.includes('android-app://');
@@ -39,7 +41,10 @@ export function PWAInstallPrompt() {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') setShow(false);
+    if (outcome === 'accepted') {
+      setShow(false);
+      localStorage.setItem('pwa_prompt_dismissed', 'true');
+    }
     setDeferredPrompt(null);
   };
 
@@ -48,16 +53,18 @@ export function PWAInstallPrompt() {
   const isDesktop = platform === 'other';
 
   return (
-    <div className={`fixed z-[9999] pointer-events-none ${
-      isDesktop
-        ? 'top-[60px] right-4 animate-in fade-in slide-in-from-top-4 duration-500'
-        : 'inset-x-0 bottom-6 px-4 flex justify-center animate-in fade-in slide-in-from-bottom-4 duration-500'
-    }`}>
+    <div className={`fixed z-[9999] pointer-events-none ${isDesktop
+      ? 'top-[60px] right-4 animate-in fade-in slide-in-from-top-4 duration-500'
+      : 'inset-x-0 bottom-6 px-4 flex justify-center animate-in fade-in slide-in-from-bottom-4 duration-500'
+      }`}>
       <div className="w-full max-w-[320px] bg-white rounded-[28px] shadow-[0_15px_50px_rgba(0,0,0,0.2)] pointer-events-auto relative flex flex-col items-center">
 
         {/* Close button */}
         <button
-          onClick={() => setShow(false)}
+          onClick={() => {
+            setShow(false);
+            localStorage.setItem('pwa_prompt_dismissed', 'true');
+          }}
           className="absolute top-4 right-4 p-1 text-gray-400 hover:text-gray-600 transition-colors"
         >
           <X size={20} />
@@ -115,8 +122,6 @@ export function PWAInstallPrompt() {
             </div>
           )}
         </div>
-
-        {/* Speech bubble tail — points up toward address bar on desktop, down on mobile */}
         {isDesktop ? (
           <div className="absolute -top-2 right-8 w-4 h-4 bg-white rotate-45 shadow-[-2px_-2px_4px_rgba(0,0,0,0.06)]" />
         ) : (

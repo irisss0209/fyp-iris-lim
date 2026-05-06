@@ -24,6 +24,7 @@ builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
     });
 
 builder.Services.AddOpenApi();
@@ -119,12 +120,19 @@ builder.Services.AddScoped<IAlertService, AlertService>();
 builder.Services.AddScoped<IS3Service, S3Service>();
 builder.Services.AddSingleton<IPushNotificationService, PushNotificationService>();
 
-// Rate limiting — 10 requests/minute per IP on auth endpoints
+// Rate limiting — 10 req/min per IP on auth; 120 req/min on general API endpoints
 builder.Services.AddRateLimiter(options =>
 {
     options.AddFixedWindowLimiter("auth", opt =>
     {
         opt.PermitLimit = 10;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueLimit = 0;
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+    });
+    options.AddFixedWindowLimiter("api", opt =>
+    {
+        opt.PermitLimit = 120;
         opt.Window = TimeSpan.FromMinutes(1);
         opt.QueueLimit = 0;
         opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
@@ -149,6 +157,16 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsJsonAsync(new { error = "An unexpected error occurred." });
+    });
+});
+
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
@@ -172,5 +190,9 @@ static async Task<string?> GetSecret(AmazonSecretsManagerClient client, string s
         var r = await client.GetSecretValueAsync(new GetSecretValueRequest { SecretId = secretId });
         return r.SecretString;
     }
-    catch { return null; }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[STARTUP] Failed to fetch secret '{secretId}': {ex.Message}");
+        return null;
+    }
 }

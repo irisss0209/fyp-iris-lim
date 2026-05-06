@@ -1,5 +1,6 @@
 using backend.Data;
 using backend.Models;
+using backend.Models.DTOs;
 using backend.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -269,14 +270,14 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
             var frontendRole = MapFrontendRole(user.Role);
             var token = GenerateJwtToken(user, frontendRole);
             SetAuthCookie(token);
-            return Ok(new
+            return Ok(new UserSessionDto
             {
-                userId = user.UserId,
-                userName = user.UserName,
-                employeeId = user.EmployeeId,
-                email = user.Email,
-                role = frontendRole,
-                description = user.Role.ToString()
+                UserId      = user.UserId,
+                UserName    = user.UserName,
+                EmployeeId  = user.EmployeeId,
+                Email       = user.Email,
+                Role        = frontendRole,
+                Description = user.Role.ToString()
             });
         }
 
@@ -525,13 +526,13 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
             var token = GenerateJwtToken(user, "passenger");
             SetAuthCookie(token);
 
-            return Ok(new
+            return Ok(new UserSessionDto
             {
-                userId = user.UserId,
-                userName = user.UserName,
-                email = user.Email,
-                role = "passenger",
-                description = "Passenger"
+                UserId      = user.UserId,
+                UserName    = user.UserName,
+                Email       = user.Email,
+                Role        = "passenger",
+                Description = "Passenger"
             });
         }
 
@@ -612,7 +613,7 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
             {
                 HttpOnly = true,
                 Secure   = true,
-                SameSite = SameSiteMode.None,
+                SameSite = SameSiteMode.Lax,
                 Expires  = DateTimeOffset.UtcNow.AddHours(expiryHours),
                 Path     = "/"
             });
@@ -630,14 +631,14 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
             if (user == null) return Unauthorized();
 
             var frontendRole = MapFrontendRole(user.Role);
-            return Ok(new
+            return Ok(new UserSessionDto
             {
-                userId      = user.UserId,
-                userName    = user.UserName,
-                employeeId  = user.EmployeeId,
-                email       = user.Email,
-                role        = frontendRole,
-                description = user.Role.ToString()
+                UserId      = user.UserId,
+                UserName    = user.UserName,
+                EmployeeId  = user.EmployeeId,
+                Email       = user.Email,
+                Role        = frontendRole,
+                Description = user.Role.ToString()
             });
         }
 
@@ -648,7 +649,7 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
             {
                 HttpOnly = true,
                 Secure   = true,
-                SameSite = SameSiteMode.None,
+                SameSite = SameSiteMode.Lax,
                 Path     = "/"
             });
             return Ok(new { message = "Logged out." });
@@ -668,7 +669,8 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
         private string GenerateJwtToken(User user, string frontendRole)
         {
             var jwtSettings = _configuration.GetSection("JwtSettings");
-            var secretKey   = jwtSettings["SecretKey"] ?? "a_very_long_and_secure_secret_key_for_testing_12345";
+            var secretKey   = jwtSettings["SecretKey"]
+                ?? throw new InvalidOperationException("JWT secret key is not configured.");
             var issuer      = jwtSettings["Issuer"] ?? "railly.my";
             var audience    = jwtSettings["Audience"] ?? "railly.my";
             var expiryHours = int.Parse(jwtSettings["ExpiryHours"] ?? "8");
