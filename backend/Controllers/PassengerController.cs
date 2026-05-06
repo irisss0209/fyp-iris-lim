@@ -330,6 +330,7 @@ namespace backend.Controllers
                     EscalatedComment = dto.EscalatedComment,
                     EnrouteBy        = dto.EnrouteBy,
                     EnrouteAt        = dto.EnrouteAt,
+                    EnrouteComment   = dto.EnrouteComment,
                     ResolvedBy       = dto.ResolvedBy,
                     ResolvedAt       = dto.ResolvedAt,
                     ResolvedComment  = dto.ResolvedComment,

@@ -79,7 +79,7 @@ export function UserManagement() {
       credentials: 'include'
     })
       .then(r => r.json())
-      .then(setUsers)
+      .then(data => setUsers(data.users || []))
       .catch(() => showToast('Failed to load users', false))
       .finally(() => setLoading(false));
   };

@@ -133,6 +133,7 @@ namespace backend.Services
 
                 EnrouteBy = i.EnrouteByUser?.UserName ?? i.EnrouteBy,
                 EnrouteAt = LocalFmt(i.EnrouteAt),
+                EnrouteComment = i.EnrouteComment,
 
                 ResolvedBy = i.ResolvedByUser?.UserName ?? i.ResolvedBy,
                 ResolvedAt = LocalFmt(i.ResolvedAt),

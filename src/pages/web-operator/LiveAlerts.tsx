@@ -191,6 +191,16 @@ export function LiveAlerts({ initialAlertId, onClearInitial }: { initialAlertId?
       patch.escalatedAt = now;
       patch.escalatedBy = operatorName;
       patch.escalatedComment = comment || null;
+    } else if (pendingAction.type === 'verify') { // fallback check if needed, but adding enroute below
+      // other logic
+    }
+    
+    // Add En Route support if it ever comes from operator POV (though usually auxiliary)
+    // but just in case, and to keep consistent:
+    if ((pendingAction.type as string) === 'en_route') {
+       patch.enrouteAt = now;
+       patch.enrouteBy = operatorName;
+       patch.enrouteComment = comment || null;
     }
 
     // Capture old status for stats update before mutating
@@ -589,7 +599,7 @@ export function LiveAlerts({ initialAlertId, onClearInitial }: { initialAlertId?
                     if (selectedAlert.escalatedAt || selectedAlert.escalatedBy)
                       steps.push({ label: 'Escalated', by: selectedAlert.escalatedBy, at: selectedAlert.escalatedAt, comment: selectedAlert.escalatedComment, color: '#7B5EA7', bg: '#F5F0FF' })
                     if (selectedAlert.enrouteAt || selectedAlert.enrouteBy)
-                      steps.push({ label: 'En Route', by: selectedAlert.enrouteBy, at: selectedAlert.enrouteAt, color: '#0B4F6C', bg: '#EFF6FF' })
+                      steps.push({ label: 'En Route', by: selectedAlert.enrouteBy, at: selectedAlert.enrouteAt, comment: selectedAlert.enrouteComment, color: '#0B4F6C', bg: '#EFF6FF' })
                     if (selectedAlert.resolvedAt || selectedAlert.resolvedBy)
                       steps.push({ label: 'Resolved', by: selectedAlert.resolvedBy, at: selectedAlert.resolvedAt, comment: selectedAlert.resolvedComment, color: '#1D4ED8', bg: '#EBF8FF' })
                     if (selectedAlert.dismissedAt || selectedAlert.dismissedBy)

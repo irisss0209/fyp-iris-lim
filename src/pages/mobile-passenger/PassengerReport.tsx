@@ -127,7 +127,7 @@ export function Report({ session }: { session: any }) {
     if (selectedReport.escalatedAt || selectedReport.escalatedBy)
       auditSteps.push({ label: 'Escalated', by: selectedReport.escalatedBy, at: selectedReport.escalatedAt, comment: selectedReport.escalatedComment, ...AUDIT_THEME.escalated });
     if (selectedReport.enrouteAt || selectedReport.enrouteBy)
-      auditSteps.push({ label: 'En Route',  by: selectedReport.enrouteBy,   at: selectedReport.enrouteAt,  comment: null,                             ...AUDIT_THEME.en_route });
+      auditSteps.push({ label: 'En Route',  by: selectedReport.enrouteBy,   at: selectedReport.enrouteAt,  comment: selectedReport.enrouteComment,   ...AUDIT_THEME.en_route });
     if (selectedReport.resolvedAt || selectedReport.resolvedBy)
       auditSteps.push({ label: 'Resolved',  by: selectedReport.resolvedBy,  at: selectedReport.resolvedAt,  comment: selectedReport.resolvedComment,  ...AUDIT_THEME.resolved });
     if (selectedReport.dismissedAt || selectedReport.dismissedBy)

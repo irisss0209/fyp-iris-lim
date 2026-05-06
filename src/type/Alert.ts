@@ -50,6 +50,7 @@ export interface Alert {
   escalatedComment?: string | null | undefined;
   enrouteBy?: string | null | undefined;
   enrouteAt?: string | null | undefined;
+  enrouteComment?: string | null | undefined;
   resolvedBy?: string | null | undefined;
   resolvedAt?: string | null | undefined;
   resolvedComment?: string | null | undefined;

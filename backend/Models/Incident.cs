@@ -57,6 +57,9 @@ namespace backend.Models
         [Column("enroute_at")]
         public DateTime? EnrouteAt { get; set; }
 
+        [Column("enroute_comment")]
+        public string? EnrouteComment { get; set; }
+
         [Column("resolved_at")]
         public DateTime? ResolvedAt { get; set; }
 

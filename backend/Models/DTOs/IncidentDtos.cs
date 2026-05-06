@@ -35,6 +35,7 @@ namespace backend.Models.DTOs
         public string? EscalatedComment { get; set; }
         public string? EnrouteBy { get; set; }
         public string? EnrouteAt { get; set; }
+        public string? EnrouteComment { get; set; }
         public string? ResolvedBy { get; set; }
         public string? ResolvedAt { get; set; }
         public string? ResolvedComment { get; set; }

@@ -245,6 +245,7 @@ namespace backend.Controllers
                         verifiedComment = dto.VerifiedComment,
                         enrouteBy = i.EnrouteByUser?.UserName ?? dto.EnrouteBy,
                         enrouteAt = dto.EnrouteAt,
+                        enrouteComment = dto.EnrouteComment,
                         resolvedBy = i.ResolvedByUser?.UserName ?? dto.ResolvedBy,
                         resolvedAt = dto.ResolvedAt,
                         resolvedComment = dto.ResolvedComment,
@@ -292,6 +293,7 @@ namespace backend.Controllers
                 case IncidentStatus.En_Route:
                     incident.EnrouteAt = DateTime.UtcNow;
                     incident.EnrouteBy = userId;
+                    incident.EnrouteComment = req.Comment;
                     break;
                 case IncidentStatus.Resolved:
                     incident.ResolvedAt = DateTime.UtcNow;

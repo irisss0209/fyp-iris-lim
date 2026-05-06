@@ -247,8 +247,9 @@ namespace backend.Controllers
                     break;
 
                 case IncidentStatus.En_Route:
-                    incident.EnrouteBy = userId;
                     incident.EnrouteAt = DateTime.UtcNow;
+                    incident.EnrouteBy = userId;
+                    incident.EnrouteComment = request.Comment;
                     break;
 
                 case IncidentStatus.Resolved:
@@ -476,6 +477,7 @@ namespace backend.Controllers
 
                     enrouteBy = dto.EnrouteBy,
                     enrouteAt = dto.EnrouteAt,
+                    enrouteComment = dto.EnrouteComment,
 
                     resolvedBy      = dto.ResolvedBy,
                     resolvedAt      = dto.ResolvedAt,
