@@ -120,8 +120,8 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
         return Ok(new
         {
             exists = true,
-            role = MapFrontendRole(user.Role),          
-            isActive = user.Status == UserStatus.Active    
+            role = user.Role.ToString().ToLower(),          
+            isActive = user.Status == UserStatus.Active
         });
     }
     catch (Exception ex)
