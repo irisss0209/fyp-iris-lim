@@ -120,8 +120,8 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
         return Ok(new
         {
             exists = true,
-            role = user.Role,          
-            isActive = user.Status    
+            role = MapFrontendRole(user.Role),          
+            isActive = user.Status == UserStatus.Active    
         });
     }
     catch (Exception ex)
@@ -160,9 +160,6 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
                         message = "First-time login detected. Please set up your password."
                     });
                 }
-                
-                // If it's a passenger with no password (shouldn't happen with signup, but for safety)
-                return Unauthorized(new { error = "Account not fully configured. Please contact support." });
             }
 
             if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
@@ -176,7 +173,7 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
 
             var frontendRole = MapFrontendRole(user.Role);
 
-            // Operator: verify with Google Authenticator TOTP.
+            // Operator: verify with Authenticator TOTP.
             if (user.Role == UserRole.Operator)
             {
                 return Ok(new
@@ -207,9 +204,9 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
                 return Unauthorized(new { error = "Account not found or inactive." });
             }
 
-            if (user.Role == UserRole.Operator)
+            if (user.Role == UserRole.Operator || user.Role == UserRole.Auxiliary)
             {
-                return BadRequest(new { error = "Operators must sign in with password and an Authenticator App." });
+                return BadRequest(new { error = "Staff members must sign in with password and OTP." });
             }
 
             var frontendRole = MapFrontendRole(user.Role);
@@ -258,12 +255,11 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
                 return Unauthorized(new { error = "Invalid or expired verification code." });
             }
 
-            // If this was a setup-password flow (Auxiliary or first-time setup), update the password now
             if (!string.IsNullOrEmpty(pendingPasswordHash))
             {
                 user.PasswordHash = pendingPasswordHash;
                 user.Status = UserStatus.Active;
-                _context.Users.Update(user); // Explicitly mark as updated
+                _context.Users.Update(user);
                 await _context.SaveChangesAsync();
             }
 

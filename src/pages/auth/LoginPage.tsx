@@ -161,7 +161,7 @@ export function LoginPage({
         setStep('mfa');
       }
     } catch {
-      setError('Unable to connect to the server. Is the backend running?');
+      setError('Unable to connect to the server.');
     } finally {
       setIsLoading(false);
     }
@@ -198,7 +198,7 @@ export function LoginPage({
       });
       setStep('mfa');
     } catch {
-      setError('Unable to connect to the server. Is the backend running?');
+      setError('Unable to connect to the server.');
     } finally {
       setIsLoading(false);
     }
@@ -408,7 +408,7 @@ export function LoginPage({
                 {isLoading ? <span className="flex items-center gap-2"><Spinner /> Signing in...</span> : <>Sign In</>}
               </button>
 
-              {accountRole !== 'operator' && (
+              {accountRole === 'passenger' && (
                 <button
                   type="button"
                   onClick={loginWithOtp}
