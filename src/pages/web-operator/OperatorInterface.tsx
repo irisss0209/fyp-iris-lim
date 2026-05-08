@@ -19,16 +19,10 @@ import { Settings } from './Settings';
 import { UserManagement } from './UserManagement';
 import { ShiftManagementPanel } from './ShiftManagement';
 import { UserSession } from '../../types/session';
+import type { NavPage } from '../../types/operator';
 import { ChangePasswordPage } from '../auth/ChangePasswordPage';
 
-export type NavPage =
-  | 'dashboard'
-  | 'live-alerts'
-  | 'reports'
-  | 'users'
-  | 'shifts'
-  | 'settings'
-  | 'change-password';
+export type { NavPage };
 
 interface SidebarProps {
   activePage: NavPage;

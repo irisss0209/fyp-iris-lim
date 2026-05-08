@@ -6,7 +6,7 @@ import {
   ChevronRightIcon,
 } from 'lucide-react';
 import { StatusTimeline, buildTimelineSteps } from '../../components/StatusTimeline';
-import type { NavPage } from './OperatorInterface';
+import type { NavPage } from '../../types/operator';
 import { useTime } from '../../context/TimeContext';
 import { formatClockTime } from '../../utils/Time';
 

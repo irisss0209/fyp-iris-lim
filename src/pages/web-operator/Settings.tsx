@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, Bell, Lock } from 'lucide-react';
+import { Clock, Bell, Lock, InfoIcon } from 'lucide-react';
 import { useTime } from '../../context/TimeContext';
 import { requestAndSubscribe, unsubscribeFromPush } from '../../utils/pushNotifications';
 
@@ -96,24 +96,36 @@ export function Settings({ onNavigate }: { onNavigate: (page: Page) => void }) {
               <p className="text-sm text-gray-500">Choose how and when you want to be alerted about incoming incidents.</p>
             </div>
           </div>
-          <div className="flex bg-gray-100 p-1 rounded-xl w-full md:w-[400px]">
-            {[
-              { id: 'on', label: 'Always On' },
-              { id: 'off', label: 'Muted' },
-              { id: 'peak', label: 'Peak Only' }
-            ].map((opt) => (
-              <button
-                key={opt.id}
-                onClick={() => setSoundAlerts(opt.id)}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${
-                  soundAlerts === opt.id
-                    ? 'bg-white text-[#0B4F6C] shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+          <div className="flex flex-col gap-2 w-full md:w-[400px]">
+            <div className="flex bg-gray-100 p-1 rounded-xl">
+              {[
+                { id: 'on', label: 'Always On' },
+                { id: 'off', label: 'Muted' },
+                { id: 'peak', label: 'Peak Only' }
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  onClick={() => setSoundAlerts(opt.id)}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${
+                    soundAlerts === opt.id
+                      ? 'bg-white text-[#0B4F6C] shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {soundAlerts === 'peak' && (
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                <InfoIcon className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-700 leading-relaxed">
+                  Notifications will only be delivered during peak commute hours —{' '}
+                  <span className="font-semibold">7:00 AM – 9:00 AM</span> and{' '}
+                  <span className="font-semibold">5:00 PM – 7:00 PM</span>. Alerts outside these windows will be silenced.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

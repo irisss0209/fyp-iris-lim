@@ -3,8 +3,8 @@ import {
   CalendarIcon, DownloadIcon, TrendingUpIcon,
   RefreshCwIcon, ChevronDownIcon,
 } from 'lucide-react';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+import { pdf } from '@react-pdf/renderer';
+import { ReportPDF } from '../../components/ReportPDF';
 import { IncidentTable } from '../../components/IncidentTable';
 import { ReportKPICards } from '../../components/ReportKPICards';
 import { ReportCharts } from '../../components/ReportCharts';
@@ -100,9 +100,10 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
   useEffect(() => { if (selectedMonth) fetchReport(selectedMonth); }, [selectedMonth, fetchReport]);
 
   // ── AI summary ───────────────────────────────────────────────────────────────
-  // Deps: `data` (not `selectedMonth`) so the effect only fires once the fetched
-  // data actually reflects the chosen month — not the instant selectedMonth changes.
-  // topInsights is included so the closure always has fresh insight values.
+  // Deps: `data` only (not `selectedMonth`) so the effect fires once the fetched
+  // data reflects the chosen month. topInsights is intentionally omitted from deps
+  // because it is declared later in the function body — reading it in the dep array
+  // would cause a TDZ error. It is safe in the callback body (effects run after render).
   useEffect(() => {
     if (loading || !data?.stats) return;
     const controller = new AbortController();
@@ -132,7 +133,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
       .catch(err => { if (err.name !== 'AbortError') setAiSummaryError(true); })
       .finally(() => setAiSummaryLoading(false));
     return () => controller.abort();
-  }, [loading, data, topInsights]);
+  }, [loading, data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived analytics ────────────────────────────────────────────────────────
   const allIncidents = data?.incidents ?? [];
@@ -261,76 +262,28 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
   };
 
   const downloadPDF = async () => {
-    const element = document.getElementById('report-export');
-    if (!element) return;
-
-    const prevScroll = window.scrollY;
-    const header = element.querySelector('.pdf-header') as HTMLElement | null;
-    // Track ancestors we need to restore after capture
-    const overflowFixes: { el: HTMLElement; prev: string }[] = [];
-
+    if (!stats) return;
     setIsPdfGenerating(true);
-
     try {
-      if (header) header.style.display = 'block';
-      window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
-
-      // html2canvas clips content at overflow:auto/hidden boundaries.
-      // Temporarily unlock every scrollable ancestor so the full element is captured.
-      let ancestor: HTMLElement | null = element.parentElement;
-      while (ancestor && ancestor !== document.body) {
-        const computed = getComputedStyle(ancestor);
-        if (computed.overflow !== 'visible' || computed.overflowY !== 'visible') {
-          overflowFixes.push({ el: ancestor, prev: ancestor.style.overflow });
-          ancestor.style.overflow = 'visible';
-        }
-        ancestor = ancestor.parentElement;
-      }
-
-      // Give browser time to re-paint after overflow unlock
-      await new Promise(r => setTimeout(r, 200));
-      await new Promise(r => requestAnimationFrame(r));
-
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        scrollX: 0,
-        scrollY: -window.scrollY,
-        width: element.scrollWidth,
-        height: element.scrollHeight,
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight,
-      });
-
-      const imgData   = canvas.toDataURL('image/png');
-      const pdf       = new jsPDF('p', 'mm', 'a4');
-      const pdfW      = pdf.internal.pageSize.getWidth();
-      const pdfH      = pdf.internal.pageSize.getHeight();
-      const margin    = 10;
-      const contentW  = pdfW - margin * 2;
-      const contentH  = pdfH - margin * 2;
-      const imgH      = (canvas.height * contentW) / canvas.width;
-      let heightLeft  = imgH;
-      let imgY        = margin;
-
-      pdf.addImage(imgData, 'PNG', margin, imgY, contentW, imgH);
-      heightLeft -= contentH;
-      while (heightLeft > 0) {
-        imgY -= contentH;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', margin, imgY, contentW, imgH);
-        heightLeft -= contentH;
-      }
-      pdf.save(`railly-report-${selectedMonth?.label ?? 'report'}.pdf`);
-
+      const blob = await pdf(
+        <ReportPDF
+          month={selectedMonth?.label ?? ''}
+          stats={stats}
+          topInsights={topInsights}
+          statusBreakdown={data?.statusBreakdown ?? []}
+          aiSummary={aiSummary}
+          resolutionRate={resolutionRate}
+        />
+      ).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a   = document.createElement('a');
+      a.href     = url;
+      a.download = `railly-report-${selectedMonth?.label ?? 'report'}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error('PDF export failed:', err);
     } finally {
-      overflowFixes.forEach(({ el, prev }) => { el.style.overflow = prev; });
-      if (header) header.style.display = 'none';
-      window.scrollTo({ top: prevScroll, behavior: 'instant' as ScrollBehavior });
       setIsPdfGenerating(false);
     }
   };
@@ -415,14 +368,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
 
       {/* ── Overview Tab ────────────────────────────────────────────────────────── */}
       {!loading && activeTab === 'overview' && (
-        <div id="report-export" className="space-y-5">
-
-          {/* PDF-only header */}
-          <div className="pdf-header" style={{ display: 'none', textAlign: 'center', marginBottom: '24px' }}>
-            <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#0B4F6C' }}>Railly Safety Analytics Report</h1>
-            <p style={{ fontSize: '12px', color: '#4A5568' }}>{selectedMonth?.label}</p>
-            <p style={{ fontSize: '11px', color: '#718096' }}>Generated on {new Date().toLocaleString('en-MY')}</p>
-          </div>
+        <div className="space-y-5">
 
           {/* AI Summary */}
           {(aiSummaryLoading || aiSummary || aiSummaryError) && (

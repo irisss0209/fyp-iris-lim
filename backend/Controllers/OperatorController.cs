@@ -1041,13 +1041,27 @@ namespace backend.Controllers
                     continue;
                 }
 
+                var shiftDateDt = new DateTime(shiftDate.Year, shiftDate.Month, shiftDate.Day, 0, 0, 0, DateTimeKind.Utc);
+                var startSpan   = startTime.ToTimeSpan();
+                var endSpan     = endTime.ToTimeSpan();
+                var shiftExists = await _context.AuxiliaryShifts.AnyAsync(s =>
+                    s.UserId    == userId    &&
+                    s.ShiftDate == shiftDateDt &&
+                    s.StartTime == startSpan &&
+                    s.EndTime   == endSpan);
+                if (shiftExists)
+                {
+                    errors.Add($"Row {i + 1}: Existing shift for '{userId}' on {dateText} {startText}–{endText}.");
+                    continue;
+                }
+
                 _context.AuxiliaryShifts.Add(new AuxiliaryShift
                 {
                     UserId    = userId,
                     StationId = stationId,
-                    ShiftDate = new DateTime(shiftDate.Year, shiftDate.Month, shiftDate.Day, 0, 0, 0, DateTimeKind.Utc),
-                    StartTime = startTime.ToTimeSpan(),
-                    EndTime   = endTime.ToTimeSpan(),
+                    ShiftDate = shiftDateDt,
+                    StartTime = startSpan,
+                    EndTime   = endSpan,
                     CreatedAt = DateTime.UtcNow
                 });
 
