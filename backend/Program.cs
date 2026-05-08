@@ -39,12 +39,14 @@ try
         GetSecret(smClient, "railly/jwt-secret"),
         GetSecret(smClient, "railly/db-connection-string"),
         GetSecret(smClient, "railly/vapid-private-key"),
-        GetSecret(smClient, "railly/google-geocoding-api-key")
+        GetSecret(smClient, "railly/google-geocoding-api-key"),
+        GetSecret(smClient, "railly/gemini-api-key")
     );
     if (smResults[0] is { } jwt)    builder.Configuration["JwtSettings:SecretKey"]              = jwt;
     if (smResults[1] is { } db)     builder.Configuration["ConnectionStrings:DefaultConnection"] = db;
     if (smResults[2] is { } vapid)  builder.Configuration["Vapid:PrivateKey"]                   = vapid;
     if (smResults[3] is { } google) builder.Configuration["Google:GeocodingApiKey"]              = google;
+    if (smResults[4] is { } gemini) builder.Configuration["Gemini:ApiKey"]                      = gemini;
     Console.WriteLine("[STARTUP] Secrets loaded from AWS Secrets Manager.");
 }
 catch (Exception ex)
@@ -118,6 +120,7 @@ builder.Services.AddSingleton<AuthChallengeStore>();
 builder.Services.AddSingleton<ITotpService, TotpService>();
 builder.Services.AddScoped<IAlertService, AlertService>();
 builder.Services.AddScoped<IS3Service, S3Service>();
+builder.Services.AddSingleton<IGeminiService, GeminiService>();
 builder.Services.AddSingleton<IPushNotificationService, PushNotificationService>();
 
 // Rate limiting — 10 req/min per IP on auth; 120 req/min on general API endpoints

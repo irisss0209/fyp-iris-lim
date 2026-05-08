@@ -25,6 +25,7 @@ interface Case {
   verifiedComment?: string;
   enrouteBy?: string;
   enrouteAt?: string;
+  enrouteComment?: string;
   resolvedBy?: string;
   resolvedAt?: string;
   resolvedComment?: string;
@@ -63,7 +64,7 @@ function caseToAlert(c: Case): Alert {
     imageUrl: c.imageUrl, snapshotUrl: c.snapshotUrl,
     reportedBy: c.reportedBy, passengerComment: c.passengerComment,
     verifiedBy: c.verifiedBy, verifiedAt: c.verifiedAt, verifiedComment: c.verifiedComment,
-    enrouteBy: c.enrouteBy, enrouteAt: c.enrouteAt,
+    enrouteBy: c.enrouteBy, enrouteAt: c.enrouteAt, enrouteComment: c.enrouteComment,
     escalatedBy: c.escalatedBy, escalatedAt: c.escalatedAt, escalatedComment: c.escalatedComment,
     resolvedBy: c.resolvedBy, resolvedAt: c.resolvedAt, resolvedComment: c.resolvedComment,
     dismissedBy: c.dismissedBy, dismissedAt: c.dismissedAt, dismissedComment: c.dismissedComment,

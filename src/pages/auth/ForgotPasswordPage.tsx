@@ -150,8 +150,8 @@ export function ForgotPasswordPage({ onBack }: ForgotPasswordPageProps) {
           <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle2Icon size={40} className="text-green-500" />
           </div>
-          <h1 className="text-2xl font-black text-gray-900 mb-2">Password Reset!</h1>
-          <p className="text-gray-500 mb-8">Redirecting you to sign in...</p>
+          <h1 className="text-2xl font-black text-gray-900 mb-2">Password reset successfully!</h1>
+          <p className="text-gray-500 mb-8">Please login with your new password. Redirecting...</p>
           <div className="flex justify-center gap-1">
             <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
             <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />

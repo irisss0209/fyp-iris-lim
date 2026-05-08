@@ -17,6 +17,7 @@ export interface TimelineSource {
   verifiedComment?: string | null;
   enrouteBy?: string | null;
   enrouteAt?: string | null;
+  enrouteComment?: string | null;
   resolvedBy?: string | null;
   resolvedAt?: string | null;
   resolvedComment?: string | null;
@@ -42,7 +43,7 @@ export function buildTimelineSteps(inc: TimelineSource): TimelineStep[] {
   if (inc.verifiedBy || inc.verifiedAt)
     steps.push({ label: 'Verified', by: inc.verifiedBy, at: inc.verifiedAt, comment: inc.verifiedComment, color: '#1D4ED8' });
   if (inc.enrouteBy || inc.enrouteAt)
-    steps.push({ label: 'En Route', by: inc.enrouteBy, at: inc.enrouteAt, color: '#0B4F6C' });
+    steps.push({ label: 'En Route', by: inc.enrouteBy, at: inc.enrouteAt, comment: inc.enrouteComment, color: '#0B4F6C' });
   if (inc.resolvedBy || inc.resolvedAt)
     steps.push({ label: 'Resolved', by: inc.resolvedBy, at: inc.resolvedAt, comment: inc.resolvedComment, color: '#2D7A5D' });
   if (inc.escalatedBy || inc.escalatedAt)

@@ -1,48 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  BarChart2Icon,
+  AlertCircleIcon,
+  CheckCircleIcon,
   ChevronRightIcon,
   LightbulbIcon,
   Loader2,
   MapPinIcon,
-  TrendingDownIcon,
-  TrendingUpIcon,
 } from 'lucide-react';
 import { detectNearbyLines } from '../../utils/location';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { UserSession } from '../../App';
 
 const API = `${import.meta.env.VITE_API_BASE}/api/data`;
+const SAFE   = '#2D7A5D';
+const WARN   = '#B45309';
+const DANGER = '#D34026';
 const ACCENT = '#0B4F6C';
-const ALERT = '#D34026';
-const SAFE = '#2D7A5D';
-
-interface ReportIncident {
-  line?: string;
-  lineId?: string;
-  trainId?: number | null;
-  datetime?: string;
-}
-
-interface ReportStats {
-  totalDifference?: number;
-  hasPreviousData?: boolean;
-}
-
-interface OperatorReportsResponse {
-  year?: number;
-  month?: number;
-  incidents?: ReportIncident[];
-  stats?: ReportStats;
-}
 
 interface OperatorAlert {
   line?: string;
@@ -53,366 +25,220 @@ interface OperatorAlert {
   status?: string;
 }
 
-interface TrainChartPoint {
-  train: string;
-  pending: number;
-  verified: number;
-  enRoute: number;
-  escalated: number;
-  resolved: number;
-  dismissed: number;
-}
-
-
-interface LineResponse {
-  lineName: string;
-}
-
-interface TopMetric {
-  label: string;
-  count: number;
-}
-
+interface LineResponse { lineName: string; }
 
 async function getJson<T>(url: string, token?: string): Promise<T> {
-  const headers: HeadersInit = {};
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
+  const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
   const res = await fetch(url, { headers, credentials: 'include' });
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+  if (!res.ok) throw new Error(`${res.status}`);
   return res.json();
 }
 
-function pluralize(count: number, singular: string, pluralWord: string) {
-  return `${count} ${count === 1 ? singular : pluralWord}`;
+function toMalaysiaDate(d: Date) {
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kuala_Lumpur' });
 }
 
-function toMalaysiaDateString(date: Date) {
-  return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kuala_Lumpur' });
-}
-
-function parseHourFromTime(time?: string) {
+function parseHour(time?: string) {
   if (!time) return null;
-  const [hour] = time.split(':');
-  const parsed = Number(hour);
-  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 23) return null;
-  return parsed;
+  const h = Number(time.split(':')[0]);
+  return Number.isFinite(h) && h >= 0 && h <= 23 ? h : null;
 }
 
-function formatHourRange(startHour: number) {
-  const start = new Date(Date.UTC(2000, 0, 1, startHour, 0, 0));
-  const end = new Date(Date.UTC(2000, 0, 1, (startHour + 1) % 24, 0, 0));
-  const fmt = (d: Date) => d.toLocaleTimeString('en-MY', {
-    hour: 'numeric',
-    hour12: true,
-    timeZone: 'UTC',
-  }).replace(' ', '');
-  return `${fmt(start)}-${fmt(end)}`;
+function fmtHour(h: number) {
+  return new Date(Date.UTC(2000, 0, 1, h))
+    .toLocaleTimeString('en-MY', { hour: 'numeric', hour12: true, timeZone: 'UTC' })
+    .replace(' ', '');
 }
 
-function topFromList(values: string[]): TopMetric | null {
-  const map = new Map<string, number>();
-
-  values.forEach(raw => {
-    const key = raw.trim();
-    if (!key || key.toLowerCase() === 'unknown') return;
-    map.set(key, (map.get(key) ?? 0) + 1);
-  });
-
-  const [top] = Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
-  return top ? { label: top[0], count: top[1] } : null;
+function isActive(a: OperatorAlert) {
+  const s = a.status?.toLowerCase() ?? '';
+  return s !== 'resolved' && s !== 'dismissed';
 }
 
-function buildTrainStatusChart(alerts: OperatorAlert[]): TrainChartPoint[] {
-  const map = new Map<string, { pending: number; verified: number; enRoute: number; escalated: number; resolved: number; dismissed: number }>();
-
-  alerts.forEach(alert => {
-    let trainPart = alert.trainId != null ? `T.${alert.trainId}` : '';
-    if (!trainPart) {
-      trainPart = alert.station && alert.station !== 'Unknown' ? `Stn: ${alert.station}` : 'Platform/Other';
-    }
-
-    const key = alert.line && alert.line !== 'Unknown' ? `${trainPart} (${alert.line})` : trainPart;
-
-    if (!map.has(key)) map.set(key, { pending: 0, verified: 0, enRoute: 0, escalated: 0, resolved: 0, dismissed: 0 });
-    const entry = map.get(key)!;
-    const s = alert.status?.toLowerCase() ?? '';
-
-    if (s === 'pending') entry.pending++;
-    else if (s === 'verified') entry.verified++;
-    else if (s === 'en_route') entry.enRoute++;
-    else if (s === 'escalated') entry.escalated++;
-    else if (s === 'resolved') entry.resolved++;
-    else if (s === 'dismissed') entry.dismissed++;
-  });
-
-  return Array.from(map.entries())
-    .map(([train, counts]) => ({ train, ...counts }))
-    .sort((a, b) =>
-      (b.pending + b.verified + b.enRoute + b.escalated + b.resolved + b.dismissed) -
-      (a.pending + a.verified + a.enRoute + a.escalated + a.resolved + a.dismissed)
-    )
-    .slice(0, 10);
+function safetyLevel(count: number): 'clear' | 'moderate' | 'high' {
+  return count === 0 ? 'clear' : count <= 2 ? 'moderate' : 'high';
 }
 
-function resolveTrend(stats?: ReportStats) {
-  if (!stats || stats.totalDifference === undefined || stats.hasPreviousData === false) {
-    return {
-      text: 'Monthly trend unavailable from report delta',
-      sub: 'No previous-month baseline was returned',
-      color: ACCENT,
-      icon: BarChart2Icon,
-    };
-  }
-
-  if (stats.totalDifference > 0) {
-    return {
-      text: 'Monthly incidents increased',
-      sub: `${stats.totalDifference} more than previous month`,
-      color: ALERT,
-      icon: TrendingUpIcon,
-    };
-  }
-
-  if (stats.totalDifference < 0) {
-    return {
-      text: 'Monthly incidents decreased',
-      sub: `${Math.abs(stats.totalDifference)} fewer than previous month`,
-      color: SAFE,
-      icon: TrendingDownIcon,
-    };
-  }
-
-  return {
-    text: 'Monthly incidents stayed the same',
-    sub: 'No change against previous month',
-    color: ACCENT,
-    icon: BarChart2Icon,
-  };
+function safetyStyle(level: 'clear' | 'moderate' | 'high') {
+  if (level === 'clear')    return { bg: '#F0FBF6', text: SAFE,   dot: SAFE,   label: 'Clear'      };
+  if (level === 'moderate') return { bg: '#FFFBEB', text: WARN,   dot: WARN,   label: 'Active'     };
+  return                           { bg: '#FEF2F0', text: DANGER, dot: DANGER, label: 'High Alert' };
 }
 
-import { UserSession } from '../../App';
+function statusStyle(status?: string) {
+  const s = status?.toLowerCase() ?? '';
+  if (s === 'pending')  return { bg: '#FFF7ED', text: '#C05621' };
+  if (s === 'verified') return { bg: '#EFF6FF', text: '#1D4ED8' };
+  if (s === 'en_route') return { bg: '#EFF6FF', text: ACCENT    };
+  if (s === 'escalated')return { bg: '#FEF2F0', text: DANGER    };
+  return                       { bg: '#F7FAFC', text: '#718096' };
+}
 
 export function Insights({ session }: { session?: UserSession }) {
-  const [selectedLine, setSelectedLine] = useState('All Lines');
-  const [lines, setLines] = useState<string[]>(['All Lines']);
-  const [loading, setLoading] = useState(true);
-  const [errorText, setErrorText] = useState('');
-  const [isLocating, setIsLocating] = useState(false);
+  const [selectedLine, setSelectedLine]     = useState('All Lines');
+  const [lines, setLines]                   = useState<string[]>(['All Lines']);
+  const [loading, setLoading]               = useState(true);
+  const [errorText, setErrorText]           = useState('');
+  const [isLocating, setIsLocating]         = useState(false);
   const [showLinePicker, setShowLinePicker] = useState(false);
+  const [alerts, setAlerts]                 = useState<OperatorAlert[]>([]);
+  const [aiAdvice, setAiAdvice]             = useState<string | null>(null);
+  const [aiLoading, setAiLoading]           = useState(false);
 
   const handleDetectLocation = () => {
-    if (selectedLine !== 'All Lines') {
-      setSelectedLine('All Lines');
-      return;
-    }
-
+    if (selectedLine !== 'All Lines') { setSelectedLine('All Lines'); return; }
     detectNearbyLines(
       setIsLocating,
-      (foundLines) => {
-        if (foundLines.length > 0) {
-          setSelectedLine(foundLines[0]);
-        }
-      },
-      (msg) => alert(msg)
+      (found) => { if (found.length > 0) setSelectedLine(found[0]); },
+      (msg) => alert(msg),
     );
   };
 
-  const [monthlyReport, setMonthlyReport] = useState<OperatorReportsResponse | null>(null);
-  const [operatorAlerts, setOperatorAlerts] = useState<OperatorAlert[]>([]);
-
+  // Fetch alerts + lines
   useEffect(() => {
-    let active = true;
-
-    async function loadData() {
+    let alive = true;
+    async function load() {
       setLoading(true);
       setErrorText('');
-
-      const [reportRes, alertsRes, linesRes] = await Promise.allSettled([
-        getJson<OperatorReportsResponse>(`${API}/operator/reports`, session?.token),
+      const [alertsRes, linesRes] = await Promise.allSettled([
         getJson<OperatorAlert[]>(`${API}/incident-alerts`, session?.token),
         getJson<LineResponse[]>(`${API}/lines`, session?.token),
       ]);
+      if (!alive) return;
 
-      if (!active) return;
+      const data = alertsRes.status === 'fulfilled' && Array.isArray(alertsRes.value)
+        ? alertsRes.value : [];
+      setAlerts(data);
 
-      if (reportRes.status === 'fulfilled') setMonthlyReport(reportRes.value);
-      else setMonthlyReport(null);
+      const fromBackend = linesRes.status === 'fulfilled'
+        ? linesRes.value.map(l => l.lineName).filter(Boolean) : [];
+      const fromAlerts  = data.map(a => a.line ?? '').filter(Boolean);
+      setLines(['All Lines', ...Array.from(new Set([...fromBackend, ...fromAlerts]))]);
 
-      if (alertsRes.status === 'fulfilled') setOperatorAlerts(Array.isArray(alertsRes.value) ? alertsRes.value : []);
-      else setOperatorAlerts([]);
-
-      const backendLines = linesRes.status === 'fulfilled'
-        ? linesRes.value.map(line => line.lineName).filter(Boolean)
-        : [];
-
-      const reportLines = reportRes.status === 'fulfilled'
-        ? (reportRes.value.incidents ?? []).map(incident => incident.line ?? '').filter(Boolean)
-        : [];
-
-      const alertLines = alertsRes.status === 'fulfilled'
-        ? alertsRes.value.map(alert => alert.line ?? '').filter(Boolean)
-        : [];
-
-      const mergedLines = ['All Lines', ...Array.from(new Set([...backendLines, ...reportLines, ...alertLines]))];
-      setLines(mergedLines.length > 1 ? mergedLines : ['All Lines']);
-
-      if (
-        reportRes.status === 'rejected' &&
-        alertsRes.status === 'rejected'
-      ) {
-        setErrorText('Unable to load insights from backend endpoints.');
-      }
-
+      if (alertsRes.status === 'rejected') setErrorText('Unable to load safety data.');
       setLoading(false);
     }
-
-    loadData();
-
-    return () => {
-      active = false;
-    };
+    load();
+    return () => { alive = false; };
   }, [session]);
 
   useEffect(() => {
     if (!lines.includes(selectedLine)) setSelectedLine('All Lines');
   }, [lines, selectedLine]);
 
-  const monthlyIncidents = monthlyReport?.incidents ?? [];
-  const filteredMonthly = selectedLine === 'All Lines'
-    ? monthlyIncidents
-    : monthlyIncidents.filter(incident => incident.line === selectedLine);
-
-  const filteredAlerts = selectedLine === 'All Lines'
-    ? operatorAlerts
-    : operatorAlerts.filter(alert => alert.line === selectedLine);
-
-
-
-  const currentMonthKey = useMemo(() => {
-    if (!monthlyReport?.year || !monthlyReport?.month) return '';
-    const month = String(monthlyReport.month).padStart(2, '0');
-    return `${monthlyReport.year}-${month}`;
-  }, [monthlyReport?.year, monthlyReport?.month]);
-
-  const monthlyAlerts = useMemo(() => {
-    if (!currentMonthKey) return [];
-    return filteredAlerts.filter(alert => (alert.date ?? '').startsWith(currentMonthKey));
-  }, [filteredAlerts, currentMonthKey]);
-
-  const todayUtc = useMemo(() => toMalaysiaDateString(new Date()), []);
-  const lastWeekUtc = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 7);
-    return toMalaysiaDateString(d);
+  // Dates
+  const todayStr = useMemo(() => toMalaysiaDate(new Date()), []);
+  const weekAgoStr = useMemo(() => {
+    const d = new Date(); d.setDate(d.getDate() - 7);
+    return toMalaysiaDate(d);
   }, []);
 
-  const todayAlerts = useMemo(
-    () => filteredAlerts.filter(alert => alert.date === todayUtc),
-    [filteredAlerts, todayUtc]
-  );
+  // Filtered by selected line
+  const filtered = useMemo(() =>
+    selectedLine === 'All Lines' ? alerts : alerts.filter(a => a.line === selectedLine),
+    [alerts, selectedLine]);
 
-  const lastWeekTodayAlerts = useMemo(
-    () => filteredAlerts.filter(alert => alert.date === lastWeekUtc),
-    [filteredAlerts, lastWeekUtc]
-  );
+  // Today's alerts
+  const todayAlerts = useMemo(() => filtered.filter(a => a.date === todayStr), [filtered, todayStr]);
 
-  const peakHour = useMemo(() => {
-    const hours = Array.from({ length: 24 }, () => 0);
-    todayAlerts.forEach(alert => {
-      const hour = parseHourFromTime(alert.time);
-      if (hour !== null) hours[hour] += 1;
+  // Active (not resolved/dismissed) today
+  const activeNow = useMemo(() => todayAlerts.filter(isActive), [todayAlerts]);
+
+  // Per-line active count for "All Lines" view
+  const lineStatus = useMemo(() => {
+    const map: Record<string, number> = {};
+    lines.filter(l => l !== 'All Lines').forEach(name => {
+      map[name] = alerts.filter(a => a.line === name && a.date === todayStr && isActive(a)).length;
     });
+    return map;
+  }, [lines, alerts, todayStr]);
 
-    const peakCount = Math.max(...hours);
-    if (peakCount <= 0) return { label: '-', count: 0 };
-
-    const peakIndex = hours.findIndex(count => count === peakCount);
-    return { label: formatHourRange(peakIndex), count: peakCount };
-  }, [todayAlerts]);
-
-  const topLine = useMemo(() => {
-    const found = topFromList(filteredMonthly.map(incident => incident.line ?? ''));
-    return found ?? { label: '-', count: 0 };
-  }, [filteredMonthly]);
-
-  const topStation = useMemo(() => {
-    const found = topFromList(monthlyAlerts.map(alert => alert.station ?? ''));
-    return found ?? { label: '-', count: 0 };
-  }, [monthlyAlerts]);
-
-  const topTrain = useMemo(() => {
-    const todayTrainIds = todayAlerts
-      .map(alert => alert.trainId)
-      .filter((trainId): trainId is number => typeof trainId === 'number');
-
+  // Train to avoid — train with most active incidents today
+  const trainToAvoid = useMemo(() => {
     const map = new Map<number, number>();
-    todayTrainIds.forEach(trainId => map.set(trainId, (map.get(trainId) ?? 0) + 1));
-    const [top] = Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+    activeNow.forEach(a => { if (a.trainId != null) map.set(a.trainId, (map.get(a.trainId) ?? 0) + 1); });
+    if (!map.size) return null;
+    const [id, count] = [...map.entries()].sort((a, b) => b[1] - a[1])[0];
+    return { id, count };
+  }, [activeNow]);
 
-    if (!top) return { label: '-', count: 0 };
-    return { label: `Train ${top[0]}`, count: top[1] };
-  }, [todayAlerts]);
+  // Live feed — last 3 active today, newest first
+  const liveFeed = useMemo(() =>
+    [...activeNow].sort((a, b) => (b.time ?? '').localeCompare(a.time ?? '')).slice(0, 3),
+    [activeNow]);
 
-  const comparison = useMemo(() => {
-    const today = todayAlerts.length;
-    const lastWeek = lastWeekTodayAlerts.length;
-    const delta = today - lastWeek;
-    return { today, lastWeek, delta };
-  }, [todayAlerts.length, lastWeekTodayAlerts.length]);
+  // Best travel window from past 7 days (6 AM–10 PM only)
+  const bestWindow = useMemo(() => {
+    const past = filtered.filter(a => a.date && a.date >= weekAgoStr && a.date < todayStr);
+    if (!past.length) return null;
+    const counts = new Array(24).fill(0);
+    past.forEach(a => { const h = parseHour(a.time); if (h !== null) counts[h]++; });
+    let min = Infinity, best = -1;
+    for (let h = 6; h < 22; h++) {
+      if (counts[h] < min) { min = counts[h]; best = h; }
+    }
+    return best === -1 ? null : `${fmtHour(best)} – ${fmtHour(best + 1)}`;
+  }, [filtered, todayStr, weekAgoStr]);
 
-  const trend = resolveTrend(monthlyReport?.stats);
+  // Fetch AI travel tip when data is ready or selected line changes
+  useEffect(() => {
+    if (loading || !session?.token) return;
+    setAiAdvice(null);
+    setAiLoading(true);
+    fetch(`${API}/ai/travel-advice`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
+      credentials: 'include',
+      body: JSON.stringify({
+        activeCount:   activeNow.length,
+        trainToAvoid:  trainToAvoid ? `Train ${trainToAvoid.id}` : '',
+        bestWindow:    bestWindow ?? '',
+        line:          selectedLine,
+        todayCount:    todayAlerts.length,
+      }),
+    })
+      .then(r => r.json())
+      .then(d => setAiAdvice(d.advice))
+      .catch(() => setAiAdvice(null))
+      .finally(() => setAiLoading(false));
+  }, [loading, selectedLine]); // re-runs when line changes
 
-  const trainChart = useMemo(() => buildTrainStatusChart(todayAlerts), [todayAlerts]);
-  const chartHasData = trainChart.some(p => p.pending + p.verified + p.enRoute + p.escalated + p.resolved + p.dismissed > 0);
-
-  const travelAdvice = peakHour.count > 0
-    ? `Avoid ${peakHour.label} when possible; incidents are highest in that hour today.`
-    : 'No clear peak hour today. Keep checking live alerts before boarding.';
+  const overallLevel = safetyLevel(activeNow.length);
+  const overallStyle = safetyStyle(overallLevel);
 
   return (
-    <div
-      key="insights"
-      className="px-4 pt-5 pb-6 space-y-4"
-    >
+    <div className="px-4 pt-5 pb-6 space-y-4">
       <div>
-        <h2 className="text-xl font-black text-gray-900 mb-1">Real-Time Insights</h2>
-        <p className="text-sm text-gray-500">See incidents happening near you.</p>
+        <h2 className="text-xl font-black text-gray-900 mb-1">Safety Insights</h2>
+        <p className="text-sm text-gray-500">Live safety data for your journey.</p>
       </div>
 
-      <div className={`relative w-full bg-white backdrop-blur-md border border-white/20 transition-all duration-300 ${showLinePicker ? 'rounded-t-[28px] rounded-b-none z-50' : 'rounded-[28px] z-30'}`}>
+      {/* Line Picker */}
+      <div className={`relative w-full bg-white border border-white/20 transition-all duration-300 ${showLinePicker ? 'rounded-t-[28px] rounded-b-none z-50' : 'rounded-[28px] z-30'}`}>
         <div className="flex items-center gap-2 p-2">
-          {/* Action 1: Detect Location (Simplified Grey-out state) */}
           <button
             onClick={handleDetectLocation}
             disabled={isLocating}
             className={`relative w-16 h-20 rounded-[32px] flex-shrink-0 flex flex-col items-center justify-center transition-all duration-300 ${isLocating ? 'text-gray-400' : 'text-[#0B4F6C] active:scale-90'} border-r border-white/20`}
           >
-            <div className="relative z-10 flex flex-col items-center gap-2">
-              <div className="relative">
-                <MapPinIcon size={22} />
-              </div>
-              <span className={`text-[9px] font-black uppercase tracking-[0.1em] ${isLocating ? 'text-gray-400' : 'text-[#0B4F6C]'}`}>
-                {selectedLine === 'All Lines' ? 'All' : 'Near Me'}
-              </span>
-            </div>
+            <MapPinIcon size={22} />
+            <span className="text-[9px] font-black uppercase tracking-[0.1em] mt-2">
+              {selectedLine === 'All Lines' ? 'All' : 'Near Me'}
+            </span>
           </button>
-
-          {/* Action 2: Line Trigger */}
           <button
             onClick={() => setShowLinePicker(!showLinePicker)}
             className="flex-grow flex flex-col items-start text-left pl-3 pr-4 py-2 rounded-2xl hover:bg-white/10 active:scale-[0.98] transition-all"
           >
-            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest leading-none mb-1.5">Showing results for</span>
+            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest leading-none mb-1.5">
+              Showing results for
+            </span>
             <div className="flex items-center gap-2">
               <span className="text-sm font-black text-gray-900 leading-none">{selectedLine}</span>
               <ChevronRightIcon size={14} className={`text-gray-400 transition-transform duration-300 ${showLinePicker ? 'rotate-90' : ''}`} />
             </div>
           </button>
         </div>
-
-        {/* Floating Dropdown (Full-Width, Connected Style) */}
         {showLinePicker && (
           <div className="absolute top-[calc(100%-1px)] left-[-1px] right-[-1px] bg-[#FAF9F5] rounded-b-[28px] border-x border-b border-white/20 shadow-2xl z-[100] overflow-hidden">
             <div className="p-2 max-h-[280px] overflow-y-auto">
@@ -434,7 +260,7 @@ export function Insights({ session }: { session?: UserSession }) {
       {loading ? (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-10 flex flex-col items-center gap-3">
           <Loader2 className="animate-spin text-[#0B4F6C]" size={20} />
-          <p className="text-xs font-semibold text-gray-400">Loading insights from backend...</p>
+          <p className="text-xs font-semibold text-gray-400">Loading safety data…</p>
         </div>
       ) : errorText ? (
         <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-5">
@@ -442,140 +268,159 @@ export function Insights({ session }: { session?: UserSession }) {
         </div>
       ) : (
         <>
+          {/* Line Safety Status */}
+          {selectedLine === 'All Lines' ? (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Line Safety Status</p>
+              {lines.filter(l => l !== 'All Lines').length === 0 ? (
+                <p className="text-sm text-gray-400">No line data available.</p>
+              ) : (
+                <div className="space-y-2">
+                  {lines.filter(l => l !== 'All Lines').map(name => {
+                    const count = lineStatus[name] ?? 0;
+                    const lvl   = safetyLevel(count);
+                    const st    = safetyStyle(lvl);
+                    return (
+                      <div key={name} className="flex items-center justify-between px-3 py-2.5 rounded-xl" style={{ backgroundColor: st.bg }}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: st.dot }} />
+                          <span className="text-sm font-semibold text-gray-800">{name}</span>
+                        </div>
+                        <span className="text-xs font-bold" style={{ color: st.text }}>
+                          {lvl === 'clear' ? 'Clear' : `${count} active`}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-2xl p-4 border" style={{ backgroundColor: overallStyle.bg, borderColor: `${overallStyle.dot}40` }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: overallStyle.text }}>
+                    {selectedLine}
+                  </p>
+                  <p className="text-2xl font-black" style={{ color: overallStyle.text }}>{overallStyle.label}</p>
+                  <p className="text-xs font-semibold mt-1" style={{ color: overallStyle.text }}>
+                    {activeNow.length === 0
+                      ? 'No active incidents right now'
+                      : `${activeNow.length} active incident${activeNow.length !== 1 ? 's' : ''} right now`}
+                  </p>
+                </div>
+                {overallLevel === 'clear'
+                  ? <CheckCircleIcon size={40} style={{ color: overallStyle.dot, opacity: 0.5 }} />
+                  : <AlertCircleIcon size={40} style={{ color: overallStyle.dot, opacity: 0.5 }} />}
+              </div>
+            </div>
+          )}
+
+          {/* Active Now + Train to Avoid */}
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-
-              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Peak Hour (Today)</p>
-              <p className="text-lg font-black text-gray-900 mt-1">{peakHour.label}</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Active Now</p>
+              <p className="text-3xl font-black text-gray-900 mt-1">{activeNow.length}</p>
               <p className="text-xs font-semibold text-gray-400 mt-1">
-                {peakHour.count > 0 ? pluralize(peakHour.count, 'incident', 'incidents') : 'No incident spike today'}
+                {activeNow.length === 0 ? 'All incidents resolved' : 'unresolved incidents'}
               </p>
             </div>
-
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-
-              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Most Incident Train (Today)</p>
-              <p className="text-lg font-black text-gray-900 mt-1">{topTrain.label}</p>
-              <p className="text-xs font-semibold text-gray-400 mt-1">
-                {topTrain.count > 0 ? pluralize(topTrain.count, 'case', 'cases') : 'No train data'}
-              </p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Train to Avoid</p>
+              {trainToAvoid ? (
+                <>
+                  <p className="text-lg font-black mt-1" style={{ color: DANGER }}>Train {trainToAvoid.id}</p>
+                  <p className="text-xs font-semibold text-gray-400 mt-1">
+                    {trainToAvoid.count} active incident{trainToAvoid.count !== 1 ? 's' : ''}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-lg font-black mt-1" style={{ color: SAFE }}>All Clear</p>
+                  <p className="text-xs font-semibold text-gray-400 mt-1">No trains flagged today</p>
+                </>
+              )}
             </div>
           </div>
 
+          {/* Live Incidents Feed */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-            <div className="mb-3">
-              <h3 className="text-sm font-black text-gray-900">Real-Time Pattern by Train</h3>
-              <p className="text-[10px] font-semibold text-gray-400 mt-0.5 uppercase tracking-widest">Incidents grouped by train · today only</p>
-            </div>
-
-            {chartHasData ? (
-              <div className="h-[240px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={trainChart} margin={{ top: 6, right: 4, left: -24, bottom: 16 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                    <XAxis
-                      dataKey="train"
-                      axisLine={false}
-                      tickLine={false}
-                      interval={0}
-                      angle={-35}
-                      textAnchor="end"
-                      height={56}
-                      tick={{ fontSize: 9, fill: '#9CA3AF' }}
-                      tickFormatter={(v: string) => {
-                        // "T.5 (LRT Kelana Jaya)" → "T.5"
-                        // "Stn: KL Sentral (LRT KJ)" → "KL Sentral"
-                        const paren = v.indexOf(' (');
-                        const short = paren > -1 ? v.slice(0, paren) : v;
-                        const label = short.replace(/^Stn: /, '');
-                        return label.length > 12 ? label.slice(0, 11) + '…' : label;
-                      }}
-                    />
-                    <YAxis axisLine={false} tickLine={false} allowDecimals={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} />
-                    <Tooltip
-                      cursor={{ fill: '#F3F4F6' }}
-                      contentStyle={{ border: 'none', borderRadius: 10, fontSize: 12, boxShadow: '0 8px 24px rgb(0 0 0 / 0.08)' }}
-                    />
-                    <Legend
-                      iconType="circle"
-                      iconSize={7}
-                      wrapperStyle={{ fontSize: 10, paddingTop: 8 }}
-                    />
-                    <Bar dataKey="pending" name="Pending" stackId="s" fill="#C2410C" />
-                    <Bar dataKey="verified" name="Verified" stackId="s" fill="#F59E0B" />
-                    <Bar dataKey="enRoute" name="En Route" stackId="s" fill={ACCENT} />
-                    <Bar dataKey="escalated" name="Escalated" stackId="s" fill="#D34026" />
-                    <Bar dataKey="resolved" name="Resolved" stackId="s" fill={SAFE} />
-                    <Bar dataKey="dismissed" name="Dismissed" stackId="s" fill="#9CA3AF" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Live Incidents</p>
+            {liveFeed.length === 0 ? (
+              <div className="py-3 text-center">
+                <p className="text-sm font-bold text-gray-700">No active incidents right now</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  All clear on {selectedLine === 'All Lines' ? 'all lines' : selectedLine}
+                </p>
               </div>
             ) : (
-              <div className="bg-gray-50 rounded-xl p-4 text-center">
-                <p className="text-sm font-bold text-gray-700">No incidents today</p>
+              <div className="space-y-0">
+                {liveFeed.map((a, i) => {
+                  const sc = statusStyle(a.status);
+                  return (
+                    <div key={i} className="flex items-center justify-between py-2.5 border-b border-gray-50 last:border-0">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-gray-900 truncate">
+                          {a.trainId != null ? `Train ${a.trainId}` : (a.station ?? 'Unknown location')}
+                        </p>
+                        <p className="text-xs text-gray-400 truncate">
+                          {[a.line, a.station].filter(Boolean).join(' · ')}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                        {a.time && (
+                          <span className="text-xs text-gray-400">{a.time.slice(0, 5)}</span>
+                        )}
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize"
+                          style={{ backgroundColor: sc.bg, color: sc.text }}>
+                          {a.status}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
-            <div className="flex items-start gap-3">
-
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Most Happened Line (Monthly)</p>
-                <p className="text-sm font-black text-gray-900 mt-1">
-                  {topLine.label} {topLine.count > 0 ? `- ${topLine.count} incidents` : ''}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3">
-
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Most Happened Station (Monthly)</p>
-                <p className="text-sm font-black text-gray-900 mt-1">
-                  {topStation.label} {topStation.count > 0 ? `- ${topStation.count} incidents` : ''}
-                </p>
-              </div>
-            </div>
-          </div>
-
+          {/* Best Travel Window */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-            <div className="flex items-start gap-3">
-
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Today vs Last Week (Same Day)</p>
-                <p className="text-sm font-black text-gray-900 mt-1">
-                  Today: {comparison.today}, Last Week: {comparison.lastWeek}
-                </p>
-                <p className="text-xs font-semibold text-gray-400 mt-1">
-                  {comparison.delta > 0 && `${comparison.delta} more incidents today`}
-                  {comparison.delta < 0 && `${Math.abs(comparison.delta)} fewer incidents today`}
-                  {comparison.delta === 0 && 'Same incident count as last week'}
-                </p>
-              </div>
-            </div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Best Time to Travel</p>
+            {bestWindow ? (
+              <>
+                <p className="text-xl font-black text-gray-900 mt-1">{bestWindow}</p>
+                <p className="text-xs font-semibold text-gray-400 mt-1">Historically quietest · based on past 7 days</p>
+              </>
+            ) : (
+              <>
+                <p className="text-base font-black text-gray-400 mt-1">Not enough data yet</p>
+                <p className="text-xs font-semibold text-gray-400 mt-1">Check back once more data is collected</p>
+              </>
+            )}
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-            <div className="flex items-start gap-3">
-
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Monthly Trend</p>
-                <p className="text-sm font-black text-gray-900 mt-1">{trend.text}</p>
-                <p className="text-xs font-semibold text-gray-400 mt-1">{trend.sub}</p>
-              </div>
-            </div>
-          </div>
-
+          {/* AI Travel Tip */}
           <div className="bg-amber-50 border border-amber-100 rounded-2xl shadow-sm p-4">
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center flex-shrink-0">
                 <LightbulbIcon size={18} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Travel Advice</p>
-                <p className="text-sm font-black text-amber-950 mt-1">{travelAdvice}</p>
-
+                <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">AI Travel Tip</p>
+                {aiLoading ? (
+                  <div className="flex items-center gap-2 mt-2">
+                    <Loader2 size={14} className="animate-spin text-amber-500" />
+                    <span className="text-xs text-amber-600">Generating tip…</span>
+                  </div>
+                ) : aiAdvice ? (
+                  <p className="text-sm font-semibold text-amber-950 mt-1">{aiAdvice}</p>
+                ) : (
+                  <p className="text-sm font-semibold text-amber-950 mt-1">
+                    {activeNow.length === 0
+                      ? 'Conditions look good right now. Travel safely.'
+                      : 'Check live incidents above before boarding.'}
+                  </p>
+                )}
               </div>
             </div>
           </div>

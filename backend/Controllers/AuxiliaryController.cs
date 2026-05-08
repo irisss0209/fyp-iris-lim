@@ -385,6 +385,7 @@ namespace backend.Controllers
 
                 enrouteBy = i.EnrouteByUser?.UserName ?? dto.EnrouteBy,
                 enrouteAt = dto.EnrouteAt,
+                enrouteComment = dto.EnrouteComment,
 
                 resolvedBy = i.ResolvedByUser?.UserName ?? dto.ResolvedBy,
                 resolvedAt = dto.ResolvedAt,

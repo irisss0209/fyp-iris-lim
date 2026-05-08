@@ -17,13 +17,45 @@ namespace backend.Controllers
         private readonly IAlertService _alertService;
         private readonly IS3Service _s3Service;
         private readonly ILogger<OperatorController> _logger;
+        private readonly IGeminiService _gemini;
 
-        public OperatorController(AppDbContext context, IAlertService alertService, IS3Service s3Service, ILogger<OperatorController> logger)
+        public OperatorController(AppDbContext context, IAlertService alertService, IS3Service s3Service, ILogger<OperatorController> logger, IGeminiService gemini)
         {
             _context = context;
             _alertService = alertService;
             _s3Service = s3Service;
             _logger = logger;
+            _gemini = gemini;
+        }
+
+        [Authorize(Roles = "operator")]
+        [HttpPost("ai/report-summary")]
+        public async Task<IActionResult> GetReportSummary([FromBody] ReportSummaryRequest req, CancellationToken ct)
+        {
+            var deltaStr = req.TotalDelta >= 0
+                ? $"up {req.TotalDelta}% from last month"
+                : $"down {Math.Abs(req.TotalDelta)}% from last month";
+
+            var prompt = $"""
+                You are an AI analyst for Railly, a Malaysian transit safety platform.
+                Write a concise 2-3 sentence executive summary of {req.Month}'s incident report for operators.
+                Highlight what is notable, flag what needs attention, and give one actionable recommendation.
+                No bullet points, no headers.
+
+                Monthly stats:
+                - Total incidents: {req.Total} ({deltaStr})
+                - Resolution rate: {req.ResolutionRate}%
+                - False alarm rate: {req.FalseAlarmRate}%
+                - Average response time: {req.AvgResponseMinutes:F1} minutes
+                - Most affected line: {(string.IsNullOrWhiteSpace(req.MostAffectedLine) ? "N/A" : req.MostAffectedLine)}
+                - Highest risk train: {(string.IsNullOrWhiteSpace(req.HighestRiskTrain) ? "N/A" : req.HighestRiskTrain)}
+                - Peak incident time: {(string.IsNullOrWhiteSpace(req.PeakTime) ? "N/A" : req.PeakTime)}
+
+                Respond with ONLY the summary paragraph.
+                """;
+
+            var summary = await _gemini.GenerateAsync(prompt, ct);
+            return Ok(new { summary });
         }
 
         [Authorize(Roles = "operator")]
@@ -687,6 +719,7 @@ namespace backend.Controllers
                     verifiedComment  = dto.VerifiedComment,
                     enrouteBy        = dto.EnrouteBy,
                     enrouteAt        = dto.EnrouteAt,
+                    enrouteComment   = dto.EnrouteComment,
                     resolvedBy       = dto.ResolvedBy,
                     resolvedAt       = dto.ResolvedAt,
                     resolvedComment  = dto.ResolvedComment,

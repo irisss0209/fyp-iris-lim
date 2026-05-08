@@ -41,7 +41,7 @@ interface RecentAlert {
   reportedBy?: string | null;
   passengerComment?: string | null;
   verifiedBy?: string | null; verifiedAt?: string | null; verifiedComment?: string | null;
-  enrouteBy?: string | null; enrouteAt?: string | null;
+  enrouteBy?: string | null; enrouteAt?: string | null; enrouteComment?: string | null;
   resolvedBy?: string | null; resolvedAt?: string | null; resolvedComment?: string | null;
   escalatedBy?: string | null; escalatedAt?: string | null; escalatedComment?: string | null;
   dismissedBy?: string | null; dismissedAt?: string | null; dismissedComment?: string | null;
@@ -365,7 +365,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             passengerComment: alert.passengerComment,
             confidence: alert.confidence,
             verifiedBy: alert.verifiedBy, verifiedAt: alert.verifiedAt, verifiedComment: alert.verifiedComment,
-            enrouteBy: alert.enrouteBy, enrouteAt: alert.enrouteAt,
+            enrouteBy: alert.enrouteBy, enrouteAt: alert.enrouteAt, enrouteComment: alert.enrouteComment,
             resolvedBy: alert.resolvedBy, resolvedAt: alert.resolvedAt, resolvedComment: alert.resolvedComment,
             escalatedBy: alert.escalatedBy, escalatedAt: alert.escalatedAt, escalatedComment: alert.escalatedComment,
             dismissedBy: alert.dismissedBy, dismissedAt: alert.dismissedAt, dismissedComment: alert.dismissedComment,

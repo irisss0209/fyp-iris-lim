@@ -21,13 +21,15 @@ namespace backend.Controllers
         private readonly IAlertService _alertService;
         private readonly IS3Service _s3Service;
         private readonly ILogger<PassengerController> _logger;
+        private readonly IGeminiService _gemini;
 
-        public PassengerController(AppDbContext context, IAlertService alertService, IS3Service s3Service, ILogger<PassengerController> logger)
+        public PassengerController(AppDbContext context, IAlertService alertService, IS3Service s3Service, ILogger<PassengerController> logger, IGeminiService gemini)
         {
             _context = context;
             _alertService = alertService;
             _s3Service = s3Service;
             _logger = logger;
+            _gemini = gemini;
         }
 
         [HttpGet("lines")]
@@ -401,6 +403,40 @@ namespace backend.Controllers
                 .ToListAsync();
 
             return Ok(stations);
+        }
+
+        [Authorize]
+        [HttpPost("ai/travel-advice")]
+        public async Task<IActionResult> GetTravelAdvice([FromBody] TravelAdviceRequest req, CancellationToken ct)
+        {
+            var lineLabel = string.IsNullOrWhiteSpace(req.Line) || req.Line == "All Lines"
+                ? "all lines"
+                : req.Line;
+
+            var trainLabel = string.IsNullOrWhiteSpace(req.TrainToAvoid)
+                ? "none — all trains appear clear"
+                : req.TrainToAvoid;
+
+            var windowLabel = string.IsNullOrWhiteSpace(req.BestWindow)
+                ? "no historical pattern available yet"
+                : req.BestWindow;
+
+            var prompt = $"""
+                You are a transit safety assistant for Railly, a Malaysian commuter rail safety platform.
+                Generate a SHORT, practical 1-2 sentence travel tip for passengers based on current safety data.
+                Be specific, conversational, and helpful. No bullet points, no preamble.
+
+                Current safety snapshot for {lineLabel}:
+                - Active unresolved incidents right now: {req.ActiveCount}
+                - Train to avoid (most active incidents): {trainLabel}
+                - Best travel window today (historically quietest this past week): {windowLabel}
+                - Total incidents reported today: {req.TodayCount}
+
+                Respond with ONLY the travel advice. No headers.
+                """;
+
+            var advice = await _gemini.GenerateAsync(prompt, ct);
+            return Ok(new { advice });
         }
     }
 

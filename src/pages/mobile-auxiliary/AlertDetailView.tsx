@@ -43,7 +43,7 @@ export function AlertDetailView({ alert, onBack, onAction }: AlertDetailViewProp
   if (alert.escalatedAt || alert.escalatedBy)
     steps.push({ label: 'Escalated', by: alert.escalatedBy, at: alert.escalatedAt, comment: alert.escalatedComment, color: '#7B5EA7', bg: '#F5F0FF' });
   if (alert.enrouteAt || alert.enrouteBy)
-    steps.push({ label: 'En Route', by: alert.enrouteBy, at: alert.enrouteAt, color: '#0B4F6C', bg: '#EFF6FF' });
+    steps.push({ label: 'En Route', by: alert.enrouteBy, at: alert.enrouteAt, comment: alert.enrouteComment, color: '#0B4F6C', bg: '#EFF6FF' });
   if (alert.resolvedAt || alert.resolvedBy)
     steps.push({ label: 'Resolved', by: alert.resolvedBy, at: alert.resolvedAt, comment: alert.resolvedComment, color: '#1D4ED8', bg: '#EBF8FF' });
   if (alert.dismissedAt || alert.dismissedBy)

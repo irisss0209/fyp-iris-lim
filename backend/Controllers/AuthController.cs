@@ -206,7 +206,7 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
 
             if (user.Role == UserRole.Operator || user.Role == UserRole.Auxiliary)
             {
-                return BadRequest(new { error = "Staff members must sign in with password and OTP." });
+                return BadRequest(new { error = "Staff members must sign in with password and OTP. If you forgot your password, click 'Forgot Password' to change your password." });
             }
 
             var frontendRole = MapFrontendRole(user.Role);
@@ -599,7 +599,7 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Password reset successfully." });
+            return Ok(new { message = "Password reset successfully. Please login with your new password." });
         }
 
         private void SetAuthCookie(string token)
