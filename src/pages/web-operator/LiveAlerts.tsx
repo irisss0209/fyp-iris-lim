@@ -76,6 +76,7 @@ export function LiveAlerts({ initialAlertId, onClearInitial }: { initialAlertId?
   const [pendingAction, setPendingAction] = useState<{ type: 'verify' | 'dismiss' | 'escalate'; alertId: string } | null>(null);
   const [escalatedAt, setEscalatedAt] = useState<Record<string, number>>({}); // alertId → timestamp
   const [, setTick] = useState(0); // force re-render for timer
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   // ── Fetch all alerts from DB ──────────────────────────────────────────────────
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
@@ -535,7 +536,12 @@ export function LiveAlerts({ initialAlertId, onClearInitial }: { initialAlertId?
                 {/* Snapshot / image */}
                 <div className="rounded-lg overflow-hidden bg-gray-800" style={{ aspectRatio: '21/9' }}>
                   {selectedAlert.imageUrl ? (
-                    <img src={selectedAlert.imageUrl} alt="Snapshot" className="w-full h-full object-cover opacity-80" />
+                    <img
+                      src={selectedAlert.imageUrl}
+                      alt="Snapshot"
+                      className="w-full h-full object-cover opacity-80 cursor-zoom-in hover:opacity-100 transition-opacity"
+                      onClick={() => setLightboxUrl(selectedAlert.imageUrl ?? null)}
+                    />
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center gap-2">
                       {selectedAlert.source === 'ai' ? (
@@ -688,6 +694,27 @@ export function LiveAlerts({ initialAlertId, onClearInitial }: { initialAlertId?
           </div>
         )}
       </div>
+
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors"
+            onClick={() => setLightboxUrl(null)}
+          >
+            <XIcon size={28} />
+          </button>
+          <img
+            src={lightboxUrl}
+            alt="Snapshot fullscreen"
+            className="max-w-[90vw] max-h-[90vh] rounded-xl object-contain shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
 
       {/* Justification Modal */}
       <JustificationModal

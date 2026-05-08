@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import {
   CameraIcon,
   ChevronLeftIcon,
+  XIcon,
 } from 'lucide-react';
 import { Alert, AlertStatus } from '../../type/Alert';
 
@@ -14,6 +16,7 @@ interface AlertDetailViewProps {
 }
 
 export function AlertDetailView({ alert, onBack, onAction }: AlertDetailViewProps) {
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const steps: { label: string, by?: string | null, at?: string | null, comment?: string | null, color: string, bg: string }[] = [];
 
   // ── 1. Initial Report ──
@@ -84,7 +87,12 @@ export function AlertDetailView({ alert, onBack, onAction }: AlertDetailViewProp
         {/* ── Snapshot ── */}
         <div className="rounded-xl overflow-hidden bg-gray-900 shadow-sm border border-gray-100" style={{ aspectRatio: '21/9' }}>
           {alert.snapshotUrl || alert.imageUrl ? (
-            <img src={alert.snapshotUrl || alert.imageUrl} alt="Snapshot" className="w-full h-full object-cover opacity-85" />
+            <img
+              src={alert.snapshotUrl || alert.imageUrl}
+              alt="Snapshot"
+              className="w-full h-full object-cover opacity-85 cursor-zoom-in active:opacity-100 transition-opacity"
+              onClick={() => setLightboxUrl(alert.snapshotUrl || alert.imageUrl || null)}
+            />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center gap-2">
               <CameraIcon className="w-10 h-10 text-white/20" />
@@ -164,6 +172,27 @@ export function AlertDetailView({ alert, onBack, onAction }: AlertDetailViewProp
           )}
         </div>
       </div>
+
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            className="absolute top-5 right-5 text-white/70 hover:text-white transition-colors"
+            onClick={() => setLightboxUrl(null)}
+          >
+            <XIcon size={26} />
+          </button>
+          <img
+            src={lightboxUrl}
+            alt="Snapshot fullscreen"
+            className="max-w-[95vw] max-h-[90vh] rounded-xl object-contain"
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -38,6 +38,7 @@ export function Reports() {
   const [pickerOpen, setPickerOpen]       = useState(false);
   const [aiSummary, setAiSummary]         = useState<string | null>(null);
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+  const [aiSummaryError, setAiSummaryError] = useState(false);
 
   // Incidents-tab filters
   const [statusFilter, setStatusFilter] = useState('');
@@ -104,6 +105,7 @@ export function Reports() {
   useEffect(() => {
     if (loading || !data?.stats) return;
     setAiSummary(null);
+    setAiSummaryError(false);
     setAiSummaryLoading(true);
     const s = data.stats;
     fetch(`${API}/ai/report-summary`, {
@@ -122,9 +124,9 @@ export function Reports() {
         month:              selectedMonth?.label ?? '',
       }),
     })
-      .then(r => r.json())
-      .then(d => setAiSummary(d.summary))
-      .catch(() => setAiSummary(null))
+      .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
+      .then(d => setAiSummary(d.summary ?? null))
+      .catch(() => setAiSummaryError(true))
       .finally(() => setAiSummaryLoading(false));
   }, [loading, data, selectedMonth]);
 
@@ -257,27 +259,28 @@ export function Reports() {
   const downloadPDF = async () => {
     const element = document.getElementById('report-export');
     if (!element) return;
+
+    // Save state
+    const prevScroll  = window.scrollY;
+    const header      = element.querySelector('.pdf-header') as HTMLElement | null;
+
     try {
       document.body.style.cursor = 'wait';
-      const clone = element.cloneNode(true) as HTMLElement;
-      Object.assign(clone.style, {
-        width: '1200px', minWidth: '1200px', maxWidth: '1200px',
-        margin: '0 auto', background: 'white', padding: '32px',
-        paddingBottom: '100px', boxSizing: 'border-box',
-      });
-      const header = clone.querySelector('.pdf-header') as HTMLElement;
-      if (header) header.style.display = 'block';
-      clone.querySelectorAll('.grid').forEach(el => {
-        const e = el as HTMLElement;
-        if (e.className.includes('grid-cols-5')) e.style.gridTemplateColumns = 'repeat(5, 1fr)';
-        if (e.className.includes('grid-cols-4')) e.style.gridTemplateColumns = 'repeat(4, 1fr)';
-        if (e.className.includes('grid-cols-3')) e.style.gridTemplateColumns = 'repeat(3, 1fr)';
-        if (e.className.includes('grid-cols-2')) e.style.gridTemplateColumns = 'repeat(2, 1fr)';
-      });
-      clone.querySelectorAll('[class*="rounded-xl"]').forEach(el => { (el as HTMLElement).style.width = '100%'; });
-      document.body.appendChild(clone);
 
-      const canvas   = await html2canvas(clone, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      // Show the PDF-only header and scroll to top of the element
+      if (header) header.style.display = 'block';
+      element.scrollIntoView({ behavior: 'instant' as ScrollBehavior });
+      await new Promise(r => requestAnimationFrame(r));
+
+      const canvas   = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: -window.scrollY,
+        windowWidth: element.scrollWidth,
+      });
+
       const imgData  = canvas.toDataURL('image/png');
       const pdf      = new jsPDF('p', 'mm', 'a4');
       const pdfW     = pdf.internal.pageSize.getWidth();
@@ -295,10 +298,12 @@ export function Reports() {
         heightLeft -= pdfH;
       }
       pdf.save(`railly-report-${selectedMonth?.label ?? 'report'}.pdf`);
-      document.body.removeChild(clone);
     } catch (err) {
       console.error('PDF export failed:', err);
     } finally {
+      // Restore
+      if (header) header.style.display = 'none';
+      window.scrollTo({ top: prevScroll, behavior: 'instant' as ScrollBehavior });
       document.body.style.cursor = 'default';
     }
   };
@@ -393,18 +398,20 @@ export function Reports() {
           </div>
 
           {/* AI Summary */}
-          {(aiSummaryLoading || aiSummary) && (
-            <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-2xl p-5 flex items-start gap-4">
-              <div className="w-8 h-8 rounded-lg bg-[#0B4F6C] flex items-center justify-center flex-shrink-0 mt-0.5">
+          {(aiSummaryLoading || aiSummary || aiSummaryError) && (
+            <div className={`border rounded-2xl p-5 flex items-start gap-4 ${aiSummaryError ? 'bg-gray-50 border-gray-200' : 'bg-[#EFF6FF] border-[#BFDBFE]'}`}>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${aiSummaryError ? 'bg-gray-300' : 'bg-[#0B4F6C]'}`}>
                 <TrendingUpIcon className="w-4 h-4 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-widest text-[#0B4F6C] mb-1">AI Report Summary</p>
+                <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${aiSummaryError ? 'text-gray-400' : 'text-[#0B4F6C]'}`}>AI Report Summary</p>
                 {aiSummaryLoading ? (
                   <div className="flex items-center gap-2">
                     <RefreshCwIcon className="w-3.5 h-3.5 text-[#0B4F6C] animate-spin" />
                     <span className="text-xs text-[#0B4F6C]">Generating summary…</span>
                   </div>
+                ) : aiSummaryError ? (
+                  <p className="text-xs text-gray-400">AI summary unavailable — make sure the backend is running with the latest build and the Gemini API key is set in AWS Secrets Manager.</p>
                 ) : (
                   <p className="text-sm text-[#1E3A5F] leading-relaxed">{aiSummary}</p>
                 )}
