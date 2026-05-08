@@ -100,8 +100,12 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
   useEffect(() => { if (selectedMonth) fetchReport(selectedMonth); }, [selectedMonth, fetchReport]);
 
   // ── AI summary ───────────────────────────────────────────────────────────────
+  // Deps: `data` (not `selectedMonth`) so the effect only fires once the fetched
+  // data actually reflects the chosen month — not the instant selectedMonth changes.
+  // topInsights is included so the closure always has fresh insight values.
   useEffect(() => {
     if (loading || !data?.stats) return;
+    const controller = new AbortController();
     setAiSummary(null);
     setAiSummaryError(false);
     setAiSummaryLoading(true);
@@ -110,6 +114,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) },
       credentials: 'include',
+      signal: controller.signal,
       body: JSON.stringify({
         total:              s.total,
         totalDelta:         s.totalDelta,
@@ -124,9 +129,10 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
     })
       .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
       .then(d => setAiSummary(d.summary ?? null))
-      .catch(() => setAiSummaryError(true))
+      .catch(err => { if (err.name !== 'AbortError') setAiSummaryError(true); })
       .finally(() => setAiSummaryLoading(false));
-  }, [loading, data, selectedMonth]);
+    return () => controller.abort();
+  }, [loading, data, topInsights]);
 
   // ── Derived analytics ────────────────────────────────────────────────────────
   const allIncidents = data?.incidents ?? [];
