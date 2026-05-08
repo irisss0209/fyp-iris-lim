@@ -263,8 +263,23 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
 
   const downloadPDF = async () => {
     if (!stats) return;
-    setIsPdfGenerating(true);
     try {
+      // Capture charts before the overlay appears so the DOM elements are visible
+      const h2c = (await import('html2canvas')).default;
+      const capture = async (id: string): Promise<string | null> => {
+        const el = document.getElementById(id);
+        if (!el) return null;
+        const canvas = await h2c(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+        return canvas.toDataURL('image/png');
+      };
+      const [chartDaily, chartStatus, chartTrain, chartSource] = await Promise.all([
+        capture('pdf-chart-daily'),
+        capture('pdf-chart-status'),
+        capture('pdf-chart-train'),
+        capture('pdf-chart-source'),
+      ]);
+
+      setIsPdfGenerating(true);
       const blob = await pdf(
         <ReportPDF
           month={selectedMonth?.label ?? ''}
@@ -273,6 +288,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
           statusBreakdown={data?.statusBreakdown ?? []}
           aiSummary={aiSummary}
           resolutionRate={resolutionRate}
+          chartImages={{ daily: chartDaily, status: chartStatus, train: chartTrain, source: chartSource }}
         />
       ).toBlob();
       const url = URL.createObjectURL(blob);

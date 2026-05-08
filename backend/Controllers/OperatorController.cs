@@ -33,8 +33,8 @@ namespace backend.Controllers
         public async Task<IActionResult> GetReportSummary([FromBody] ReportSummaryRequest req, CancellationToken ct)
         {
             var deltaStr = req.TotalDelta >= 0
-                ? $"up {req.TotalDelta}% from last month"
-                : $"down {Math.Abs(req.TotalDelta)}% from last month";
+                ? $"up {req.TotalDelta:F1}% from last month"
+                : $"down {Math.Abs(req.TotalDelta):F1}% from last month";
 
             var prompt = $"""
                 You are an AI analyst for Railly, a Malaysian transit safety platform.

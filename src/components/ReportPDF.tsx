@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 import { ReportStats, StatusSlice } from '../utils/reportUtils';
 
 const NAVY  = '#0B4F6C';
@@ -45,6 +45,9 @@ const s = StyleSheet.create({
   pill:        { borderRadius: 4, paddingHorizontal: 8, paddingVertical: 4, alignItems: 'center' },
   pillVal:     { fontFamily: 'Helvetica-Bold', fontSize: 12 },
   pillLbl:     { fontSize: 7, marginTop: 1 },
+  // chart row
+  chartRow:    { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  chartImg:    { borderRadius: 4, borderWidth: 1, borderColor: GRAY4 },
 });
 
 function fmtStatus(s: string) {
@@ -57,6 +60,13 @@ function delta(v: number, invert = false) {
   return { label: `${v > 0 ? '▲' : '▼'} ${Math.abs(v)}%`, color: good ? '#2D7A5D' : RED };
 }
 
+interface ChartImages {
+  daily:  string | null;
+  status: string | null;
+  train:  string | null;
+  source: string | null;
+}
+
 interface Props {
   month: string;
   stats: ReportStats;
@@ -64,9 +74,10 @@ interface Props {
   statusBreakdown: StatusSlice[];
   aiSummary: string | null;
   resolutionRate: number;
+  chartImages?: ChartImages;
 }
 
-export function ReportPDF({ month, stats, topInsights, statusBreakdown, aiSummary, resolutionRate }: Props) {
+export function ReportPDF({ month, stats, topInsights, statusBreakdown, aiSummary, resolutionRate, chartImages }: Props) {
   const kpis = [
     { label: 'Total Incidents',       value: String(stats.total),                         d: delta(stats.totalDelta, true) },
     { label: 'Resolution Rate',       value: `${resolutionRate}%`,                        d: delta(stats.resolutionDelta) },
@@ -85,8 +96,11 @@ export function ReportPDF({ month, stats, topInsights, statusBreakdown, aiSummar
     dismissed: { bg: '#F7FAFC', text: GRAY3 },
   };
 
+  const hasCharts = chartImages && (chartImages.daily || chartImages.status || chartImages.train || chartImages.source);
+
   return (
     <Document title={`Railly Report – ${month}`} author="Railly">
+
       {/* ── Page 1: Summary ──────────────────────────────────────────── */}
       <Page size="A4" style={s.page}>
         {/* Header */}
@@ -158,6 +172,59 @@ export function ReportPDF({ month, stats, topInsights, statusBreakdown, aiSummar
           </View>
         )}
       </Page>
+
+      {/* ── Page 2: Charts ───────────────────────────────────────────── */}
+      {hasCharts && (
+        <Page size="A4" style={s.page}>
+          {/* Header */}
+          <View style={s.headerRow}>
+            <View style={s.logoBox}><Text style={s.logoText}>R</Text></View>
+            <View style={s.titleGroup}>
+              <Text style={s.title}>Railly Safety Analytics</Text>
+              <Text style={s.subtitle}>Monthly Incident Report — Charts</Text>
+            </View>
+            <View style={s.headerRight}>
+              <Text style={s.monthBadge}>{month}</Text>
+            </View>
+          </View>
+
+          {/* Row 1: Daily Incidents + Status Breakdown */}
+          {(chartImages!.daily || chartImages!.status) && (
+            <View style={[s.section, s.chartRow]}>
+              {chartImages!.daily && (
+                <View style={{ flex: 1 }}>
+                  <Text style={s.sectionTitle}>Daily Incidents by Line</Text>
+                  <Image src={chartImages!.daily} style={s.chartImg} />
+                </View>
+              )}
+              {chartImages!.status && (
+                <View style={{ flex: 1 }}>
+                  <Text style={s.sectionTitle}>Resolution Status Breakdown</Text>
+                  <Image src={chartImages!.status} style={s.chartImg} />
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Row 2: Incidents by Train + Incident Source */}
+          {(chartImages!.train || chartImages!.source) && (
+            <View style={s.chartRow}>
+              {chartImages!.train && (
+                <View style={{ flex: 2 }}>
+                  <Text style={s.sectionTitle}>Incidents by Train</Text>
+                  <Image src={chartImages!.train} style={s.chartImg} />
+                </View>
+              )}
+              {chartImages!.source && (
+                <View style={{ flex: 1 }}>
+                  <Text style={s.sectionTitle}>Incident Source</Text>
+                  <Image src={chartImages!.source} style={s.chartImg} />
+                </View>
+              )}
+            </View>
+          )}
+        </Page>
+      )}
 
     </Document>
   );

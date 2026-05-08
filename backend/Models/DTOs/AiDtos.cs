@@ -13,8 +13,8 @@ public class TravelAdviceRequest
 public class ReportSummaryRequest
 {
     public int Total { get; set; }
-    public int TotalDelta { get; set; }
-    public int ResolutionRate { get; set; }
+    public double TotalDelta { get; set; }
+    public double ResolutionRate { get; set; }
     public double FalseAlarmRate { get; set; }
     public double AvgResponseMinutes { get; set; }
     public string MostAffectedLine { get; set; } = "";

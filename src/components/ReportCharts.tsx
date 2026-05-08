@@ -18,7 +18,7 @@ export function ReportCharts({ dailyData, lines, statusBreakdown, byTrain, sourc
     <>
       {/* Row 1: Daily by Line + Status Breakdown */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <div id="pdf-chart-daily" className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <h3 className="font-semibold text-sm text-gray-900 mb-1">Daily Incidents by Line</h3>
           <p className="text-xs text-gray-400 mb-4">Grouped by day of week for {selectedMonthLabel}</p>
           {dailyData.length === 0 ? (
@@ -39,7 +39,7 @@ export function ReportCharts({ dailyData, lines, statusBreakdown, byTrain, sourc
           )}
         </div>
 
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <div id="pdf-chart-status" className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <h3 className="font-semibold text-sm text-gray-900 mb-1">Resolution Status Breakdown</h3>
           <p className="text-xs text-gray-400 mb-4">Distribution of final incident outcomes</p>
           {statusBreakdown.length === 0 ? (
@@ -83,7 +83,7 @@ export function ReportCharts({ dailyData, lines, statusBreakdown, byTrain, sourc
 
       {/* Row 2: Incidents by Train + Source Split */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2 bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <div id="pdf-chart-train" className="col-span-2 bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <h3 className="font-semibold text-sm text-gray-900 mb-1">Incidents by Train</h3>
           <div className="flex items-center gap-4 mb-4">
             <p className="text-xs text-gray-400 flex-1">Top {byTrain.length} trains by incident volume</p>
@@ -119,7 +119,7 @@ export function ReportCharts({ dailyData, lines, statusBreakdown, byTrain, sourc
           )}
         </div>
 
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <div id="pdf-chart-source" className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <h3 className="font-semibold text-sm text-gray-900 mb-1">Incident Source</h3>
           <p className="text-xs text-gray-400 mb-4">AI Detection vs Passenger Report</p>
           {sourceSplit.length === 0 ? (
