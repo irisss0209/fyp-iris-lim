@@ -182,12 +182,15 @@ export function Insights({ session }: { session?: UserSession }) {
 
   // Fetch AI travel tip when data is ready or selected line changes
   useEffect(() => {
-    if (loading || !session?.token) return;
+    if (loading || !session) return;
     setAiAdvice(null);
     setAiLoading(true);
     fetch(`${API}/ai/travel-advice`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(session.token ? { Authorization: `Bearer ${session.token}` } : {}),
+      },
       credentials: 'include',
       body: JSON.stringify({
         activeCount:   activeNow.length,

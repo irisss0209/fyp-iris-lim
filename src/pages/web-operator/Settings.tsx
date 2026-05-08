@@ -106,11 +106,10 @@ export function Settings({ onNavigate }: { onNavigate: (page: Page) => void }) {
                 <button
                   key={opt.id}
                   onClick={() => setSoundAlerts(opt.id)}
-                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${
-                    soundAlerts === opt.id
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${soundAlerts === opt.id
                       ? 'bg-white text-[#0B4F6C] shadow-sm'
                       : 'text-gray-500 hover:text-gray-700'
-                  }`}
+                    }`}
                 >
                   {opt.label}
                 </button>
@@ -120,7 +119,7 @@ export function Settings({ onNavigate }: { onNavigate: (page: Page) => void }) {
               <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
                 <InfoIcon className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-amber-700 leading-relaxed">
-                  Notifications will only be delivered during peak commute hours —{' '}
+                  Notifications will only be delivered during peak commute hours:{' '}
                   <span className="font-semibold">7:00 AM – 9:00 AM</span> and{' '}
                   <span className="font-semibold">5:00 PM – 7:00 PM</span>. Alerts outside these windows will be silenced.
                 </p>
