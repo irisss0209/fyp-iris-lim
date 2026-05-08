@@ -40,13 +40,15 @@ try
         GetSecret(smClient, "railly/db-connection-string"),
         GetSecret(smClient, "railly/vapid-private-key"),
         GetSecret(smClient, "railly/google-geocoding-api-key"),
-        GetSecret(smClient, "railly/gemini-api-key")
+        GetSecret(smClient, "railly/vertex-project-id"),
+        GetSecret(smClient, "railly/vertex-service-account-json")
     );
-    if (smResults[0] is { } jwt)    builder.Configuration["JwtSettings:SecretKey"]              = jwt;
-    if (smResults[1] is { } db)     builder.Configuration["ConnectionStrings:DefaultConnection"] = db;
-    if (smResults[2] is { } vapid)  builder.Configuration["Vapid:PrivateKey"]                   = vapid;
-    if (smResults[3] is { } google) builder.Configuration["Google:GeocodingApiKey"]              = google;
-    if (smResults[4] is { } gemini) builder.Configuration["Gemini:ApiKey"]                      = gemini;
+    if (smResults[0] is { } jwt)          builder.Configuration["JwtSettings:SecretKey"]              = jwt;
+    if (smResults[1] is { } db)           builder.Configuration["ConnectionStrings:DefaultConnection"] = db;
+    if (smResults[2] is { } vapid)        builder.Configuration["Vapid:PrivateKey"]                   = vapid;
+    if (smResults[3] is { } google)       builder.Configuration["Google:GeocodingApiKey"]              = google;
+    if (smResults[4] is { } vertexProj)   builder.Configuration["VertexAI:ProjectId"]                 = vertexProj;
+    if (smResults[5] is { } vertexJson)   builder.Configuration["VertexAI:ServiceAccountJson"]        = vertexJson;
     Console.WriteLine(" Secrets loaded from AWS Secrets Manager.");
 }
 catch (Exception ex)
