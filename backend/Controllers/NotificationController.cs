@@ -38,8 +38,6 @@ namespace backend.Controllers
             {
                 existing.P256DH = req.Keys.P256DH;
                 existing.Auth = req.Keys.Auth;
-                existing.Latitude = req.Latitude;
-                existing.Longitude = req.Longitude;
                 existing.UpdatedAt = DateTime.UtcNow;
             }
             else
@@ -50,8 +48,6 @@ namespace backend.Controllers
                     Endpoint = req.Endpoint,
                     P256DH = req.Keys.P256DH,
                     Auth = req.Keys.Auth,
-                    Latitude = req.Latitude,
-                    Longitude = req.Longitude,
                     UpdatedAt = DateTime.UtcNow,
                 });
             }
@@ -81,8 +77,6 @@ namespace backend.Controllers
     {
         public string Endpoint { get; set; } = null!;
         public SubscriptionKeys Keys { get; set; } = null!;
-        public double? Latitude { get; set; }
-        public double? Longitude { get; set; }
     }
 
     public class SubscriptionKeys

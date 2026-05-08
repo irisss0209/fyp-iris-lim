@@ -47,18 +47,17 @@ try
     if (smResults[2] is { } vapid)  builder.Configuration["Vapid:PrivateKey"]                   = vapid;
     if (smResults[3] is { } google) builder.Configuration["Google:GeocodingApiKey"]              = google;
     if (smResults[4] is { } gemini) builder.Configuration["Gemini:ApiKey"]                      = gemini;
-    Console.WriteLine("[STARTUP] Secrets loaded from AWS Secrets Manager.");
+    Console.WriteLine(" Secrets loaded from AWS Secrets Manager.");
 }
 catch (Exception ex)
 {
-    Console.WriteLine($"[STARTUP] Secrets Manager unavailable — using appsettings values. ({ex.Message})");
+    Console.WriteLine($" Secrets Manager unavailable — using appsettings values. ({ex.Message})");
 }
 
 // PostgreSQL setup
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
 var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
-// [PgName] attributes on each enum value tell Npgsql the exact DB string to use
 dataSourceBuilder.MapEnum<UserRole>("user_role");
 dataSourceBuilder.MapEnum<AssetStatus>("asset_status");
 dataSourceBuilder.MapEnum<UserStatus>("user_status");

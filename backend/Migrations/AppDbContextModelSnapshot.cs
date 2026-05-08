@@ -340,14 +340,6 @@ namespace backend.Migrations
                         .HasColumnType("text")
                         .HasColumnName("endpoint");
 
-                    b.Property<double?>("Latitude")
-                        .HasColumnType("double precision")
-                        .HasColumnName("latitude");
-
-                    b.Property<double?>("Longitude")
-                        .HasColumnType("double precision")
-                        .HasColumnName("longitude");
-
                     b.Property<string>("P256DH")
                         .IsRequired()
                         .HasMaxLength(512)

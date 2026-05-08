@@ -21,6 +21,7 @@ namespace backend.Models.DTOs
         public string Type { get; set; } = null!;
         public string Date { get; set; } = null!;
         public string Time { get; set; } = null!;
+        public string CreatedAt { get; set; } = null!;
         public string Status { get; set; } = null!;
         public string Line { get; set; } = null!;
         public string Coach { get; set; } = null!;

@@ -319,6 +319,7 @@ namespace backend.Controllers
                     Type        = inc.UserReport?.Description ?? "Violation",
                     Date        = dto.Date,
                     Time        = dto.Time,
+                    CreatedAt   = inc.CreatedAt.ToString("o"),
                     Status      = dto.Status,
                     Line        = dto.Line,
                     Coach       = dto.CoachId?.ToString() ?? "Unknown Coach",
@@ -359,24 +360,36 @@ namespace backend.Controllers
             if (incident.UserReport == null || incident.UserReport.UserId != userId)
                 return Unauthorized(new { error = "You can only modify your own reports." });
 
-            if (incident.Status != IncidentStatus.Pending)
-                return BadRequest(new { error = "Only pending reports can be updated." });
+            var isPending  = incident.Status == IncidentStatus.Pending;
+            var isVerified = incident.Status == IncidentStatus.Verified;
+
+            if (req.Action == "Dismiss" && !isPending)
+                return BadRequest(new { error = "Only pending reports can be cancelled." });
 
             if (req.Action == "Escalate")
             {
-                incident.Status = IncidentStatus.Escalated;
-                incident.EscalatedBy = userId;
-                incident.EscalatedAt = DateTime.UtcNow;
+                if (!isPending && !isVerified)
+                    return BadRequest(new { error = "You can only escalate pending or verified reports." });
+
+                if (isPending && DateTime.UtcNow - incident.CreatedAt < TimeSpan.FromMinutes(2))
+                    return BadRequest(new { error = "You can only escalate after 2 minutes with no operator response." });
+
+                if (isVerified && (!incident.VerifiedAt.HasValue || DateTime.UtcNow - incident.VerifiedAt.Value < TimeSpan.FromMinutes(2)))
+                    return BadRequest(new { error = "You can only escalate after 2 minutes with no further operator response." });
+
+                incident.Status       = IncidentStatus.Escalated;
+                incident.EscalatedBy  = userId;
+                incident.EscalatedAt  = DateTime.UtcNow;
                 incident.EscalatedComment = req.Comment;
             }
             else if (req.Action == "Dismiss")
             {
-                if (string.IsNullOrWhiteSpace(req.Comment)) 
+                if (string.IsNullOrWhiteSpace(req.Comment))
                     return BadRequest(new { error = "A comment is required to cancel/dismiss a report." });
-                
-                incident.Status = IncidentStatus.Dismissed;
-                incident.DismissedBy = userId;
-                incident.DismissedAt = DateTime.UtcNow;
+
+                incident.Status         = IncidentStatus.Dismissed;
+                incident.DismissedBy    = userId;
+                incident.DismissedAt    = DateTime.UtcNow;
                 incident.DismissedComment = req.Comment;
             }
             else

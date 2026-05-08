@@ -260,6 +260,7 @@ namespace backend.Controllers
             if (normalizedStatus == null || !Enum.TryParse<IncidentStatus>(normalizedStatus, true, out var parsedStatus))
                 return BadRequest("Invalid status");
 
+            var previousStatus = incident.Status;
             incident.Status = parsedStatus;
 
             var userId = GetCurrentUserId();
@@ -273,6 +274,16 @@ namespace backend.Controllers
                     break;
 
                 case IncidentStatus.Escalated:
+                    if (previousStatus != IncidentStatus.Verified)
+                    {
+                        incident.Status = previousStatus;
+                        return BadRequest(new { error = "You can only escalate a verified incident." });
+                    }
+                    if (!incident.VerifiedAt.HasValue || DateTime.UtcNow - incident.VerifiedAt.Value < TimeSpan.FromMinutes(2))
+                    {
+                        incident.Status = previousStatus;
+                        return BadRequest(new { error = "You can only escalate after 2 minutes with no response since verification." });
+                    }
                     incident.EscalatedBy      = userId;
                     incident.EscalatedAt      = DateTime.UtcNow;
                     incident.EscalatedComment = request.Comment;

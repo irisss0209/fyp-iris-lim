@@ -29,13 +29,6 @@ namespace backend.Models
         [MaxLength(256)]
         public string Auth { get; set; } = null!;
 
-        // For passenger proximity checks
-        [Column("latitude")]
-        public double? Latitude { get; set; }
-
-        [Column("longitude")]
-        public double? Longitude { get; set; }
-
         [Column("updated_at")]
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

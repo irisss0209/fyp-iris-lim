@@ -43,14 +43,16 @@ namespace backend.Services
             if (incident == null) return;
 
             var stationId = incident.Detection?.StationId ?? incident.UserReport?.StationId;
-            var lineId = incident.Detection?.LineId ?? incident.UserReport?.LineId;
             var alertId = (incident.Source == IncidentSource.AI_DETECTION ? "ALT-" : "RPT-")
                           + incident.IncidentId.ToString("D3");
 
             var tasks = new List<Task>();
 
-            if (stationId != null && lineId != null)
-                tasks.Add(NotifyPassengers(context, stationId, lineId));
+            if (incident.Source == IncidentSource.USER_REPORT && incident.UserReport != null)
+                tasks.Add(NotifyReporter(context, incident.UserReport.UserId,
+                    "Report Received",
+                    $"Your report ({alertId}) has been received and is under review.",
+                    alertId));
 
             if (stationId != null)
                 tasks.Add(NotifyAuxiliary(context, stationId, incident.Status, alertId));
@@ -79,6 +81,20 @@ namespace backend.Services
 
             var tasks = new List<Task>();
 
+            if (incident.Source == IncidentSource.USER_REPORT && incident.UserReport != null)
+            {
+                var (title, body) = incident.Status switch
+                {
+                    IncidentStatus.Verified   => ("Report Verified", $"Your report ({alertId}) has been verified by an operator."),
+                    IncidentStatus.En_Route   => ("Help Is On The Way", $"An officer is en route following your report ({alertId})."),
+                    IncidentStatus.Escalated  => ("Report Escalated", $"Your report ({alertId}) has been escalated. Additional help is being sent."),
+                    IncidentStatus.Resolved   => ("Report Resolved", $"Your report ({alertId}) has been resolved. Thank you for keeping WOC safe."),
+                    IncidentStatus.Dismissed  => ("Report Closed", $"Your report ({alertId}) has been reviewed and closed."),
+                    _                         => ("Report Updated", $"Your report ({alertId}) status has changed to {statusLabel}."),
+                };
+                tasks.Add(NotifyReporter(context, incident.UserReport.UserId, title, body, alertId));
+            }
+
             if (stationId != null)
                 tasks.Add(NotifyAuxiliary(context, stationId, incident.Status, alertId));
 
@@ -87,40 +103,16 @@ namespace backend.Services
             await Task.WhenAll(tasks);
         }
 
-        // ── Passenger: notify by proximity (0.5 km) ──────────────────────────────
+        // ── Passenger: notify the reporter of their own report's status ───────────
 
-        private async Task NotifyPassengers(AppDbContext context, string stationId, string lineId)
+        private async Task NotifyReporter(AppDbContext context, string userId, string title, string body, string alertId)
         {
-            var station = await context.Stations.FindAsync(stationId);
-            if (station == null || (station.Latitude == 0 && station.Longitude == 0)) return;
-
-            var mytToday = DateTime.UtcNow.AddHours(8).Date;
-            var todayUtc = DateTime.SpecifyKind(mytToday.AddHours(-8), DateTimeKind.Utc);
-
-            var activeCount = await context.Incidents
-                .Include(i => i.Detection)
-                .Include(i => i.UserReport)
-                .Where(i =>
-                    i.CreatedAt >= todayUtc &&
-                    i.Status != IncidentStatus.Resolved &&
-                    i.Status != IncidentStatus.Dismissed &&
-                    (i.Detection!.LineId == lineId || i.UserReport!.LineId == lineId))
-                .CountAsync();
-
-            var passengerSubs = await context.PushSubscriptions
-                .Include(s => s.User)
-                .Where(s => s.User.Role == UserRole.Passenger && s.Latitude != null && s.Longitude != null)
+            var subs = await context.PushSubscriptions
+                .Where(s => s.UserId == userId)
                 .ToListAsync();
 
-            var nearbySubs = passengerSubs.Where(s =>
-                Haversine(s.Latitude!.Value, s.Longitude!.Value, station.Latitude, station.Longitude) <= 0.5);
-
-            var body = activeCount == 1
-                ? $"1 active incident on {lineId} near you."
-                : $"{activeCount} active incidents on {lineId} near you.";
-
-            var sendTasks = nearbySubs.Select(sub =>
-                SendPush(context, sub, $"Safety Alert – {lineId}", body, "/home", $"passenger-line-{lineId}"));
+            var sendTasks = subs.Select(sub =>
+                SendPush(context, sub, title, body, "/passenger/reports", $"rpt-{alertId}"));
 
             await Task.WhenAll(sendTasks);
         }
@@ -233,17 +225,5 @@ namespace backend.Services
             }
         }
 
-        private static double Haversine(double lat1, double lon1, double lat2, double lon2)
-        {
-            const double R = 6371;
-            var dLat = ToRad(lat2 - lat1);
-            var dLon = ToRad(lon2 - lon1);
-            var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2)
-                  + Math.Cos(ToRad(lat1)) * Math.Cos(ToRad(lat2))
-                  * Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
-            return R * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-        }
-
-        private static double ToRad(double d) => d * Math.PI / 180;
     }
 }
