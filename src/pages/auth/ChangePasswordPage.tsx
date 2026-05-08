@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { EyeIcon, EyeOffIcon } from 'lucide-react';
-import { UserSession } from '../../App';
+import { UserSession } from '../../types/session';
 import { MfaVerification } from './MfaVerification';
 
 interface ChangePasswordPageProps {

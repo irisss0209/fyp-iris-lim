@@ -8,7 +8,7 @@ import {
   MapPinIcon,
 } from 'lucide-react';
 import { detectNearbyLines } from '../../utils/location';
-import { UserSession } from '../../App';
+import { UserSession } from '../../types/session';
 
 const API = `${import.meta.env.VITE_API_BASE}/api/data`;
 const SAFE   = '#2D7A5D';

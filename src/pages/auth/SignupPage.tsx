@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { MfaVerification } from './MfaVerification';
 
-import { UserSession } from '../../App';
+import { UserSession } from '../../types/session';
 
 type SignupStep = 'details' | 'mfa' | 'success';
 

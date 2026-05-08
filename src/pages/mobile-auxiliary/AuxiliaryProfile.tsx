@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LogOutIcon, ShieldIcon, MailIcon, BadgeCheckIcon, LockIcon, ChevronRightIcon } from 'lucide-react';
-import { UserSession } from '../../App';
+import { UserSession } from '../../types/session';
 
 const DARKBLUE = '#0B4F6C';
 

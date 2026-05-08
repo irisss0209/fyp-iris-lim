@@ -13,7 +13,7 @@ import { Profile } from './PassengerProfile';
 import { IncidentNearMe } from './IncidentNearMe';
 import { Insights } from './Insights';
 import { ChangePasswordPage } from '../auth/ChangePasswordPage';
-import { UserSession } from '../../App';
+import { UserSession } from '../../types/session';
 import { flushPendingReports } from '../../utils/offlineQueue';
 
 export interface PassengerInterface {

@@ -11,21 +11,12 @@ import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { OfflineBanner } from './components/OfflineBanner';
 import { requestAndSubscribe, unsubscribeFromPush } from './utils/pushNotifications';
 import { flushPendingReports } from './utils/offlineQueue';
+import type { UserRole } from './types/session';
+
+export type { UserRole };
+export type { UserSession } from './types/session';
 
 const API_BASE = import.meta.env.VITE_API_BASE as string;
-
-export type UserRole = 'operator' | 'passenger' | 'auxiliary';
-
-export interface UserSession {
-  userId: string;
-  userName: string;
-  email?: string;
-  role: UserRole;
-  token?: string;
-  employeeId?: string;
-  otp?: string;
-  description?: string;
-}
 
 type AuthView = 'login' | 'signup' | 'setup-password' | 'forgot-password';
 

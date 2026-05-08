@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { detectNearbyLines } from '../../utils/location';
-import { UserSession } from '../../App';
+import { UserSession } from '../../types/session';
 
 import {
   AlertTriangleIcon,

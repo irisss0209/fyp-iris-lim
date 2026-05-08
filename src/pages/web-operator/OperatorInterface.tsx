@@ -18,7 +18,7 @@ import { Reports } from './Reports';
 import { Settings } from './Settings';
 import { UserManagement } from './UserManagement';
 import { ShiftManagementPanel } from './ShiftManagement';
-import { UserSession } from '../../App';
+import { UserSession } from '../../types/session';
 import { ChangePasswordPage } from '../auth/ChangePasswordPage';
 
 export type NavPage =

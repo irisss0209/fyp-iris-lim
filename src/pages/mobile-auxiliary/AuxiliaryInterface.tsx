@@ -6,7 +6,7 @@ import { AlertsHistory } from './AlertsHistory';
 import { AuxiliaryProfile } from './AuxiliaryProfile';
 import { AuxiliaryShift } from './AuxiliaryShift';
 import { ChangePasswordPage } from '../auth/ChangePasswordPage';
-import { UserSession } from '../../App';
+import { UserSession } from '../../types/session';
 
 type Tab = 'alerts' | 'history' | 'profile';
 

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { MfaVerification } from './MfaVerification';
 import { MfaSetup } from './MfaSetup';
-import { UserSession } from '../../App';
+import { UserSession } from '../../types/session';
 
 type AuthStep = 'account' | 'password' | 'mfa' | 'mfa_setup' | 'success';
 

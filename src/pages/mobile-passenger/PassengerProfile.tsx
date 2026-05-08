@@ -8,7 +8,7 @@ const DARKBLUE = '#0B4F6C';
 
 type ProfileSection = null | 'email' | 'phone';
 
-import { UserSession } from '../../App';
+import { UserSession } from '../../types/session';
 
 export function Profile({ session, onLogout, onChangePassword }: { session: UserSession, onLogout: () => void, onChangePassword: () => void }) {
   const [openSection, setOpenSection] = useState<ProfileSection>(null);
