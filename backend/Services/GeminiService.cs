@@ -67,6 +67,7 @@ public class GeminiService : IGeminiService
             {
                 new
                 {
+                    role = "user",
                     parts = new[]
                     {
                         new { text = prompt }
