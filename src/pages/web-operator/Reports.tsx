@@ -39,6 +39,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
   const [aiSummary, setAiSummary]         = useState<string | null>(null);
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
   const [aiSummaryError, setAiSummaryError] = useState(false);
+  const [isPdfGenerating, setIsPdfGenerating] = useState(false);
 
   // Incidents-tab filters
   const [statusFilter, setStatusFilter] = useState('');
@@ -257,51 +258,74 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
     const element = document.getElementById('report-export');
     if (!element) return;
 
-    // Save state
-    const prevScroll  = window.scrollY;
-    const header      = element.querySelector('.pdf-header') as HTMLElement | null;
+    const prevScroll = window.scrollY;
+    const header = element.querySelector('.pdf-header') as HTMLElement | null;
+    // Track ancestors we need to restore after capture
+    const overflowFixes: { el: HTMLElement; prev: string }[] = [];
+
+    setIsPdfGenerating(true);
 
     try {
-      document.body.style.cursor = 'wait';
-
-      // Show the PDF-only header and scroll to top of the element
       if (header) header.style.display = 'block';
-      element.scrollIntoView({ behavior: 'instant' as ScrollBehavior });
+      window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+
+      // html2canvas clips content at overflow:auto/hidden boundaries.
+      // Temporarily unlock every scrollable ancestor so the full element is captured.
+      let ancestor: HTMLElement | null = element.parentElement;
+      while (ancestor && ancestor !== document.body) {
+        const computed = getComputedStyle(ancestor);
+        if (computed.overflow !== 'visible' || computed.overflowY !== 'visible') {
+          overflowFixes.push({ el: ancestor, prev: ancestor.style.overflow });
+          ancestor.style.overflow = 'visible';
+        }
+        ancestor = ancestor.parentElement;
+      }
+
+      // Give browser time to re-paint after overflow unlock
+      await new Promise(r => setTimeout(r, 200));
       await new Promise(r => requestAnimationFrame(r));
 
-      const canvas   = await html2canvas(element, {
+      const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
+        allowTaint: true,
         backgroundColor: '#ffffff',
         scrollX: 0,
         scrollY: -window.scrollY,
+        width: element.scrollWidth,
+        height: element.scrollHeight,
         windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
       });
 
-      const imgData  = canvas.toDataURL('image/png');
-      const pdf      = new jsPDF('p', 'mm', 'a4');
-      const pdfW     = pdf.internal.pageSize.getWidth();
-      const pdfH     = pdf.internal.pageSize.getHeight();
-      const imgH     = (canvas.height * pdfW) / canvas.width;
-      let heightLeft = imgH;
-      let position   = 0;
+      const imgData   = canvas.toDataURL('image/png');
+      const pdf       = new jsPDF('p', 'mm', 'a4');
+      const pdfW      = pdf.internal.pageSize.getWidth();
+      const pdfH      = pdf.internal.pageSize.getHeight();
+      const margin    = 10;
+      const contentW  = pdfW - margin * 2;
+      const contentH  = pdfH - margin * 2;
+      const imgH      = (canvas.height * contentW) / canvas.width;
+      let heightLeft  = imgH;
+      let imgY        = margin;
 
-      pdf.addImage(imgData, 'PNG', 0, position, pdfW, imgH);
-      heightLeft -= pdfH;
+      pdf.addImage(imgData, 'PNG', margin, imgY, contentW, imgH);
+      heightLeft -= contentH;
       while (heightLeft > 0) {
-        position = -(imgH - heightLeft);
+        imgY -= contentH;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, pdfW, imgH);
-        heightLeft -= pdfH;
+        pdf.addImage(imgData, 'PNG', margin, imgY, contentW, imgH);
+        heightLeft -= contentH;
       }
       pdf.save(`railly-report-${selectedMonth?.label ?? 'report'}.pdf`);
+
     } catch (err) {
       console.error('PDF export failed:', err);
     } finally {
-      // Restore
+      overflowFixes.forEach(({ el, prev }) => { el.style.overflow = prev; });
       if (header) header.style.display = 'none';
       window.scrollTo({ top: prevScroll, behavior: 'instant' as ScrollBehavior });
-      document.body.style.cursor = 'default';
+      setIsPdfGenerating(false);
     }
   };
 
@@ -502,6 +526,14 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
             totalCount={filtered.length}
             onPageChange={setPage}
           />
+        </div>
+      )}
+
+      {isPdfGenerating && (
+        <div className="fixed inset-0 z-[9999] bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+          <RefreshCwIcon className="w-6 h-6 text-[#0B4F6C] animate-spin" />
+          <p className="text-sm font-semibold text-gray-700">Generating PDF…</p>
+          <p className="text-xs text-gray-400">This may take a few seconds</p>
         </div>
       )}
     </div>

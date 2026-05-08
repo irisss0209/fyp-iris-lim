@@ -49,21 +49,7 @@ export function App() {
   // Subscribe to push notifications after login
   useEffect(() => {
     if (!session?.userId) return;
-
-    if (session.role === 'passenger') {
-      // Passengers include their location so the backend can do proximity checks
-      if ('geolocation' in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          pos => requestAndSubscribe(pos.coords.latitude, pos.coords.longitude),
-          ()  => requestAndSubscribe()
-        );
-      } else {
-        requestAndSubscribe();
-      }
-    } else {
-      // Auxiliary and operator don't need location
-      requestAndSubscribe();
-    }
+    requestAndSubscribe();
   }, [session?.userId]);
 
   // Auto-flush queued offline reports when connection is restored

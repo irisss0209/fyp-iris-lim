@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import {
   ClockIcon,
@@ -39,6 +39,8 @@ export function Report({ session }: { session: any }) {
   const [selectedReport, setSelectedReport] = useState<any | null>(null);
   const [reportComment, setReportComment] = useState('');
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [escalateSecondsLeft, setEscalateSecondsLeft] = useState(0);
+  const escalateTimerRef = useRef<ReturnType<typeof setInterval>>();
 
   const fetchHistory = () => {
     fetch(`${import.meta.env.VITE_API_BASE}/api/data/my-history?userId=${session.userId}`, {
@@ -55,6 +57,35 @@ export function Report({ session }: { session: any }) {
   useEffect(() => {
     if (view === 'dashboard') fetchHistory();
   }, [view]);
+
+  useEffect(() => {
+    clearInterval(escalateTimerRef.current);
+    if (!selectedReport) return;
+
+    const isPending  = selectedReport.status === 'pending';
+    const isVerified = selectedReport.status === 'verified';
+    if (!isPending && !isVerified) return;
+
+    const getBaseMs = () => {
+      if (isPending && selectedReport.createdAt)
+        return new Date(selectedReport.createdAt).getTime();
+      if (isVerified && selectedReport.verifiedAt)
+        return new Date(selectedReport.verifiedAt.replace(' ', 'T') + '+08:00').getTime();
+      return null;
+    };
+
+    const tick = () => {
+      const base = getBaseMs();
+      if (!base) { setEscalateSecondsLeft(0); return; }
+      const left = Math.max(0, Math.ceil((2 * 60 * 1000 - (Date.now() - base)) / 1000));
+      setEscalateSecondsLeft(left);
+      if (left === 0) clearInterval(escalateTimerRef.current);
+    };
+
+    tick();
+    escalateTimerRef.current = setInterval(tick, 1000);
+    return () => clearInterval(escalateTimerRef.current);
+  }, [selectedReport?.id, selectedReport?.status]);
 
   const handleUpdateStatus = async (action: 'Cancel' | 'Escalate') => {
     if (!selectedReport) return;
@@ -169,11 +200,11 @@ export function Report({ session }: { session: any }) {
       <div className="pt-2">
         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider px-1 mb-2">My Reports</p>
         <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-          <div className="flex gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-4">
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
-              className="flex-1 text-sm p-2 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/20"
+              className="flex-1 min-w-0 text-sm p-2 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/20"
             >
               <option value="all">All Statuses</option>
               <option value="pending">Pending</option>
@@ -183,22 +214,34 @@ export function Report({ session }: { session: any }) {
               <option value="escalated">Escalated</option>
               <option value="dismissed">Dismissed</option>
             </select>
-            <div className="relative flex-1">
-              <input
-                type="date"
-                value={dateFilter}
-                onChange={e => setDateFilter(e.target.value)}
-                className="w-full text-sm p-2 pr-7 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/20"
-              />
-              {dateFilter && (
+            {dateFilter ? (
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <input
+                  type="date"
+                  value={dateFilter}
+                  onChange={e => setDateFilter(e.target.value)}
+                  className="text-sm p-2 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/20 w-36"
+                />
                 <button
                   onClick={() => setDateFilter('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  className="p-1.5 rounded-lg bg-gray-100 text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors flex-shrink-0"
                 >
                   <XIcon size={14} />
                 </button>
-              )}
-            </div>
+              </div>
+            ) : (
+              <label className="relative flex-shrink-0 cursor-pointer">
+                <span className="block text-sm p-2 border border-gray-200 rounded-xl bg-gray-50 text-gray-400 w-36 select-none">
+                  All time
+                </span>
+                <input
+                  type="date"
+                  value=""
+                  onChange={e => setDateFilter(e.target.value)}
+                  className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                />
+              </label>
+            )}
           </div>
 
           {filteredHistory.length === 0 ? (
@@ -310,31 +353,39 @@ export function Report({ session }: { session: any }) {
                   </div>
                 )}
 
-                {/* Actions — only when pending */}
-                {selectedReport.status === 'pending' && (
+                {/* Actions — pending (cancel + escalate) or verified (escalate only) */}
+                {(selectedReport.status === 'pending' || selectedReport.status === 'verified') && (
                   <div className="pt-2 border-t border-gray-100 space-y-3">
                     <textarea
                       value={reportComment}
                       onChange={e => setReportComment(e.target.value)}
-                      placeholder="Add a comment… (optional for escalate, required for cancel)"
+                      placeholder={
+                        selectedReport.status === 'pending'
+                          ? 'Add a comment… (optional for escalate, required for cancel)'
+                          : 'Add a comment explaining why you\'re escalating… (optional)'
+                      }
                       className="w-full text-sm p-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/20"
                       rows={2}
                     />
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => handleUpdateStatus('Cancel')}
-                        disabled={isUpdatingStatus || !reportComment.trim()}
-                        className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold disabled:opacity-50"
-                      >
-                        Cancel Report
-                      </button>
+                      {selectedReport.status === 'pending' && (
+                        <button
+                          onClick={() => handleUpdateStatus('Cancel')}
+                          disabled={isUpdatingStatus || !reportComment.trim()}
+                          className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold disabled:opacity-50"
+                        >
+                          Cancel Report
+                        </button>
+                      )}
                       <button
                         onClick={() => handleUpdateStatus('Escalate')}
-                        disabled={isUpdatingStatus}
-                        className="flex-1 py-3 text-white rounded-xl text-sm font-bold disabled:opacity-50 tracking-wide"
+                        disabled={isUpdatingStatus || escalateSecondsLeft > 0}
+                        className="flex-1 py-3 text-white rounded-xl text-sm font-bold disabled:opacity-60 tracking-wide"
                         style={{ backgroundColor: '#D34026' }}
                       >
-                        Escalate
+                        {escalateSecondsLeft > 0
+                          ? `Escalate in ${Math.floor(escalateSecondsLeft / 60)}:${String(escalateSecondsLeft % 60).padStart(2, '0')}`
+                          : 'Escalate'}
                       </button>
                     </div>
                   </div>

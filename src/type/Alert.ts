@@ -27,6 +27,7 @@ export interface Alert {
   
   time: string;
   date: string;
+  datetime?: string;
   elapsed: string | number;
 
   status: AlertStatus;

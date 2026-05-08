@@ -123,12 +123,12 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
     return () => clearInterval(interval);
   }, [fetchAlerts]);
 
-  // ── Tick every 10s so the 2-min re-escalate button can appear ──
+  // ── Tick every second for verified countdown and re-escalate timer ──
   useEffect(() => {
-    if (Object.keys(escalatedAt).length === 0) return;
-    const timer = setInterval(() => setTick(t => t + 1), 10_000);
+    if (!selectedAlert || (selectedAlert.status !== 'verified' && selectedAlert.status !== 'escalated')) return;
+    const timer = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(timer);
-  }, [escalatedAt]);
+  }, [selectedAlert?.id, selectedAlert?.status]);
 
   // ── Derived filter options ────────────────────────────────────────────────────
   const availableStations = useMemo(() => {
@@ -494,6 +494,22 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
                           </button>
                         </div>
                       )}
+                      {alert.status === 'verified' && (() => {
+                        const vAtMs = alert.verifiedAt ? new Date(alert.verifiedAt.replace(' ', 'T') + '+08:00').getTime() : null;
+                        const canEscalate = vAtMs ? Date.now() - vAtMs >= 2 * 60 * 1000 : false;
+                        if (!canEscalate) return null;
+                        return (
+                          <div className="mt-3">
+                            <button
+                              onClick={e => openModal('escalate', alert.id, e)}
+                              className="w-full text-xs font-semibold py-1.5 rounded-lg text-white hover:opacity-90 transition-opacity"
+                              style={{ backgroundColor: '#7B5EA7' }}
+                            >
+                              Escalate — No Response
+                            </button>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -655,15 +671,30 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
                     </div>
                   )}
 
-                  {selectedAlert.status === 'verified' && (
-                    <button
-                      onClick={() => openModal('escalate', selectedAlert.id)}
-                      className="w-full py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 flex items-center justify-center gap-2 transition-opacity"
-                      style={{ backgroundColor: '#7B5EA7' }}
-                    >
-                      Escalate Alert
-                    </button>
-                  )}
+                  {selectedAlert.status === 'verified' && (() => {
+                    const vAtMs = selectedAlert.verifiedAt
+                      ? new Date(selectedAlert.verifiedAt.replace(' ', 'T') + '+08:00').getTime()
+                      : null;
+                    const secondsLeft = vAtMs
+                      ? Math.max(0, Math.ceil((2 * 60 * 1000 - (Date.now() - vAtMs)) / 1000))
+                      : 0;
+                    return secondsLeft > 0 ? (
+                      <div className="text-center">
+                        <p className="text-xs text-gray-400">Escalate available if no response in</p>
+                        <p className="text-sm font-bold mt-0.5" style={{ color: '#7B5EA7' }}>
+                          {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, '0')}
+                        </p>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => openModal('escalate', selectedAlert.id)}
+                        className="w-full py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 flex items-center justify-center gap-2 transition-opacity"
+                        style={{ backgroundColor: '#7B5EA7' }}
+                      >
+                        Escalate Alert
+                      </button>
+                    );
+                  })()}
 
                   {selectedAlert.status === 'escalated' && (() => {
                     const ts = escalatedAt[selectedAlert.id];

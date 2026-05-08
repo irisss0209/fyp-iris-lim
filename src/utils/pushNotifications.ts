@@ -8,7 +8,7 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
 }
 
-export async function requestAndSubscribe(lat?: number, lng?: number): Promise<void> {
+export async function requestAndSubscribe(): Promise<void> {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
   if (Notification.permission === 'denied') return
 
@@ -37,8 +37,6 @@ export async function requestAndSubscribe(lat?: number, lng?: number): Promise<v
         p256dh: subJson.keys?.p256dh ?? '',
         auth: subJson.keys?.auth ?? '',
       },
-      latitude: lat ?? null,
-      longitude: lng ?? null,
     }),
     credentials: 'include'
   }).catch(err => console.warn('[PUSH] Subscribe sync failed:', err))
