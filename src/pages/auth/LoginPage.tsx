@@ -146,6 +146,13 @@ export function LoginPage({
         return;
       }
 
+      // Passenger: backend returns session directly (no second factor)
+      if (data.userId) {
+        setResolvedUser(data);
+        setStep('success');
+        return;
+      }
+
       setPendingMfa({
         email: normalizedEmail,
         mfaMethod: data.mfaMethod === 'google_authenticator' ? 'google_authenticator' : 'email_otp',

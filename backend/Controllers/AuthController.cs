@@ -173,6 +173,21 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
 
             var frontendRole = MapFrontendRole(user.Role);
 
+            // Passenger: single-factor — password alone is enough, no OTP step.
+            if (user.Role == UserRole.Passenger)
+            {
+                var token = GenerateJwtToken(user, frontendRole);
+                SetAuthCookie(token);
+                return Ok(new UserSessionDto
+                {
+                    UserId      = user.UserId,
+                    UserName    = user.UserName,
+                    Email       = user.Email,
+                    Role        = frontendRole,
+                    Description = "Passenger"
+                });
+            }
+
             // Operator: verify with Authenticator TOTP.
             if (user.Role == UserRole.Operator)
             {
@@ -186,6 +201,7 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
                 });
             }
 
+            // Auxiliary: email OTP second factor.
             return await StartEmailOtpForUser(user, frontendRole);
         }
 
