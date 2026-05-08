@@ -7,6 +7,7 @@ public class TravelAdviceRequest
     public string BestWindow { get; set; } = "";
     public string Line { get; set; } = "";
     public int TodayCount { get; set; }
+    public int CurrentHour { get; set; }
 }
 
 public class ReportSummaryRequest

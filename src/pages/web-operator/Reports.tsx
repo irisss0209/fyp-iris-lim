@@ -29,7 +29,7 @@ interface ReportData {
   incidents: IncidentRow[];
 }
 
-export function Reports() {
+export function Reports({ session }: { session?: { token?: string } | null }) {
   const [activeTab, setActiveTab]         = useState<ReportTab>('overview');
   const [data, setData]                   = useState<ReportData | null>(null);
   const [months, setMonths]               = useState<MonthOption[]>([]);
@@ -49,10 +49,7 @@ export function Reports() {
   const [page, setPage]                 = useState(1);
   const PAGE_SIZE = 10;
 
-  const getToken = () => {
-    try { return JSON.parse(localStorage.getItem('user_session') ?? '{}')?.token as string | undefined; }
-    catch { return undefined; }
-  };
+  const getToken = () => session?.token;
 
   // ── Data fetching ────────────────────────────────────────────────────────────
   useEffect(() => {

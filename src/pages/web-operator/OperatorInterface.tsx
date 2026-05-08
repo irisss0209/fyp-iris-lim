@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   LayoutDashboardIcon,
   BellIcon,
@@ -158,6 +158,52 @@ function Sidebar({ activePage, onNavigate, onLogout, alertCount = 0, user, colla
   );
 }
 
+const INACTIVE_MS = 60 * 60 * 1000;  // 1 hour
+const WARN_MS     = 55 * 60 * 1000;  // warn at 55 min
+
+function useInactivityLogout(onLogout?: () => void) {
+  const [showWarning, setShowWarning] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(300);
+  const logoutTimer   = useRef<ReturnType<typeof setTimeout>>();
+  const warnTimer     = useRef<ReturnType<typeof setTimeout>>();
+  const countdownRef  = useRef<ReturnType<typeof setInterval>>();
+
+  const reset = useCallback(() => {
+    setShowWarning(false);
+    setSecondsLeft(300);
+    clearTimeout(logoutTimer.current);
+    clearTimeout(warnTimer.current);
+    clearInterval(countdownRef.current);
+
+    warnTimer.current = setTimeout(() => {
+      setShowWarning(true);
+      setSecondsLeft(300);
+      countdownRef.current = setInterval(() => {
+        setSecondsLeft(s => {
+          if (s <= 1) { clearInterval(countdownRef.current); return 0; }
+          return s - 1;
+        });
+      }, 1000);
+    }, WARN_MS);
+
+    logoutTimer.current = setTimeout(() => onLogout?.(), INACTIVE_MS);
+  }, [onLogout]);
+
+  useEffect(() => {
+    const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click', 'wheel'] as const;
+    events.forEach(e => window.addEventListener(e, reset, { passive: true }));
+    reset();
+    return () => {
+      events.forEach(e => window.removeEventListener(e, reset));
+      clearTimeout(logoutTimer.current);
+      clearTimeout(warnTimer.current);
+      clearInterval(countdownRef.current);
+    };
+  }, [reset]);
+
+  return { showWarning, secondsLeft, extendSession: reset };
+}
+
 export function OperatorInterface({
   onLogout,
   session
@@ -168,6 +214,7 @@ export function OperatorInterface({
   const [activePage, setActivePage] = useState<NavPage>('dashboard');
   const [initialAlertId, setInitialAlertId] = useState<string | number | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const { showWarning, secondsLeft, extendSession } = useInactivityLogout(onLogout);
 
   const handleNavigate = (page: NavPage, id?: string | number) => {
     setActivePage(page);
@@ -176,16 +223,17 @@ export function OperatorInterface({
 
   const renderPage = () => {
     switch (activePage) {
-      case 'dashboard': return <Dashboard onNavigate={handleNavigate} />;
+      case 'dashboard': return <Dashboard onNavigate={handleNavigate} session={session} />;
       case 'live-alerts': return (
         <LiveAlerts
           initialAlertId={initialAlertId}
           onClearInitial={() => setInitialAlertId(null)}
+          session={session}
         />
       );
-      case 'reports': return <Reports />;
-      case 'users': return <UserManagement />;
-      case 'shifts': return <ShiftManagementPanel />;
+      case 'reports': return <Reports session={session} />;
+      case 'users': return <UserManagement session={session} />;
+      case 'shifts': return <ShiftManagementPanel session={session} />;
       case 'settings': return <Settings onNavigate={handleNavigate} />;
       case 'change-password':
         return <ChangePasswordPage session={session!} onBack={() => setActivePage('settings')} />;
@@ -225,6 +273,32 @@ export function OperatorInterface({
       <main className="flex-1 overflow-y-auto min-w-0" role="main">
         {renderPage()}
       </main>
+
+      {showWarning && (
+        <div className="fixed bottom-6 right-6 z-[200] w-80 bg-white border border-amber-200 rounded-2xl shadow-xl p-5">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center flex-shrink-0">
+              <LogOutIcon size={16} className="text-amber-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-800">Session expiring soon</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                You'll be logged out in{' '}
+                <span className="font-semibold text-amber-600">
+                  {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, '0')}
+                </span>{' '}
+                due to inactivity.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={extendSession}
+            className="mt-4 w-full py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold transition-colors"
+          >
+            Stay logged in
+          </button>
+        </div>
+      )}
     </div>
   );
 }

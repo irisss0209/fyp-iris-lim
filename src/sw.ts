@@ -1,6 +1,7 @@
 /// <reference lib="WebWorker" />
 /// <reference types="vite-plugin-pwa/client" />
 
+import { skipWaiting, clientsClaim } from 'workbox-core'
 import { precacheAndRoute, matchPrecache } from 'workbox-precaching'
 import { registerRoute, setCatchHandler } from 'workbox-routing'
 import { NetworkFirst, CacheFirst } from 'workbox-strategies'
@@ -8,6 +9,9 @@ import { ExpirationPlugin } from 'workbox-expiration'
 import { CacheableResponsePlugin } from 'workbox-cacheable-response'
 
 declare const self: ServiceWorkerGlobalScope
+
+skipWaiting()
+clientsClaim()
 
 precacheAndRoute(self.__WB_MANIFEST)
 
@@ -140,17 +144,33 @@ self.addEventListener('sync', (event: Event) => {
 // ── Push notifications ─────────────────────────────────────────────────────
 
 self.addEventListener('push', (event: PushEvent) => {
-  const data = event.data?.json() ?? {}
-  const title: string = data.title ?? 'Railly Alert'
+  let data: { title?: unknown; body?: unknown; url?: unknown; tag?: unknown } = {}
+  try { data = event.data?.json() ?? {} } catch { /* malformed payload — use defaults */ }
+  const title = typeof data.title === 'string' ? data.title : 'Railly Alert'
   const options: NotificationOptions = {
-    body: data.body ?? '',
+    body: typeof data.body === 'string' ? data.body : '',
     icon: 'https://railly.s3.ap-southeast-1.amazonaws.com/assets/Railly_logo.png',
     badge: 'https://railly.s3.ap-southeast-1.amazonaws.com/assets/Railly_logo.png',
-    data: { url: data.url ?? '/' },
-    tag: data.tag ?? 'railly-alert',
+    data: { url: typeof data.url === 'string' ? data.url : '/' },
+    tag: typeof data.tag === 'string' ? data.tag : 'railly-alert',
     renotify: true,
   }
   event.waitUntil(self.registration.showNotification(title, options))
+})
+
+self.addEventListener('message', (event: ExtendableMessageEvent) => {
+  if (event.data?.type !== 'CLEAR_SENSITIVE_CACHES') return
+  event.waitUntil(
+    Promise.all([
+      caches.delete('api-reads-cache'),
+      openIDB().then(db => new Promise<void>((resolve) => {
+        const tx = db.transaction(IDB_STORE, 'readwrite')
+        tx.objectStore(IDB_STORE).clear()
+        tx.oncomplete = () => { db.close(); resolve() }
+        tx.onerror = () => { db.close(); resolve() }
+      })).catch(() => {})
+    ])
+  )
 })
 
 self.addEventListener('notificationclick', (event: NotificationEvent) => {

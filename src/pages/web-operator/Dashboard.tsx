@@ -14,6 +14,7 @@ const API = `${import.meta.env.VITE_API_BASE}/api/data`;
 
 interface DashboardProps {
   onNavigate?: (page: NavPage, id?: string | number) => void;
+  session?: { token?: string } | null;
 }
 
 type DateRange = 'today' | 'yesterday' | '7days' | '30days' | 'custom';
@@ -98,7 +99,7 @@ const STATUS_THEME: Record<string, { color: string, bg: string }> = {
 
 const PAGE_SIZE = 10;
 
-export function Dashboard({ onNavigate }: DashboardProps) {
+export function Dashboard({ onNavigate, session }: DashboardProps) {
   const { format } = useTime();
   const [selectedRange, setSelectedRange] = useState<DateRange>('today');
   const [customFrom, setCustomFrom] = useState('');
@@ -151,7 +152,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         query = `?from=${fromDate.toISOString()}&to=${toDate.toISOString()}`;
       }
 
-      const token: string | undefined = (() => { try { return JSON.parse(localStorage.getItem('user_session') ?? '{}')?.token; } catch { return undefined; } })();
+      const token: string | undefined = session?.token;
       const res = await fetch(`${API}/operator/dashboard${query}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         credentials: 'include'

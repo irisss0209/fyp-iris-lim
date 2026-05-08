@@ -183,12 +183,22 @@ export function Report({ session }: { session: any }) {
               <option value="escalated">Escalated</option>
               <option value="dismissed">Dismissed</option>
             </select>
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={e => setDateFilter(e.target.value)}
-              className="flex-1 text-sm p-2 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/20"
-            />
+            <div className="relative flex-1">
+              <input
+                type="date"
+                value={dateFilter}
+                onChange={e => setDateFilter(e.target.value)}
+                className="w-full text-sm p-2 pr-7 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/20"
+              />
+              {dateFilter && (
+                <button
+                  onClick={() => setDateFilter('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <XIcon size={14} />
+                </button>
+              )}
+            </div>
           </div>
 
           {filteredHistory.length === 0 ? (

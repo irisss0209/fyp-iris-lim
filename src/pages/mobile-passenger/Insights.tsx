@@ -195,6 +195,7 @@ export function Insights({ session }: { session?: UserSession }) {
         bestWindow:    bestWindow ?? '',
         line:          selectedLine,
         todayCount:    todayAlerts.length,
+        currentHour:   new Date().getHours(),
       }),
     })
       .then(r => r.json())

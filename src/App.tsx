@@ -80,6 +80,7 @@ export function App() {
       credentials: 'include'
     }).catch(() => {});
     unsubscribeFromPush().catch(() => {});
+    navigator.serviceWorker?.controller?.postMessage({ type: 'CLEAR_SENSITIVE_CACHES' });
     setSession(null);
     setAuthView('login');
   };

@@ -38,7 +38,7 @@ function getShiftStatus(shift: ShiftRow): 'upcoming' | 'in_progress' | 'complete
 }
 
 
-export function ShiftManagementPanel() {
+export function ShiftManagementPanel({ session }: { session?: { token?: string } | null }) {
   const { format } = useTime();
   const [shifts, setShifts] = useState<ShiftRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,9 +60,8 @@ export function ShiftManagementPanel() {
 
   const fetchShifts = () => {
     setLoading(true);
-    const session = JSON.parse(localStorage.getItem('user_session') || '{}');
     fetch(`${API}/operator/shifts`, {
-      headers: { Authorization: `Bearer ${session.token}` },
+      headers: { Authorization: `Bearer ${session?.token}` },
       credentials: 'include'
     })
       .then(r => r.json())
@@ -195,10 +194,9 @@ export function ShiftManagementPanel() {
     form.append('file', file);
 
     try {
-      const session = JSON.parse(localStorage.getItem('user_session') || '{}');
       const res = await fetch(`${API}/operator/shifts/import`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${session.token}` },
+        headers: { Authorization: `Bearer ${session?.token}` },
         body: form,
         credentials: 'include'
       });

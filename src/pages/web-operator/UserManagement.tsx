@@ -52,7 +52,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-export function UserManagement() {
+export function UserManagement({ session }: { session: { userId?: string; token?: string } | null }) {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
@@ -63,8 +63,7 @@ export function UserManagement() {
   const [roleFilter, setRoleFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
 
-  const session = JSON.parse(localStorage.getItem('user_session') || '{}');
-  const loggedInUserId = session.userId;
+  const loggedInUserId = session?.userId;
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
@@ -73,9 +72,8 @@ export function UserManagement() {
 
   const fetchUsers = () => {
     setLoading(true);
-    const session = JSON.parse(localStorage.getItem("user_session") || "{}");
     fetch(`${API}/operator/users`, {
-      headers: { 'Authorization': `Bearer ${session.token}` },
+      headers: { 'Authorization': `Bearer ${session?.token}` },
       credentials: 'include'
     })
       .then(r => r.json())
@@ -97,12 +95,11 @@ export function UserManagement() {
 
     setUpdatingId(userId);
     try {
-      const session = JSON.parse(localStorage.getItem("user_session") || "{}");
       const res = await fetch(`${API}/operator/users/${userId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.token}`
+          'Authorization': `Bearer ${session?.token}`
         },
         body: JSON.stringify({ status: mapToBackendStatus(newStatus) }),
         credentials: 'include'
@@ -164,12 +161,10 @@ export function UserManagement() {
     form.append('file', file);
 
     try {
-      const session = JSON.parse(localStorage.getItem("user_session") || "{}");
-
       const res = await fetch(`${API}/operator/users/import`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${session.token}`
+          Authorization: `Bearer ${session?.token}`
         },
         body: form,
         credentials: 'include'
@@ -397,6 +392,7 @@ export function UserManagement() {
               {filtered.map(u => {
                 const transitions = allowedTransitions(u.status);
                 const isUpdating = updatingId === u.userId;
+                const isSelf = u.userId === loggedInUserId;
                 return (
                   <tr key={u.userId} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3">
@@ -425,25 +421,31 @@ export function UserManagement() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
                         {isUpdating && <Loader2Icon size={12} className="animate-spin text-gray-400" />}
-                        {transitions.map(t => (
-                          <button
-                            key={t}
-                            disabled={isUpdating}
-                            onClick={() => handleStatusChange(u.userId, t)}
-                            className="text-[11px] px-2.5 py-1 rounded-lg font-semibold border transition-all disabled:opacity-50 hover:shadow-sm active:scale-95"
-                            style={
-                              t === 'Suspend'
-                                ? { borderColor: '#F59E0B', color: '#92400E', backgroundColor: '#FFFBEB' }
-                                : t === 'Archive'
-                                  ? { borderColor: '#D1D5DB', color: '#6B7280', backgroundColor: '#F9FAFB' }
-                                  : { borderColor: '#22C55E', color: '#15803D', backgroundColor: '#F0FDF4' }
-                            }
-                          >
-                            {t}
-                          </button>
-                        ))}
-                        {transitions.length === 0 && (
-                          <span className="text-[11px] text-gray-400 italic">No actions available</span>
+                        {isSelf ? (
+                          <span className="text-[11px] text-gray-400 italic">Cannot modify own account</span>
+                        ) : (
+                          <>
+                            {transitions.map(t => (
+                              <button
+                                key={t}
+                                disabled={isUpdating}
+                                onClick={() => handleStatusChange(u.userId, t)}
+                                className="text-[11px] px-2.5 py-1 rounded-lg font-semibold border transition-all disabled:opacity-50 hover:shadow-sm active:scale-95"
+                                style={
+                                  t === 'Suspend'
+                                    ? { borderColor: '#F59E0B', color: '#92400E', backgroundColor: '#FFFBEB' }
+                                    : t === 'Archive'
+                                      ? { borderColor: '#D1D5DB', color: '#6B7280', backgroundColor: '#F9FAFB' }
+                                      : { borderColor: '#22C55E', color: '#15803D', backgroundColor: '#F0FDF4' }
+                                }
+                              >
+                                {t}
+                              </button>
+                            ))}
+                            {transitions.length === 0 && (
+                              <span className="text-[11px] text-gray-400 italic">No actions available</span>
+                            )}
+                          </>
                         )}
                       </div>
                     </td>

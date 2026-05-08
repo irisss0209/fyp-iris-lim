@@ -421,18 +421,30 @@ namespace backend.Controllers
                 ? "no historical pattern available yet"
                 : req.BestWindow;
 
+            var timeOfDay = req.CurrentHour switch
+            {
+                >= 6 and < 9   => "morning rush hour",
+                >= 9 and < 12  => "mid-morning",
+                >= 12 and < 14 => "lunchtime",
+                >= 14 and < 17 => "afternoon",
+                >= 17 and < 20 => "evening rush hour",
+                >= 20 and < 23 => "late evening",
+                _              => "off-peak hours",
+            };
+
             var prompt = $"""
-                You are a transit safety assistant for Railly, a Malaysian commuter rail safety platform.
-                Generate a SHORT, practical 1-2 sentence travel tip for passengers based on current safety data.
-                Be specific, conversational, and helpful. No bullet points, no preamble.
+                You are a safety assistant for Railly, a Malaysian commuter rail platform that monitors Women-Only Coaches (WOC).
+                Write a SHORT, direct 1-2 sentence safety tip for a female passenger who is about to board right now.
+                Reference the actual data — be specific about the train, time window, or line. Mention the WOC when relevant.
+                No bullet points, no preamble, no sign-off.
 
-                Current safety snapshot for {lineLabel}:
-                - Active unresolved incidents right now: {req.ActiveCount}
-                - Train to avoid (most active incidents): {trainLabel}
-                - Best travel window today (historically quietest this past week): {windowLabel}
-                - Total incidents reported today: {req.TodayCount}
+                Right now ({timeOfDay}), {lineLabel}:
+                - Active WOC incidents: {req.ActiveCount}
+                - Train with most complaints today: {trainLabel}
+                - Historically safest boarding window (past 7 days): {windowLabel}
+                - Total incidents today: {req.TodayCount}
 
-                Respond with ONLY the travel advice. No headers.
+                Respond with ONLY the tip.
                 """;
 
             var advice = await _gemini.GenerateAsync(prompt, ct);

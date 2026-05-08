@@ -56,7 +56,7 @@ interface StatsState {
   dismissed: number;
 }
 
-export function LiveAlerts({ initialAlertId, onClearInitial }: { initialAlertId?: string | number | null; onClearInitial?: () => void }) {
+export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initialAlertId?: string | number | null; onClearInitial?: () => void; session?: { token?: string; userName?: string } | null }) {
   // ── Data from DB ──────────────────────────────────────────────────────────────
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [lines, setLines] = useState<LineOption[]>([]);
@@ -81,7 +81,7 @@ export function LiveAlerts({ initialAlertId, onClearInitial }: { initialAlertId?
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
     try {
-      const token: string | undefined = (() => { try { return JSON.parse(localStorage.getItem('user_session') ?? '{}')?.token; } catch { return undefined; } })();
+      const token: string | undefined = session?.token;
       const data = await fetchOperatorAlerts(token);
       setAlerts(data.alerts ?? []);
       setLines(data.lines ?? []);
@@ -174,7 +174,6 @@ export function LiveAlerts({ initialAlertId, onClearInitial }: { initialAlertId?
 
     const id = pendingAction.alertId;
     const now = new Date().toISOString();
-    const session = (() => { try { return JSON.parse(localStorage.getItem('user_session') ?? '{}'); } catch { return {}; } })();
     const token: string | undefined = session?.token;
     const operatorName: string = session?.userName ?? 'Operator';
 
