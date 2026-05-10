@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+
+
 
 const API = `${import.meta.env.VITE_API_BASE}/api/data`;
 
@@ -85,7 +86,6 @@ export async function updateAlertStatus(
   status: AlertStatus,
   comment: string,
   token?: string,
-  userId?: string,
   role?: 'operator' | 'auxiliary' | 'passenger'
 ) {
   const endpoint = role === 'auxiliary'
@@ -106,39 +106,4 @@ export async function updateAlertStatus(
   return res.json();
 }
 
-// ── Hooks ────────────────────────────────────────────────────────────────────
 
-export function useAlerts(fetchFn: () => Promise<any>, intervalMs = 30000) {
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-  const [extraData, setExtraData] = useState<any>(null);
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await fetchFn();
-      if (Array.isArray(data)) {
-        setAlerts(data);
-      } else {
-        setAlerts(data.alerts || []);
-        setExtraData(data);
-      }
-      setLastRefresh(new Date());
-      setError(null);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchFn]);
-
-  useEffect(() => {
-    loadData();
-    const timer = setInterval(loadData, intervalMs);
-    return () => clearInterval(timer);
-  }, [loadData, intervalMs]);
-
-  return { alerts, loading, error, lastRefresh, extraData, reload: loadData };
-}

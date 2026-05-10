@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { HubConnectionBuilder } from '@microsoft/signalr';
 import {
   BellIcon,
   ClockIcon,
@@ -154,7 +155,7 @@ function AlertCard({
 }
 
 
-export function RecentAlerts({ assignedStationId, userId, userName, token }: { assignedStationId?: string, userId: string, userName: string, token?: string }) {
+export function RecentAlerts({ assignedStationId, userName, token }: { assignedStationId?: string, userName: string, token?: string }) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [activeStatus, setActiveStatus] = useState<AlertStatus>('pending');
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
@@ -171,10 +172,31 @@ export function RecentAlerts({ assignedStationId, userId, userName, token }: { a
       return;
     }
 
-    fetchAuxiliaryAlerts(assignedStationId, token)
-      .then(data => { setAlerts(data); })
-      .catch(err => { console.error('Failed to fetch alerts', err); });
-  }, [assignedStationId]);
+    const load = () => {
+      fetchAuxiliaryAlerts(assignedStationId, token)
+        .then(data => { setAlerts(data); })
+        .catch(err => { console.error('Failed to fetch alerts', err); });
+    };
+
+    load();
+
+    const connection = new HubConnectionBuilder()
+      .withUrl(`${import.meta.env.VITE_API_BASE}/hubs/alerts`, { withCredentials: true })
+      .withAutomaticReconnect()
+      .build();
+
+    connection.on('IncidentStatusChanged', load);
+    connection.on('NewIncident', load);
+    connection.start().catch(console.error);
+
+    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      connection.stop();
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [assignedStationId, token]);
 
   const handleAction = async (id: string, action: AlertStatus) => {
     const alert = alerts.find(a => a.id === id);
@@ -248,7 +270,7 @@ export function RecentAlerts({ assignedStationId, userId, userName, token }: { a
     }
 
     try {
-      await updateAlertStatus(alertId, action, comment, token, userId, 'auxiliary');
+      await updateAlertStatus(alertId, action, comment, token, 'auxiliary');
     } catch (err) {
       console.error('Failed to update status', err);
     }

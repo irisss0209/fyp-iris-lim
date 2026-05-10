@@ -56,7 +56,6 @@ export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterface) {
             <RecentAlerts
               key="alerts"
               assignedStationId={assignedStationId}
-              userId={session.userId}
               userName={session.userName}
               token={session.token}
             />

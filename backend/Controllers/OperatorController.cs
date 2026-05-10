@@ -1,6 +1,8 @@
 using backend.Data;
+using backend.Hubs;
 using backend.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
@@ -19,8 +21,9 @@ namespace backend.Controllers
         private readonly ILogger<OperatorController> _logger;
         private readonly IGeminiService _gemini;
         private readonly IPushNotificationService _pushService;
+        private readonly IHubContext<AlertHub> _hub;
 
-        public OperatorController(AppDbContext context, IAlertService alertService, IS3Service s3Service, ILogger<OperatorController> logger, IGeminiService gemini, IPushNotificationService pushService)
+        public OperatorController(AppDbContext context, IAlertService alertService, IS3Service s3Service, ILogger<OperatorController> logger, IGeminiService gemini, IPushNotificationService pushService, IHubContext<AlertHub> hub)
         {
             _context = context;
             _alertService = alertService;
@@ -28,6 +31,7 @@ namespace backend.Controllers
             _logger = logger;
             _gemini = gemini;
             _pushService = pushService;
+            _hub = hub;
         }
 
         [Authorize(Roles = "operator")]
@@ -311,6 +315,7 @@ namespace backend.Controllers
             }
 
             await _context.SaveChangesAsync();
+            await _hub.Clients.All.SendAsync("IncidentStatusChanged", incident.IncidentId);
             _ = Task.Run(() => _pushService.NotifyStatusChange(incident.IncidentId));
             return Ok(new
             {
@@ -1092,15 +1097,16 @@ if (error != null) return BadRequest(new { error });
             {
                 var cols = rows[i];
 
-                if (cols.Length < 3)
+                if (cols.Length < 4)
                 {
-                    errors.Add($"Row {i + 1}: Expected at least 3 columns (user_name, email, role). Got {cols.Length}.");
+                    errors.Add($"Row {i + 1}: Expected 4 columns (user_name, email, role, employee_id). Got {cols.Length}.");
                     continue;
                 }
 
-                var userName   = cols[0].Trim();
-                var email      = cols[1].Trim();
-                var roleText   = cols[2].Trim();  
+                var userName    = cols[0].Trim();
+                var email       = cols[1].Trim();
+                var roleText    = cols[2].Trim();
+                var employeeId  = cols[3].Trim();
 
                 if (!Enum.TryParse<UserRole>(roleText, true, out var role))
                 {
@@ -1129,7 +1135,7 @@ if (error != null) return BadRequest(new { error });
                 _context.Users.Add(new User
                 {
                     UserId       = newUserId,
-                    EmployeeId   = null,
+                    EmployeeId   = string.IsNullOrWhiteSpace(employeeId) ? null : employeeId,
                     Email        = email,
                     UserName     = userName,
                     Role         = role,

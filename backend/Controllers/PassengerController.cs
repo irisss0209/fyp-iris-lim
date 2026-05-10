@@ -1,8 +1,10 @@
 using backend.Data;
+using backend.Hubs;
 using backend.Models;
 using backend.Models.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using backend.Services;
 
@@ -23,8 +25,9 @@ namespace backend.Controllers
         private readonly ILogger<PassengerController> _logger;
         private readonly IGeminiService _gemini;
         private readonly IPushNotificationService _pushService;
+        private readonly IHubContext<AlertHub> _hub;
 
-        public PassengerController(AppDbContext context, IAlertService alertService, IS3Service s3Service, ILogger<PassengerController> logger, IGeminiService gemini, IPushNotificationService pushService)
+        public PassengerController(AppDbContext context, IAlertService alertService, IS3Service s3Service, ILogger<PassengerController> logger, IGeminiService gemini, IPushNotificationService pushService, IHubContext<AlertHub> hub)
         {
             _context = context;
             _alertService = alertService;
@@ -32,6 +35,7 @@ namespace backend.Controllers
             _logger = logger;
             _gemini = gemini;
             _pushService = pushService;
+            _hub = hub;
         }
 
         [HttpGet("lines")]
@@ -110,6 +114,7 @@ namespace backend.Controllers
                 _context.Incidents.Add(incident);
                 await _context.SaveChangesAsync();
                 await tx.CommitAsync();
+                await _hub.Clients.All.SendAsync("NewIncident", incident.IncidentId);
                 _ = Task.Run(() => _pushService.NotifyNewIncident(incident.IncidentId));
 
                 return StatusCode(StatusCodes.Status201Created, new ReportSubmitResponseDto { Success = true, ReportId = report.ReportId });
@@ -401,6 +406,7 @@ namespace backend.Controllers
             }
 
             await _context.SaveChangesAsync();
+            await _hub.Clients.All.SendAsync("IncidentStatusChanged", incident.IncidentId);
             _ = Task.Run(() => _pushService.NotifyStatusChange(incident.IncidentId));
             return Ok(new { success = true, status = incident.Status.ToString() });
         }

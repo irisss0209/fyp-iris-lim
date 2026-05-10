@@ -11,8 +11,8 @@ import { detectNearbyLines } from '../../utils/location';
 import { UserSession } from '../../types/session';
 
 const API = `${import.meta.env.VITE_API_BASE}/api/data`;
-const SAFE   = '#2D7A5D';
-const WARN   = '#B45309';
+const SAFE = '#2D7A5D';
+const WARN = '#B45309';
 const DANGER = '#D34026';
 const ACCENT = '#0B4F6C';
 
@@ -60,30 +60,30 @@ function safetyLevel(count: number): 'clear' | 'moderate' | 'high' {
 }
 
 function safetyStyle(level: 'clear' | 'moderate' | 'high') {
-  if (level === 'clear')    return { bg: '#F0FBF6', text: SAFE,   dot: SAFE,   label: 'Clear'      };
-  if (level === 'moderate') return { bg: '#FFFBEB', text: WARN,   dot: WARN,   label: 'Active'     };
-  return                           { bg: '#FEF2F0', text: DANGER, dot: DANGER, label: 'High Alert' };
+  if (level === 'clear') return { bg: '#F0FBF6', text: SAFE, dot: SAFE, label: 'Clear' };
+  if (level === 'moderate') return { bg: '#FFFBEB', text: WARN, dot: WARN, label: 'Active' };
+  return { bg: '#FEF2F0', text: DANGER, dot: DANGER, label: 'High Alert' };
 }
 
 function statusStyle(status?: string) {
   const s = status?.toLowerCase() ?? '';
-  if (s === 'pending')  return { bg: '#FFF7ED', text: '#C05621' };
+  if (s === 'pending') return { bg: '#FFF7ED', text: '#C05621' };
   if (s === 'verified') return { bg: '#EFF6FF', text: '#1D4ED8' };
-  if (s === 'en_route') return { bg: '#EFF6FF', text: ACCENT    };
-  if (s === 'escalated')return { bg: '#FEF2F0', text: DANGER    };
-  return                       { bg: '#F7FAFC', text: '#718096' };
+  if (s === 'en_route') return { bg: '#EFF6FF', text: ACCENT };
+  if (s === 'escalated') return { bg: '#FEF2F0', text: DANGER };
+  return { bg: '#F7FAFC', text: '#718096' };
 }
 
 export function Insights({ session }: { session?: UserSession }) {
-  const [selectedLine, setSelectedLine]     = useState('All Lines');
-  const [lines, setLines]                   = useState<string[]>(['All Lines']);
-  const [loading, setLoading]               = useState(true);
-  const [errorText, setErrorText]           = useState('');
-  const [isLocating, setIsLocating]         = useState(false);
+  const [selectedLine, setSelectedLine] = useState('All Lines');
+  const [lines, setLines] = useState<string[]>(['All Lines']);
+  const [loading, setLoading] = useState(true);
+  const [errorText, setErrorText] = useState('');
+  const [isLocating, setIsLocating] = useState(false);
   const [showLinePicker, setShowLinePicker] = useState(false);
-  const [alerts, setAlerts]                 = useState<OperatorAlert[]>([]);
-  const [aiAdvice, setAiAdvice]             = useState<string | null>(null);
-  const [aiLoading, setAiLoading]           = useState(false);
+  const [alerts, setAlerts] = useState<OperatorAlert[]>([]);
+  const [aiAdvice, setAiAdvice] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const handleDetectLocation = () => {
     if (selectedLine !== 'All Lines') { setSelectedLine('All Lines'); return; }
@@ -112,7 +112,7 @@ export function Insights({ session }: { session?: UserSession }) {
 
       const fromBackend = linesRes.status === 'fulfilled'
         ? linesRes.value.map(l => l.lineName).filter(Boolean) : [];
-      const fromAlerts  = data.map(a => a.line ?? '').filter(Boolean);
+      const fromAlerts = data.map(a => a.line ?? '').filter(Boolean);
       setLines(['All Lines', ...Array.from(new Set([...fromBackend, ...fromAlerts]))]);
 
       if (alertsRes.status === 'rejected') setErrorText('Unable to load safety data.');
@@ -193,12 +193,12 @@ export function Insights({ session }: { session?: UserSession }) {
       },
       credentials: 'include',
       body: JSON.stringify({
-        activeCount:   activeNow.length,
-        trainToAvoid:  trainToAvoid ? `Train ${trainToAvoid.id}` : '',
-        bestWindow:    bestWindow ?? '',
-        line:          selectedLine,
-        todayCount:    todayAlerts.length,
-        currentHour:   new Date().getHours(),
+        activeCount: activeNow.length,
+        trainToAvoid: trainToAvoid ? `Train ${trainToAvoid.id}` : '',
+        bestWindow: bestWindow ?? '',
+        line: selectedLine,
+        todayCount: todayAlerts.length,
+        currentHour: new Date().getHours(),
       }),
     })
       .then(r => r.json())
@@ -282,17 +282,20 @@ export function Insights({ session }: { session?: UserSession }) {
                 <div className="space-y-2">
                   {lines.filter(l => l !== 'All Lines').map(name => {
                     const count = lineStatus[name] ?? 0;
-                    const lvl   = safetyLevel(count);
-                    const st    = safetyStyle(lvl);
+                    const lvl = safetyLevel(count);
+                    const st = safetyStyle(lvl);
                     return (
                       <div key={name} className="flex items-center justify-between px-3 py-2.5 rounded-xl" style={{ backgroundColor: st.bg }}>
+                        <span className="text-sm font-semibold text-gray-800">{name}</span>
                         <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: st.dot }} />
-                          <span className="text-sm font-semibold text-gray-800">{name}</span>
+                          {lvl === 'clear' ? (
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: st.dot }} />
+                          ) : (
+                            <span className="text-xs font-bold" style={{ color: st.text }}>
+                              {count} {count === 1 ? 'incident' : 'incidents'}
+                            </span>
+                          )}
                         </div>
-                        <span className="text-xs font-bold" style={{ color: st.text }}>
-                          {lvl === 'clear' ? 'Clear' : `${count} active`}
-                        </span>
                       </div>
                     );
                   })}

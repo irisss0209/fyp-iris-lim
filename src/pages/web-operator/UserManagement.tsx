@@ -200,6 +200,7 @@ export function UserManagement({ session }: { session: { userId?: string; token?
       { header: 'user_name', key: 'user_name', width: 22 },
       { header: 'email', key: 'email', width: 28 },
       { header: 'role', key: 'role', width: 16 },
+      { header: 'employee_id', key: 'employee_id', width: 18 },
     ];
 
     // Style header row
@@ -209,7 +210,7 @@ export function UserManagement({ session }: { session: { userId?: string; token?
     });
 
     // Sample data row
-    ws.addRow(['John Doe', 'john@example.com', 'Auxiliary']);
+    ws.addRow(['John Doe', 'john@example.com', 'Auxiliary', 'EMP-001']);
 
     // Dropdown for role column rows 2–100
     for (let row = 2; row <= 100; row++) {
@@ -291,7 +292,7 @@ export function UserManagement({ session }: { session: { userId?: string; token?
           </div>
 
           <p className="text-xs text-gray-400">
-            Format (.xlsx/.csv): user_name, email, role
+            Format (.xlsx/.csv): user_name, email, role, employee_id
           </p>
         </div>
       </div>

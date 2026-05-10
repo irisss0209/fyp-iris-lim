@@ -55,7 +55,7 @@ export function MfaSetup({
     next[index] = cleaned;
     setCode(next);
     setError('');
-    
+
     if (cleaned && index < 5) {
       const nextInput = document.getElementById(`mfa-setup-${index + 1}`);
       nextInput?.focus();
@@ -96,9 +96,6 @@ export function MfaSetup({
       className="p-6 sm:p-8"
     >
       <div className="mb-6">
-        <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center mb-4">
-          <ShieldCheck className="text-blue-600" size={24} />
-        </div>
         <h1 className="text-2xl font-bold text-gray-900">Secure Your Account</h1>
         <p className="text-sm text-gray-500 mt-1">
           Set up an authenticator app to add an extra layer of security.

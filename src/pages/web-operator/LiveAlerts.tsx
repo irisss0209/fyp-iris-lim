@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { HubConnectionBuilder } from '@microsoft/signalr';
 import {
   CameraIcon,
   ClockIcon,
@@ -117,10 +118,24 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
     }
   }, [initialAlertId, alerts, onClearInitial]);
 
-  // ── Auto-refresh every 30 seconds ────────────────────────────────────────────
+  // ── SignalR real-time updates + visibilitychange fallback ─────────────────────
   useEffect(() => {
-    const interval = setInterval(fetchAlerts, 30_000);
-    return () => clearInterval(interval);
+    const connection = new HubConnectionBuilder()
+      .withUrl(`${import.meta.env.VITE_API_BASE}/hubs/alerts`, { withCredentials: true })
+      .withAutomaticReconnect()
+      .build();
+
+    connection.on('IncidentStatusChanged', fetchAlerts);
+    connection.on('NewIncident', fetchAlerts);
+    connection.start().catch(console.error);
+
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchAlerts(); };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      connection.stop();
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [fetchAlerts]);
 
   // ── Tick every second for verified countdown and re-escalate timer ──

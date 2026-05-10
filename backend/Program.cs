@@ -1,3 +1,4 @@
+using backend.Hubs;
 using Amazon.SecretsManager;
 using Amazon.SecretsManager.Model;
 using backend.Data;
@@ -116,6 +117,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddSignalR();
 builder.Services.AddSingleton<IEmailVerificationSender, EmailService>();
 builder.Services.AddSingleton<AuthChallengeStore>();
 builder.Services.AddSingleton<ITotpService, TotpService>();
@@ -151,7 +153,9 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(
             "https://railly.systems",
-            "https://www.railly.systems"
+            "https://www.railly.systems",
+            "http://localhost:5173",
+            "http://localhost:3000"
         )
         .AllowAnyHeader()
         .AllowAnyMethod()
@@ -197,6 +201,7 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<AlertHub>("/hubs/alerts");
 app.MapGet("/health", () => "OK");
 app.Urls.Add("http://0.0.0.0:8080");
 app.Run();

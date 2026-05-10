@@ -68,7 +68,7 @@ export function SetupPasswordPage({ email, onSuccess, onBack }: SetupPasswordPag
       }
 
       setPendingMfa(data);
-      
+
       if (data.requiresMfa) {
         if (data.mfaMethod === 'google_authenticator' && data.isSetup === false) {
           setStep('mfa_setup');
