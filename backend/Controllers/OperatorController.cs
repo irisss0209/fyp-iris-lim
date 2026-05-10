@@ -18,14 +18,16 @@ namespace backend.Controllers
         private readonly IS3Service _s3Service;
         private readonly ILogger<OperatorController> _logger;
         private readonly IGeminiService _gemini;
+        private readonly IPushNotificationService _pushService;
 
-        public OperatorController(AppDbContext context, IAlertService alertService, IS3Service s3Service, ILogger<OperatorController> logger, IGeminiService gemini)
+        public OperatorController(AppDbContext context, IAlertService alertService, IS3Service s3Service, ILogger<OperatorController> logger, IGeminiService gemini, IPushNotificationService pushService)
         {
             _context = context;
             _alertService = alertService;
             _s3Service = s3Service;
             _logger = logger;
             _gemini = gemini;
+            _pushService = pushService;
         }
 
         [Authorize(Roles = "operator")]
@@ -309,6 +311,7 @@ namespace backend.Controllers
             }
 
             await _context.SaveChangesAsync();
+            _ = Task.Run(() => _pushService.NotifyStatusChange(incident.IncidentId));
             return Ok(new
             {
                 incidentId = incident.IncidentId,

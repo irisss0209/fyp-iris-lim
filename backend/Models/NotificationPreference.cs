@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace backend.Models
 {
-    [Table("NotificationPreferences")]
+    [Table("Notification_Preferences")]
     public class NotificationPreference
     {
         [Key]

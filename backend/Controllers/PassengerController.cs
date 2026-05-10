@@ -22,14 +22,16 @@ namespace backend.Controllers
         private readonly IS3Service _s3Service;
         private readonly ILogger<PassengerController> _logger;
         private readonly IGeminiService _gemini;
+        private readonly IPushNotificationService _pushService;
 
-        public PassengerController(AppDbContext context, IAlertService alertService, IS3Service s3Service, ILogger<PassengerController> logger, IGeminiService gemini)
+        public PassengerController(AppDbContext context, IAlertService alertService, IS3Service s3Service, ILogger<PassengerController> logger, IGeminiService gemini, IPushNotificationService pushService)
         {
             _context = context;
             _alertService = alertService;
             _s3Service = s3Service;
             _logger = logger;
             _gemini = gemini;
+            _pushService = pushService;
         }
 
         [HttpGet("lines")]
@@ -108,6 +110,7 @@ namespace backend.Controllers
                 _context.Incidents.Add(incident);
                 await _context.SaveChangesAsync();
                 await tx.CommitAsync();
+                _ = Task.Run(() => _pushService.NotifyNewIncident(incident.IncidentId));
 
                 return StatusCode(StatusCodes.Status201Created, new ReportSubmitResponseDto { Success = true, ReportId = report.ReportId });
             }
@@ -398,6 +401,7 @@ namespace backend.Controllers
             }
 
             await _context.SaveChangesAsync();
+            _ = Task.Run(() => _pushService.NotifyStatusChange(incident.IncidentId));
             return Ok(new { success = true, status = incident.Status.ToString() });
         }
 

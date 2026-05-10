@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace backend.Models
 {
-    [Table("PushSubscriptions")]
+    [Table("Push_Subscriptions")]
     public class PushSubscription
     {
         [Key]

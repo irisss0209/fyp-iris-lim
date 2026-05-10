@@ -48,12 +48,6 @@ namespace backend.Services
 
             var tasks = new List<Task>();
 
-            if (incident.Source == IncidentSource.USER_REPORT && incident.UserReport != null)
-                tasks.Add(NotifyReporter(context, incident.UserReport.UserId,
-                    "Report Received",
-                    $"Your report ({alertId}) has been received and is under review.",
-                    alertId));
-
             if (stationId != null)
                 tasks.Add(NotifyAuxiliary(context, stationId, incident.Status, alertId));
 

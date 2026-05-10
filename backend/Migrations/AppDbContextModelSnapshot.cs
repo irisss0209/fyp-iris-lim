@@ -317,7 +317,7 @@ namespace backend.Migrations
 
                     b.HasKey("UserId");
 
-                    b.ToTable("NotificationPreferences");
+                    b.ToTable("Notification_Preferences");
                 });
 
             modelBuilder.Entity("backend.Models.PushSubscription", b =>
@@ -360,7 +360,7 @@ namespace backend.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("PushSubscriptions");
+                    b.ToTable("Push_Subscriptions");
                 });
 
             modelBuilder.Entity("backend.Models.Station", b =>
