@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   LockIcon,
   EyeIcon,
@@ -9,11 +9,24 @@ import {
 
 import { MfaVerification } from './MfaVerification';
 import { MfaSetup } from './MfaSetup';
+import { usePasswordToggle } from '../../hooks/usePasswordToggle';
+import { Spinner } from '../../components/Spinner';
+import { validatePassword } from '../../utils/validatePassword';
+import { UserSession } from '../../types/session';
 
 interface SetupPasswordPageProps {
   email: string;
-  onSuccess: (session: any) => void;
+  onSuccess: (session: UserSession) => void;
   onBack: () => void;
+}
+
+interface SetupMfaState {
+  email: string;
+  challengeId: string;
+  mfaMethod: 'email_otp' | 'google_authenticator';
+  maskedDestination: string;
+  isSetup: boolean;
+  requiresMfa: boolean;
 }
 
 type SetupStep = 'password' | 'mfa' | 'mfa_setup' | 'success';
@@ -21,37 +34,21 @@ type SetupStep = 'password' | 'mfa' | 'mfa_setup' | 'success';
 export function SetupPasswordPage({ email, onSuccess, onBack }: SetupPasswordPageProps) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const { isVisible, toggle } = usePasswordToggle(['setup', 'confirm']);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [step, setStep] = useState<SetupStep>('password');
-  const [pendingMfa, setPendingMfa] = useState<any>(null);
-  const [resolvedUser, setResolvedUser] = useState<any>(null);
+  const [pendingMfa, setPendingMfa] = useState<SetupMfaState | null>(null);
+  const [resolvedUser, setResolvedUser] = useState<UserSession | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
+  useEffect(() => {
+    if (step === 'success' && resolvedUser) {
+      const t = setTimeout(() => onSuccess(resolvedUser), 1500);
+      return () => clearTimeout(t);
     }
+  }, [step, resolvedUser, onSuccess]);
 
-    // Password strength validation
-    const missingRequirements: string[] = [];
-
-    if (password.length < 8) missingRequirements.push('at least 8 characters');
-    if (!/[A-Z]/.test(password)) missingRequirements.push('one uppercase letter');
-    if (!/[a-z]/.test(password)) missingRequirements.push('one lowercase letter');
-    if (!/[0-9]/.test(password)) missingRequirements.push('one number');
-    if (!/[!@#$%^&*(),.?":{}|<>_~-]/.test(password)) missingRequirements.push('one special character');
-
-    if (missingRequirements.length > 0) {
-      setError(`Password must contain: ${missingRequirements.join(', ')}.`);
-      return;
-    }
-
+  const requestPasswordSetup = async () => {
     setIsLoading(true);
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE}/api/auth/setup-password`, {
@@ -76,7 +73,6 @@ export function SetupPasswordPage({ email, onSuccess, onBack }: SetupPasswordPag
           setStep('mfa');
         }
       } else {
-        // This case shouldn't happen for staff roles based on current requirements
         setResolvedUser(data);
         setStep('success');
       }
@@ -85,6 +81,21 @@ export function SetupPasswordPage({ email, onSuccess, onBack }: SetupPasswordPag
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    const pwError = validatePassword(password);
+    if (pwError) { setError(pwError); return; }
+
+    await requestPasswordSetup();
   };
 
   const verifyOtp = async (code: string): Promise<boolean> => {
@@ -112,12 +123,10 @@ export function SetupPasswordPage({ email, onSuccess, onBack }: SetupPasswordPag
   };
 
   const handleResendOtp = async () => {
-    // Re-trigger the setup password flow to generate a new challenge that includes the password metadata
-    handleSubmit({ preventDefault: () => { } } as React.FormEvent);
+    await requestPasswordSetup();
   };
 
-  if (step === 'success' && resolvedUser) {
-    setTimeout(() => onSuccess(resolvedUser), 1500);
+  if (step === 'success') {
     return (
       <div className="min-h-screen w-full bg-[#FAF9F5] flex items-center justify-center px-4">
         <div className="w-full max-w-md bg-white p-8 rounded-3xl shadow-xl text-center border border-gray-100">
@@ -138,11 +147,7 @@ export function SetupPasswordPage({ email, onSuccess, onBack }: SetupPasswordPag
 
   return (
     <div className="min-h-screen w-full bg-[#FAF9F5] flex flex-col items-center justify-center px-4 py-12">
-      {/* Header */}
-      <div
-
-        className="flex items-center gap-3 mb-6 sm:mb-8"
-      >
+      <div className="flex items-center gap-3 mb-6 sm:mb-8">
         <div
           className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex-shrink-0"
           style={{
@@ -159,10 +164,7 @@ export function SetupPasswordPage({ email, onSuccess, onBack }: SetupPasswordPag
         </div>
       </div>
 
-      {/* Card */}
-      <div
-        className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden"
-      >
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden">
         {step === 'password' && (
           <div className="p-8 sm:p-10">
             <button
@@ -182,7 +184,6 @@ export function SetupPasswordPage({ email, onSuccess, onBack }: SetupPasswordPag
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4" noValidate>
-              {/* Password */}
               <div>
                 <label htmlFor="reg-password" className="block text-xs font-semibold text-gray-700 mb-1.5">
                   Password
@@ -191,7 +192,7 @@ export function SetupPasswordPage({ email, onSuccess, onBack }: SetupPasswordPag
                   <LockIcon size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                   <input
                     id="reg-password"
-                    type={showPassword ? 'text' : 'password'}
+                    type={isVisible('setup') ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setError(''); }}
                     placeholder="Enter your password"
@@ -200,16 +201,15 @@ export function SetupPasswordPage({ email, onSuccess, onBack }: SetupPasswordPag
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPassword((v) => !v)}
+                    onClick={() => toggle('setup')}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-label={isVisible('setup') ? 'Hide password' : 'Show password'}
                   >
-                    {showPassword ? <EyeOffIcon size={15} /> : <EyeIcon size={15} />}
+                    {isVisible('setup') ? <EyeOffIcon size={15} /> : <EyeIcon size={15} />}
                   </button>
                 </div>
               </div>
 
-              {/* Confirm Password */}
               <div>
                 <label htmlFor="reg-confirm-password" className="block text-xs font-semibold text-gray-700 mb-1.5">
                   Confirm Password
@@ -218,7 +218,7 @@ export function SetupPasswordPage({ email, onSuccess, onBack }: SetupPasswordPag
                   <LockIcon size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                   <input
                     id="reg-confirm-password"
-                    type={showConfirmPassword ? 'text' : 'password'}
+                    type={isVisible('confirm') ? 'text' : 'password'}
                     value={confirmPassword}
                     onChange={(e) => { setConfirmPassword(e.target.value); setError(''); }}
                     placeholder="Confirm your password"
@@ -227,16 +227,15 @@ export function SetupPasswordPage({ email, onSuccess, onBack }: SetupPasswordPag
                   />
                   <button
                     type="button"
-                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    onClick={() => toggle('confirm')}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    aria-label={isVisible('confirm') ? 'Hide password' : 'Show password'}
                   >
-                    {showConfirmPassword ? <EyeOffIcon size={15} /> : <EyeIcon size={15} />}
+                    {isVisible('confirm') ? <EyeOffIcon size={15} /> : <EyeIcon size={15} />}
                   </button>
                 </div>
               </div>
 
-              {/* Error */}
               {error && (
                 <p
                   className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2"
@@ -253,7 +252,7 @@ export function SetupPasswordPage({ email, onSuccess, onBack }: SetupPasswordPag
                 style={{ backgroundColor: '#0B4F6C' }}
               >
                 {isLoading
-                  ? <span className="flex items-center gap-2"><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg> Saving…</span>
+                  ? <span className="flex items-center gap-2"><Spinner /> Saving…</span>
                   : <>Activate Account</>}
               </button>
             </form>
@@ -277,7 +276,7 @@ export function SetupPasswordPage({ email, onSuccess, onBack }: SetupPasswordPag
             email={pendingMfa?.email || email}
             onActivate={() => {
               setStep('mfa');
-              setPendingMfa((prev: any) => prev ? { ...prev, isSetup: true } : null);
+              setPendingMfa(prev => prev ? { ...prev, isSetup: true } : null);
             }}
             onBack={() => setStep('password')}
             accentColor="#0B4F6C"

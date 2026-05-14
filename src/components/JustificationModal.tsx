@@ -14,43 +14,71 @@ interface JustificationModalProps {
   onCancel: () => void;
   isOptional?: boolean;
 }
-const QUICK_REASONS_VERIFY = [
-  'Unauthorized male passenger in women’s coach',
-  'Violation confirmed via CCTV',
-  'Passenger report verified',
-  'Repeated violation observed'
-];
-
-const QUICK_REASONS_DISMISS = [
-  'No violation — passenger permitted in coach',
-  'Male child accompanied by female passenger',
-  'PWD passenger allowed in coach',
-  'Staff member on duty',
-  'Incorrect detection — no issue observed',
-  'Duplicate or already handled alert'
-];
-
-const QUICK_REASONS_ESCALATE = [
-  'Unauthorized passenger refuses to leave',
-  'Potential safety risk to passengers',
-  'Repeated violations detected',
-  'Assistance required from auxiliary staff'
-];
-
-const QUICK_REASONS_EN_ROUTE = [
-  'Assigned to handle this alert',
-  'En route to manage unauthorized passenger',
-  'Responding to verified violation',
-  'Proceeding to assist with safety concern'
-];
-
-const QUICK_REASONS_RESOLVE = [
-  'Passenger complied and moved to appropriate coach',
-  'Male passenger accompanied by female family member',
-  'PWD passenger assisted and relocated',
-  'Alert resolved by station staff',
-  'No further issues observed after intervention'
-];
+const MODAL_CONFIG: Record<string, { color: string; title: string; confirm: string; placeholder: string; reasons: string[] }> = {
+  verify: {
+    color: '#2D7A5D',
+    title: 'Verify Alert',
+    confirm: 'Confirm Verify',
+    placeholder: 'Describe why this alert is being verified...',
+    reasons: [
+      "Unauthorized male passenger in women's coach",
+      'Violation confirmed via CCTV',
+      'Passenger report verified',
+      'Repeated violation observed',
+    ],
+  },
+  resolve: {
+    color: '#2D7A5D',
+    title: 'Resolve Alert',
+    confirm: 'Confirm Resolve',
+    placeholder: 'Describe how this was resolved...',
+    reasons: [
+      'Passenger complied and moved to appropriate coach',
+      'Male passenger accompanied by female family member',
+      'PWD passenger assisted and relocated',
+      'Alert resolved by station staff',
+      'No further issues observed after intervention',
+    ],
+  },
+  escalate: {
+    color: '#7B5EA7',
+    title: 'Escalate Alert',
+    confirm: 'Confirm Escalate',
+    placeholder: 'Describe why this alert needs escalation...',
+    reasons: [
+      'Unauthorized passenger refuses to leave',
+      'Potential safety risk to passengers',
+      'Repeated violations detected',
+      'Assistance required from auxiliary staff',
+    ],
+  },
+  en_route: {
+    color: '#0B4F6C',
+    title: 'En Route to Alert',
+    confirm: 'Confirm En Route',
+    placeholder: 'Add any notes before routing...',
+    reasons: [
+      'Assigned to handle this alert',
+      'En route to manage unauthorized passenger',
+      'Responding to verified violation',
+      'Proceeding to assist with safety concern',
+    ],
+  },
+  dismiss: {
+    color: '#D34026',
+    title: 'Dismiss Alert',
+    confirm: 'Confirm Dismiss',
+    placeholder: 'Describe why this alert is being dismissed...',
+    reasons: [
+      'No violation — passenger permitted in coach',
+      'Male child accompanied by female passenger',
+      'PWD passenger allowed in coach',
+      'Staff member on duty',
+      'Incorrect detection — no issue observed',
+      'Duplicate or already handled alert',
+    ],
+  },
+};
 
 export function JustificationModal({
   isOpen,
@@ -65,13 +93,8 @@ export function JustificationModal({
   const [error, setError] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const isVerify = actionType === 'verify';
-  const isEscalate = actionType === 'escalate';
-  const isEnRoute = actionType === 'en_route';
-  const isResolve = actionType === 'resolve';
-
-  const accentColor = (isVerify || isResolve) ? '#2D7A5D' : isEscalate ? '#7B5EA7' : isEnRoute ? '#0B4F6C' : '#D34026';
-  const quickReasons = isVerify ? QUICK_REASONS_VERIFY : isEscalate ? QUICK_REASONS_ESCALATE : isEnRoute ? QUICK_REASONS_EN_ROUTE : isResolve ? QUICK_REASONS_RESOLVE : QUICK_REASONS_DISMISS;
+  const { color: accentColor, title, confirm: confirmLabel, placeholder, reasons: quickReasons } =
+    MODAL_CONFIG[actionType] ?? MODAL_CONFIG.dismiss;
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -144,7 +167,7 @@ export function JustificationModal({
                 id="modal-title"
                 className="text-base font-bold text-gray-900 leading-tight">
 
-                {isVerify ? 'Verify Alert' : isEscalate ? 'Escalate Alert' : isEnRoute ? 'En Route to Alert' : isResolve ? 'Resolve Alert' : 'Dismiss Alert'}
+                {title}
               </h2>
               <p className="text-xs text-gray-400 mt-0.5">
                 {alertCoach} · {alertId}
@@ -212,13 +235,7 @@ export function JustificationModal({
                 setComment(e.target.value);
                 if (e.target.value.trim()) setError(false);
               }}
-              placeholder={
-                isVerify ? 'Describe why this alert is being verified...' :
-                  isEscalate ? 'Describe why this alert needs escalation...' :
-                    isEnRoute ? 'Add any notes before routing...' :
-                      isResolve ? 'Describe how this was resolved...' :
-                        'Describe why this alert is being dismissed...'
-              }
+              placeholder={placeholder}
               rows={3}
               className={`
                 w-full text-sm text-gray-800 placeholder-gray-400 bg-gray-50
@@ -264,7 +281,7 @@ export function JustificationModal({
                 backgroundColor: accentColor
               }}>
 
-              {isVerify ? 'Confirm Verify' : isEscalate ? 'Confirm Escalate' : isEnRoute ? 'Confirm En Route' : isResolve ? 'Confirm Resolve' : 'Confirm Dismiss'}
+              {confirmLabel}
             </button>
           </div>
         </div>

@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
-import { HubConnectionBuilder } from '@microsoft/signalr';
+import { useState, useEffect, useCallback } from 'react';
+import { useAlertHub } from '../../hooks/useAlertHub';
 import {
   BellIcon,
   ClockIcon,
 } from 'lucide-react';
 import { JustificationModal } from '../../components/JustificationModal';
-import { Alert, AlertStatus, fetchAuxiliaryAlerts, updateAlertStatus } from '../../type/Alert';
+import { Alert, AlertStatus } from '../../type/Alert';
+import { fetchAuxiliaryAlerts, updateAlertStatus } from '../../api/alerts';
+import { getMYTNowStr } from '../../utils/myt';
 import { AlertDetailView } from './AlertDetailView';
 
 const ACCENT = '#0B4F6C';
@@ -166,37 +168,15 @@ export function RecentAlerts({ assignedStationId, userName, token }: { assignedS
     alertCoach: number | string;
   }>({ isOpen: false, action: null, alertId: null, alertCoach: '' });
 
-  useEffect(() => {
-    if (!assignedStationId) {
-      setAlerts([]);
-      return;
-    }
-
-    const load = () => {
-      fetchAuxiliaryAlerts(assignedStationId, token)
-        .then(data => { setAlerts(data); })
-        .catch(err => { console.error('Failed to fetch alerts', err); });
-    };
-
-    load();
-
-    const connection = new HubConnectionBuilder()
-      .withUrl(`${import.meta.env.VITE_API_BASE}/hubs/alerts`, { withCredentials: true })
-      .withAutomaticReconnect()
-      .build();
-
-    connection.on('IncidentStatusChanged', load);
-    connection.on('NewIncident', load);
-    connection.start().catch(console.error);
-
-    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
-    document.addEventListener('visibilitychange', onVisible);
-
-    return () => {
-      connection.stop();
-      document.removeEventListener('visibilitychange', onVisible);
-    };
+  const load = useCallback(() => {
+    if (!assignedStationId) { setAlerts([]); return; }
+    fetchAuxiliaryAlerts(assignedStationId, token)
+      .then(data => { setAlerts(data); })
+      .catch(err => { console.error('Failed to fetch alerts', err); });
   }, [assignedStationId, token]);
+
+  useEffect(() => { load(); }, [load]);
+  useAlertHub(load);
 
   const handleAction = async (id: string, action: AlertStatus) => {
     const alert = alerts.find(a => a.id === id);
@@ -215,10 +195,7 @@ export function RecentAlerts({ assignedStationId, userName, token }: { assignedS
 
     setModalConfig(prev => ({ ...prev, isOpen: false }));
 
-    const localNow = new Date();
-    const datePart = localNow.toLocaleDateString('en-CA'); // YYYY-MM-DD
-    const timePart = localNow.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); // HH:mm
-    const now = `${datePart} ${timePart}`;
+    const now = getMYTNowStr();
 
     // Optimistic update
     setAlerts(prev => prev.map(a => {

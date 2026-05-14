@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
+import { getMYTDateStr } from '../../utils/myt';
 import { detectNearbyLines } from '../../utils/location';
 import { UserSession } from '../../types/session';
+
+interface PublicIncident { id: string; date: string; line: string; status: string }
+interface RecentReport { id: string; line: string; coach: string | number; date: string; time: string; status: string }
 
 import {
   AlertTriangleIcon,
@@ -22,15 +26,15 @@ const RECENT_STATUS_BADGE: Record<string, string> = {
 };
 
 interface HomeProps {
-  onNavigate: (tab: any) => void;
+  onNavigate: (tab: string) => void;
   session?: UserSession | null;
 }
 
 export function Home({ onNavigate, session }: HomeProps) {
-  const [incidents, setIncidents] = useState<any[]>([]);
+  const [incidents, setIncidents] = useState<PublicIncident[]>([]);
   const [selectedLine, setSelectedLine] = useState('All Lines');
   const [lines, setLines] = useState<string[]>(['All Lines']);
-  const [recentReport, setRecentReport] = useState<any | null>(null);
+  const [recentReport, setRecentReport] = useState<RecentReport | null>(null);
 
   const [showLinePicker, setShowLinePicker] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
@@ -60,7 +64,7 @@ export function Home({ onNavigate, session }: HomeProps) {
 
     fetch(`${import.meta.env.VITE_API_BASE}/api/data/lines`, { credentials: 'include' })
       .then(res => res.json())
-      .then(data => setLines(['All Lines', ...data.map((l: any) => l.lineName)]))
+      .then(data => setLines(['All Lines', ...data.map((l: { lineName: string }) => l.lineName)]))
       .catch(console.error);
 
     if (session?.userId) {
@@ -73,7 +77,7 @@ export function Home({ onNavigate, session }: HomeProps) {
     }
   }, [session?.userId]);
 
-  const todayDate = new Date().toISOString().split('T')[0];
+  const todayDate = getMYTDateStr();
 
   const filteredIncidents = incidents.filter(i => {
     // Only show if it happened today

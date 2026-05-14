@@ -23,7 +23,7 @@ public class GeminiService : IGeminiService
         var json = config["VertexAI:ServiceAccountJson"];
         if (!string.IsNullOrWhiteSpace(json))
         {
-            _credential = CredentialFactory.FromJson(json)
+            _credential = CredentialFactory.FromJson<ServiceAccountCredential>(json)
                 .ToGoogleCredential()
                 .CreateScoped("https://www.googleapis.com/auth/cloud-platform");
         }

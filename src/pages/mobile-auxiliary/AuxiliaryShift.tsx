@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ClockIcon, MapPinIcon } from 'lucide-react';
+import { getMYTDateStr } from '../../utils/myt';
 
 const ACCENT = '#0B4F6C';
 
@@ -61,23 +62,20 @@ export function AuxiliaryShift({ userId, token, onStationDetected }: AuxiliarySh
   }
 
   // Determine status label
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getMYTDateStr();
   let statusLabel = "Upcoming Shift";
   if (shift.onDuty) {
     statusLabel = "Active Shift";
   } else if (shift.shiftDate && shift.shiftDate < todayStr) {
     statusLabel = "Previous Shift";
   } else if (shift.shiftDate && shift.shiftDate === todayStr) {
-    // If today but not onDuty, could be past or future today
-    const now = new Date();
     const [h, m] = (shift.shiftEnd || "00:00").split(':').map(Number);
-    const endTime = new Date();
-    endTime.setHours(h, m, 0, 0);
-    if (now > endTime) statusLabel = "Completed Shift";
+    const nowMYT = new Date(Date.now() + 8 * 3600_000);
+    if (nowMYT.getUTCHours() * 60 + nowMYT.getUTCMinutes() > h * 60 + m) statusLabel = "Completed Shift";
   }
 
   const formattedDate = shift.shiftDate
-    ? new Date(shift.shiftDate).toLocaleDateString('en-MY', { weekday: 'short', day: 'numeric', month: 'short' })
+    ? new Date(shift.shiftDate + 'T00:00+08:00').toLocaleDateString('en-MY', { timeZone: 'Asia/Kuala_Lumpur', weekday: 'short', day: 'numeric', month: 'short' })
     : '';
 
   return (

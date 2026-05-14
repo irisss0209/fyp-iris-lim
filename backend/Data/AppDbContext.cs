@@ -1,45 +1,11 @@
 using backend.Models;
-using backend.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace backend.Data
 {
     public class AppDbContext : DbContext
     {
-        private readonly IPushNotificationService? _push;
-
-        public AppDbContext(DbContextOptions<AppDbContext> options, IPushNotificationService? push = null)
-            : base(options)
-        {
-            _push = push;
-        }
-
-        public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-        {
-            // Capture before saving so Added entries get their IDs after save
-            var newIncidents = ChangeTracker.Entries<Incident>()
-                .Where(e => e.State == EntityState.Added)
-                .Select(e => e.Entity)
-                .ToList();
-
-            var statusChanged = ChangeTracker.Entries<Incident>()
-                .Where(e => e.State == EntityState.Modified && e.Property(i => i.Status).IsModified)
-                .Select(e => e.Entity)
-                .ToList();
-
-            var result = await base.SaveChangesAsync(cancellationToken);
-
-            if (_push != null)
-            {
-                foreach (var i in newIncidents)
-                    _ = _push.NotifyNewIncident(i.IncidentId);
-
-                foreach (var i in statusChanged)
-                    _ = _push.NotifyStatusChange(i.IncidentId);
-            }
-
-            return result;
-        }
+        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
         // ── DbSets ──────────────────────────────────────────────────────────────
         public DbSet<User>        Users        => Set<User>();

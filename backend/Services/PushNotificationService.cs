@@ -9,8 +9,9 @@ namespace backend.Services
 {
     public interface IPushNotificationService
     {
-        Task NotifyNewIncident(int incidentId);
-        Task NotifyStatusChange(int incidentId);
+        Task NotifyNewIncident(int incidentId, string? actedByUserId = null);
+        Task NotifyStatusChange(int incidentId, string? actedByUserId = null);
+        Task NotifyReEscalation(int incidentId, string? actedByUserId = null);
     }
 
     public class PushNotificationService : IPushNotificationService
@@ -30,7 +31,7 @@ namespace backend.Services
             _logger = logger;
         }
 
-        public async Task NotifyNewIncident(int incidentId)
+        public async Task NotifyNewIncident(int incidentId, string? actedByUserId = null)
         {
             using var scope = _scopeFactory.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -49,14 +50,14 @@ namespace backend.Services
             var tasks = new List<Task>();
 
             if (stationId != null)
-                tasks.Add(NotifyAuxiliary(context, stationId, incident.Status, alertId));
+                tasks.Add(NotifyAuxiliary(context, stationId, incident.Status, alertId, actedByUserId, null));
 
-            tasks.Add(NotifyOperators(context, "New Incident Alert", $"Alert {alertId} requires your attention.", alertId));
+            tasks.Add(NotifyOperators(context, "New Incident Alert", $"Alert {alertId} requires your attention.", alertId, actedByUserId));
 
             await Task.WhenAll(tasks);
         }
 
-        public async Task NotifyStatusChange(int incidentId)
+        public async Task NotifyStatusChange(int incidentId, string? actedByUserId = null)
         {
             using var scope = _scopeFactory.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -73,34 +74,84 @@ namespace backend.Services
                           + incident.IncidentId.ToString("D3");
             var statusLabel = incident.Status.ToString().Replace("_", " ");
 
+            string? actorLabel = null;
+            if (actedByUserId != null)
+            {
+                var actor = await context.Users.FindAsync(actedByUserId);
+                actorLabel = actor?.EmployeeId ?? actor?.UserName ?? "Staff";
+            }
+
             var tasks = new List<Task>();
 
             if (incident.Source == IncidentSource.USER_REPORT && incident.UserReport != null)
             {
                 var (title, body) = incident.Status switch
                 {
-                    IncidentStatus.Verified   => ("Report Verified", $"Your report ({alertId}) has been verified by an operator."),
-                    IncidentStatus.En_Route   => ("Help Is On The Way", $"An officer is en route following your report ({alertId})."),
-                    IncidentStatus.Escalated  => ("Report Escalated", $"Your report ({alertId}) has been escalated. Additional help is being sent."),
-                    IncidentStatus.Resolved   => ("Report Resolved", $"Your report ({alertId}) has been resolved. Thank you for keeping WOC safe."),
-                    IncidentStatus.Dismissed  => ("Report Closed", $"Your report ({alertId}) has been reviewed and closed."),
-                    _                         => ("Report Updated", $"Your report ({alertId}) status has changed to {statusLabel}."),
+                    IncidentStatus.Verified  => ("Report Verified",    $"Your report ({alertId}) has been verified."),
+                    IncidentStatus.En_Route  => ("Help Is On The Way", $"An officer is en route for your report ({alertId})."),
+                    IncidentStatus.Escalated => ("Report Escalated",   $"Your report ({alertId}) has been escalated. More help is coming."),
+                    IncidentStatus.Resolved  => ("Report Resolved",    $"Your report ({alertId}) has been resolved. Thank you!"),
+                    IncidentStatus.Dismissed => ("Report Closed",      $"Your report ({alertId}) has been reviewed and closed."),
+                    _                        => ("Report Updated",     $"Your report ({alertId}) status has changed."),
                 };
-                tasks.Add(NotifyReporter(context, incident.UserReport.UserId, title, body, alertId));
+                tasks.Add(NotifyReporter(context, incident.UserReport.UserId, title, body, alertId, actedByUserId));
             }
 
             if (stationId != null)
-                tasks.Add(NotifyAuxiliary(context, stationId, incident.Status, alertId));
+                tasks.Add(NotifyAuxiliary(context, stationId, incident.Status, alertId, actedByUserId, actorLabel));
 
-            tasks.Add(NotifyOperators(context, $"Alert {alertId} – {statusLabel}", $"Status updated to {statusLabel}.", alertId));
+            var opTitle = $"Alert {alertId} – {statusLabel}";
+            var opBody  = actorLabel != null
+                ? $"Alert {alertId} is now {statusLabel}. [By: {actorLabel}]"
+                : $"Alert {alertId} status updated to {statusLabel}.";
+            tasks.Add(NotifyOperators(context, opTitle, opBody, alertId, actedByUserId));
 
             await Task.WhenAll(tasks);
         }
 
-        // ── Passenger: notify the reporter of their own report's status ───────────
-
-        private async Task NotifyReporter(AppDbContext context, string userId, string title, string body, string alertId)
+        public async Task NotifyReEscalation(int incidentId, string? actedByUserId = null)
         {
+            using var scope = _scopeFactory.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var incident = await context.Incidents
+                .Include(i => i.Detection)
+                .Include(i => i.UserReport)
+                .FirstOrDefaultAsync(i => i.IncidentId == incidentId);
+
+            if (incident == null) return;
+
+            var stationId = incident.Detection?.StationId ?? incident.UserReport?.StationId;
+            var alertId = (incident.Source == IncidentSource.AI_DETECTION ? "ALT-" : "RPT-")
+                          + incident.IncidentId.ToString("D3");
+
+            string? actorLabel = null;
+            if (actedByUserId != null)
+            {
+                var actor = await context.Users.FindAsync(actedByUserId);
+                actorLabel = actor?.EmployeeId ?? actor?.UserName ?? "Staff";
+            }
+
+            var tasks = new List<Task>();
+
+            if (stationId != null)
+                tasks.Add(NotifyAuxiliary(context, stationId, IncidentStatus.Escalated, alertId, actedByUserId, actorLabel));
+
+            var opTitle = $"URGENT! Alert {alertId} Re-Escalated";
+            var opBody  = actorLabel != null
+                ? $"Alert {alertId} has been re-escalated — no response received. [By: {actorLabel}]"
+                : $"Alert {alertId} has been re-escalated — immediate action required.";
+            tasks.Add(NotifyOperators(context, opTitle, opBody, alertId, actedByUserId));
+
+            await Task.WhenAll(tasks);
+        }
+
+        // ── Passenger: notify the reporter ────────────────────────────────────────
+
+        private async Task NotifyReporter(AppDbContext context, string userId, string title, string body, string alertId, string? actedByUserId)
+        {
+            if (userId == actedByUserId) return;
+
             var subs = await context.PushSubscriptions
                 .Where(s => s.UserId == userId)
                 .ToListAsync();
@@ -113,7 +164,7 @@ namespace backend.Services
 
         // ── Auxiliary: notify within ±2 stations ──────────────────────────────────
 
-        private async Task NotifyAuxiliary(AppDbContext context, string stationId, IncidentStatus status, string alertId)
+        private async Task NotifyAuxiliary(AppDbContext context, string stationId, IncidentStatus status, string alertId, string? actedByUserId, string? actorLabel)
         {
             var lineStations = await context.LineStations
                 .Where(ls => ls.StationId == stationId)
@@ -135,7 +186,7 @@ namespace backend.Services
                 foreach (var sid in nearby) allowedStationIds.Add(sid);
             }
 
-            var today = DateTime.UtcNow.AddHours(8).Date; // MYT (UTC+8), consistent with shift storage
+            var today = DateTime.UtcNow.AddHours(8).Date;
             var auxUserIds = await context.AuxiliaryShifts
                 .Where(s => s.ShiftDate.Date == today && allowedStationIds.Contains(s.StationId))
                 .Select(s => s.UserId)
@@ -145,14 +196,15 @@ namespace backend.Services
             if (!auxUserIds.Any()) return;
 
             var subs = await context.PushSubscriptions
-                .Where(s => auxUserIds.Contains(s.UserId))
+                .Where(s => auxUserIds.Contains(s.UserId) && s.UserId != actedByUserId)
                 .ToListAsync();
 
+            var statusLabel = status.ToString().Replace("_", " ");
             bool isEscalated = status == IncidentStatus.Escalated;
-            var title = isEscalated ? "URGENT! Alert Escalated" : "New Alert – Nearby Station";
+            var title = isEscalated ? "URGENT! Alert Escalated" : $"Alert {alertId} – {statusLabel}";
             var body = isEscalated
-                ? $"Alert {alertId} has been escalated. Immediate response needed."
-                : $"Incident {alertId} reported at a nearby station.";
+                ? $"Alert {alertId} escalated. Immediate response needed." + (actorLabel != null ? $" [By: {actorLabel}]" : "")
+                : $"Alert {alertId} is now {statusLabel}." + (actorLabel != null ? $" [By: {actorLabel}]" : "");
 
             var sendTasks = subs.Select(sub =>
                 SendPush(context, sub, title, body, "/auxiliary/alerts", $"aux-{alertId}"));
@@ -162,9 +214,9 @@ namespace backend.Services
 
         // ── Operator: notify all, respecting their preference ──────────────────────
 
-        private async Task NotifyOperators(AppDbContext context, string title, string body, string alertId)
+        private async Task NotifyOperators(AppDbContext context, string title, string body, string alertId, string? actedByUserId)
         {
-            var now = DateTime.UtcNow.AddHours(8).TimeOfDay; // MYT (UTC+8)
+            var now = DateTime.UtcNow.AddHours(8).TimeOfDay;
 
             var operatorSubs = await context.PushSubscriptions
                 .Include(s => s.User)
@@ -175,13 +227,14 @@ namespace backend.Services
 
             foreach (var sub in operatorSubs)
             {
+                if (sub.UserId == actedByUserId) continue;
+
                 var pref = await context.NotificationPreferences.FindAsync(sub.UserId);
                 if (pref != null)
                 {
                     if (pref.SoundAlerts == SoundAlertMode.Off) continue;
                     if (pref.SoundAlerts == SoundAlertMode.Peak)
                     {
-                        // Peak hours: 7–9 AM and 5–7 PM
                         bool morning = now >= TimeSpan.FromHours(7) && now < TimeSpan.FromHours(9);
                         bool evening = now >= TimeSpan.FromHours(17) && now < TimeSpan.FromHours(19);
                         if (!morning && !evening) continue;
@@ -218,6 +271,26 @@ namespace backend.Services
                 _logger.LogWarning(ex, "Push notification failed for user {UserId}", sub.UserId);
             }
         }
+    }
 
+    public static class PushNotificationServiceExtensions
+    {
+        public static async Task SafeNotifyNewIncident(this IPushNotificationService svc, int incidentId, string? actedByUserId, ILogger logger)
+        {
+            try { await svc.NotifyNewIncident(incidentId, actedByUserId); }
+            catch (Exception ex) { logger.LogError(ex, "Push notification failed for incident {Id}", incidentId); }
+        }
+
+        public static async Task SafeNotifyStatusChange(this IPushNotificationService svc, int incidentId, string? actedByUserId, ILogger logger)
+        {
+            try { await svc.NotifyStatusChange(incidentId, actedByUserId); }
+            catch (Exception ex) { logger.LogError(ex, "Push notification failed for incident {Id}", incidentId); }
+        }
+
+        public static async Task SafeNotifyReEscalation(this IPushNotificationService svc, int incidentId, string? actedByUserId, ILogger logger)
+        {
+            try { await svc.NotifyReEscalation(incidentId, actedByUserId); }
+            catch (Exception ex) { logger.LogError(ex, "Push notification failed for incident {Id}", incidentId); }
+        }
     }
 }

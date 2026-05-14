@@ -3,6 +3,9 @@ using System.Security.Cryptography;
 
 namespace backend.Services
 {
+    // NOTE (M1): This store is in-memory and singleton. All challenges are lost on restart
+    // and this is incompatible with horizontal scaling. Replace with Redis + TTL keys when
+    // moving to a multi-instance deployment.
     public class AuthChallengeStore
     {
         private sealed class ChallengeEntry
@@ -11,10 +14,12 @@ namespace backend.Services
             public required string Code { get; init; }
             public required DateTime ExpiresAtUtc { get; init; }
             public string? Metadata { get; set; }
+            public int FailedAttempts { get; set; }
         }
 
         private readonly ConcurrentDictionary<string, ChallengeEntry> _entries = new();
         private readonly ILogger<AuthChallengeStore> _logger;
+        private const int MaxFailedAttempts = 3;
 
         public AuthChallengeStore(ILogger<AuthChallengeStore> logger)
         {
@@ -41,9 +46,7 @@ namespace backend.Services
         public string? GetMetadata(string challengeId)
         {
             if (_entries.TryGetValue(challengeId, out var entry))
-            {
                 return entry.Metadata;
-            }
             return null;
         }
 
@@ -86,16 +89,39 @@ namespace backend.Services
             var ok = string.Equals(entry.Code.Trim(), submittedCode.Trim(), StringComparison.Ordinal);
             if (!ok)
             {
-                _logger.LogWarning("OTP code mismatch for user {UserId} on challenge {ChallengeId}", userId, challengeId);
+                entry.FailedAttempts++;
+                if (entry.FailedAttempts >= MaxFailedAttempts)
+                {
+                    _entries.TryRemove(challengeId, out _);
+                    _logger.LogWarning(
+                        "Challenge {ChallengeId} invalidated after {Max} failed attempts for user {UserId}",
+                        challengeId, MaxFailedAttempts, userId);
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "OTP mismatch for user {UserId} on challenge {ChallengeId} (attempt {Attempt}/{Max})",
+                        userId, challengeId, entry.FailedAttempts, MaxFailedAttempts);
+                }
+                return (false, null);
             }
 
-            string? metadata = null;
-            if (ok)
-            {
-                metadata = entry.Metadata;
-                _entries.TryRemove(challengeId, out _);
-            }
-            return (ok, metadata);
+            var metadata = entry.Metadata;
+            _entries.TryRemove(challengeId, out _);
+            return (true, metadata);
+        }
+
+        // Called by ChallengeCleanupService every 5 minutes to prevent unbounded memory growth.
+        public int RemoveExpired()
+        {
+            var now = DateTime.UtcNow;
+            var expired = _entries
+                .Where(kv => kv.Value.ExpiresAtUtc < now)
+                .Select(kv => kv.Key)
+                .ToList();
+            foreach (var key in expired)
+                _entries.TryRemove(key, out _);
+            return expired.Count;
         }
     }
 }

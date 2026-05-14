@@ -8,6 +8,8 @@ import {
 import { MfaVerification } from './MfaVerification';
 import { MfaSetup } from './MfaSetup';
 import { UserSession } from '../../types/session';
+import { usePasswordToggle } from '../../hooks/usePasswordToggle';
+import { Spinner } from '../../components/Spinner';
 
 type AuthStep = 'account' | 'password' | 'mfa' | 'mfa_setup' | 'success';
 
@@ -40,7 +42,7 @@ export function LoginPage({
   const [step, setStep] = useState<AuthStep>('account');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const { isVisible, toggle } = usePasswordToggle(['login']);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [isRedirecting, setIsRedirecting] = useState(false);
@@ -266,13 +268,6 @@ export function LoginPage({
     }
   };
 
-  const Spinner = () => (
-    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
-      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-    </svg>
-  );
-
   return (
     <div className="min-h-screen w-full bg-[#FAF9F5] flex flex-col items-center justify-center px-4 py-8 sm:py-12">
       {step !== 'success' ? (
@@ -373,7 +368,7 @@ export function LoginPage({
                       <LockIcon size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                       <input
                         id="password"
-                        type={showPassword ? 'text' : 'password'}
+                        type={isVisible('login') ? 'text' : 'password'}
                         value={password}
                         onChange={(e) => { setPassword(e.target.value); setError(''); }}
                         placeholder="Enter your password"
@@ -382,11 +377,11 @@ export function LoginPage({
                       />
                       <button
                         type="button"
-                        onClick={() => setShowPassword((v) => !v)}
+                        onClick={() => toggle('login')}
                         className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        aria-label={isVisible('login') ? 'Hide password' : 'Show password'}
                       >
-                        {showPassword ? <EyeOffIcon size={15} /> : <EyeIcon size={15} />}
+                        {isVisible('login') ? <EyeOffIcon size={15} /> : <EyeIcon size={15} />}
                       </button>
                     </div>
                   </div>

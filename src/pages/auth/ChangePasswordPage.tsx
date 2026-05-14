@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { EyeIcon, EyeOffIcon } from 'lucide-react';
 import { UserSession } from '../../types/session';
 import { MfaVerification } from './MfaVerification';
+import { usePasswordToggle } from '../../hooks/usePasswordToggle';
+import { Spinner } from '../../components/Spinner';
 
 interface ChangePasswordPageProps {
   session: UserSession;
@@ -18,7 +20,7 @@ export function ChangePasswordPage({ session, onBack }: ChangePasswordPageProps)
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
-  const [showPw, setShowPw] = useState<Record<string, boolean>>({});
+  const { isVisible, toggle } = usePasswordToggle(['current', 'new', 'confirm']);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [challengeId, setChallengeId] = useState('');
@@ -48,25 +50,32 @@ export function ChangePasswordPage({ session, onBack }: ChangePasswordPageProps)
   };
 
   // Step 2 — verify OTP + submit new password
-  const handleVerifyOtp = async (code: string) => {
-    const res = await fetch(`${API}/api/auth/change-password`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: session.email,
-        currentPassword: currentPw,
-        newPassword: newPw,
-        code,
-        challengeId,
-      }),
-      credentials: 'include',
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || 'Verification failed.');
+  const handleVerifyOtp = async (code: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`${API}/api/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: session.email,
+          currentPassword: currentPw,
+          newPassword: newPw,
+          code,
+          challengeId,
+        }),
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || 'Verification failed.');
+        return false;
+      }
+      setStep('success');
+      setTimeout(() => onBack(), 2000);
+      return true;
+    } catch {
+      setError('Network error. Please try again.');
+      return false;
     }
-    setStep('success');
-    setTimeout(() => onBack(), 2000);
   };
 
   const handleResend = async () => {
@@ -87,9 +96,8 @@ export function ChangePasswordPage({ session, onBack }: ChangePasswordPageProps)
     return (
       <MfaVerification
         email={session.email!}
-        maskedDestination={maskedEmail}
-        challengeId={challengeId}
-        mfaMethod="email_otp"
+        destinationHint={maskedEmail}
+        method="email_otp"
         onVerify={handleVerifyOtp}
         onResend={handleResend}
         onBack={() => setStep('passwords')}
@@ -137,7 +145,7 @@ export function ChangePasswordPage({ session, onBack }: ChangePasswordPageProps)
                 <label className="text-[10px] uppercase tracking-wider font-bold text-gray-400 px-1">{label}</label>
                 <div className="relative">
                   <input
-                    type={showPw[key] ? 'text' : 'password'}
+                    type={isVisible(key) ? 'text' : 'password'}
                     placeholder={`Enter ${label.toLowerCase()}`}
                     value={value}
                     onChange={e => onChange(e.target.value)}
@@ -145,10 +153,10 @@ export function ChangePasswordPage({ session, onBack }: ChangePasswordPageProps)
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPw(p => ({ ...p, [key]: !p[key] }))}
+                    onClick={() => toggle(key)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
-                    {showPw[key] ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+                    {isVisible(key) ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
                   </button>
                 </div>
               </div>
@@ -170,10 +178,7 @@ export function ChangePasswordPage({ session, onBack }: ChangePasswordPageProps)
             style={{ backgroundColor: DARKBLUE }}
           >
             {isLoading ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Sending code…
-              </span>
+              <span className="flex items-center justify-center gap-2"><Spinner /> Sending code…</span>
             ) : 'Continue'}
           </button>
 

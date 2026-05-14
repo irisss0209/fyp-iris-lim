@@ -3,14 +3,12 @@ using backend.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
-using System.IdentityModel.Tokens.Jwt;
 
 namespace backend.Controllers
 {
     [ApiController]
     [Route("api/notifications")]
-    public class NotificationController : ControllerBase
+    public class NotificationController : BaseApiController
     {
         private readonly AppDbContext _context;
 
@@ -18,10 +16,6 @@ namespace backend.Controllers
         {
             _context = context;
         }
-
-        private string? GetCurrentUserId() =>
-            User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-            ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
 
         [Authorize]
         [HttpPost("subscribe")]

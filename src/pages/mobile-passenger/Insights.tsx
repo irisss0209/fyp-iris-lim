@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { getMYTHours } from '../../utils/myt';
 import {
   AlertCircleIcon,
   CheckCircleIcon,
@@ -9,8 +10,7 @@ import {
 } from 'lucide-react';
 import { detectNearbyLines } from '../../utils/location';
 import { UserSession } from '../../types/session';
-
-const API = `${import.meta.env.VITE_API_BASE}/api/data`;
+import { API } from '../../api/config';
 const SAFE = '#2D7A5D';
 const WARN = '#B45309';
 const DANGER = '#D34026';
@@ -198,7 +198,7 @@ export function Insights({ session }: { session?: UserSession }) {
         bestWindow: bestWindow ?? '',
         line: selectedLine,
         todayCount: todayAlerts.length,
-        currentHour: new Date().getHours(),
+        currentHour: getMYTHours(),
       }),
     })
       .then(r => r.json())

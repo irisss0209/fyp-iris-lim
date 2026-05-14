@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   LockIcon,
   MailIcon,
@@ -8,6 +8,7 @@ import {
   CheckCircle2Icon
 } from 'lucide-react';
 import { MfaVerification } from './MfaVerification';
+import { Spinner } from '../../components/Spinner';
 
 interface ForgotPasswordPageProps {
   onBack: () => void;
@@ -135,15 +136,14 @@ export function ForgotPasswordPage({ onBack }: ForgotPasswordPageProps) {
     }
   };
 
-  const Spinner = () => (
-    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
-      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-    </svg>
-  );
+  useEffect(() => {
+    if (step === 'success') {
+      const t = setTimeout(() => onBack(), 2000);
+      return () => clearTimeout(t);
+    }
+  }, [step, onBack]);
 
   if (step === 'success') {
-    setTimeout(() => onBack(), 2000);
     return (
       <div className="min-h-screen w-full bg-[#FAF9F5] flex items-center justify-center px-4">
         <div className="w-full max-w-md bg-white p-8 rounded-3xl shadow-xl text-center border border-gray-100">

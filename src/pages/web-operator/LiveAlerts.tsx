@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { HubConnectionBuilder } from '@microsoft/signalr';
+import { useAlertHub } from '../../hooks/useAlertHub';
 import {
   CameraIcon,
   ClockIcon,
@@ -11,20 +11,15 @@ import {
 import { JustificationModal } from '../../components/JustificationModal';
 import { useTime } from "../../context/TimeContext";
 import { formatTime } from "../../utils/Time";
-import { Alert, AlertStatus, fetchOperatorAlerts, updateAlertStatus } from '../../type/Alert';
+import { Alert, AlertStatus } from '../../type/Alert';
+import { fetchOperatorAlerts, updateAlertStatus } from '../../api/alerts';
+import { getLineColor, STATUS_THEME } from '../../utils/reportUtils';
+import { parseMYTDatetime } from '../../utils/myt';
 
 
 
 interface LineOption { lineId: string; lineName: string; }
 interface StationsByLine { lineId: string; stations: { stationId: string; stationName: string }[]; }
-
-const LINE_COLORS: Record<string, string> = {};
-const PALETTE = ['#D34026', '#0B4F6C', '#2D7A5D', '#7B5EA7', '#B45309', '#0E7490'];
-
-function getLineColor(lineId: string, idx: number) {
-  if (!LINE_COLORS[lineId]) LINE_COLORS[lineId] = PALETTE[idx % PALETTE.length];
-  return LINE_COLORS[lineId];
-}
 
 // ── Stat box config (one entry per status) ──────────────────────────────────
 const STAT_CONFIGS: {
@@ -40,14 +35,6 @@ const STAT_CONFIGS: {
     { key: 'resolved', label: 'Resolved', color: '#1D4ED8', bg: '#EBF8FF' },
     { key: 'dismissed', label: 'Dismissed', color: '#4A5568', bg: '#F7FAFC' },
   ];
-const STATUS_THEME: Record<string, { color: string, bg: string }> = {
-  pending: { color: '#C2410C', bg: '#FFF7ED' },
-  verified: { color: '#2D7A5D', bg: '#F0FBF6' },
-  escalated: { color: '#7B5EA7', bg: '#F5F0FF' },
-  en_route: { color: '#0B4F6C', bg: '#EFF6FF' },
-  resolved: { color: '#1D4ED8', bg: '#EBF8FF' },
-  dismissed: { color: '#4A5568', bg: '#F7FAFC' }
-}
 interface StatsState {
   pending: number;
   verified: number;
@@ -75,7 +62,6 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ type: 'verify' | 'dismiss' | 'escalate'; alertId: string } | null>(null);
-  const [escalatedAt, setEscalatedAt] = useState<Record<string, number>>({}); // alertId → timestamp
   const [, setTick] = useState(0); // force re-render for timer
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   // ── Fetch all alerts from DB ──────────────────────────────────────────────────
@@ -118,25 +104,7 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
     }
   }, [initialAlertId, alerts, onClearInitial]);
 
-  // ── SignalR real-time updates + visibilitychange fallback ─────────────────────
-  useEffect(() => {
-    const connection = new HubConnectionBuilder()
-      .withUrl(`${import.meta.env.VITE_API_BASE}/hubs/alerts`, { withCredentials: true })
-      .withAutomaticReconnect()
-      .build();
-
-    connection.on('IncidentStatusChanged', fetchAlerts);
-    connection.on('NewIncident', fetchAlerts);
-    connection.start().catch(console.error);
-
-    const onVisible = () => { if (document.visibilityState === 'visible') fetchAlerts(); };
-    document.addEventListener('visibilitychange', onVisible);
-
-    return () => {
-      connection.stop();
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [fetchAlerts]);
+  useAlertHub(fetchAlerts);
 
   // ── Tick every second for verified countdown and re-escalate timer ──
   useEffect(() => {
@@ -206,16 +174,11 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
       patch.escalatedAt = now;
       patch.escalatedBy = operatorName;
       patch.escalatedComment = comment || null;
-    } else if (pendingAction.type === 'verify') { // fallback check if needed, but adding enroute below
-      // other logic
     }
-    
-    // Add En Route support if it ever comes from operator POV (though usually auxiliary)
-    // but just in case, and to keep consistent:
     if ((pendingAction.type as string) === 'en_route') {
-       patch.enrouteAt = now;
-       patch.enrouteBy = operatorName;
-       patch.enrouteComment = comment || null;
+      patch.enrouteAt = now;
+      patch.enrouteBy = operatorName;
+      patch.enrouteComment = comment || null;
     }
 
     // Capture old status for stats update before mutating
@@ -226,20 +189,15 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
     setSelectedAlert(prev => prev?.id === id ? { ...prev, ...patch } : prev);
     setStats(prev => {
       const next = { ...prev };
-      const dec: Record<string, keyof StatsState> = {
+      const STATUS_KEY: Record<string, keyof StatsState> = {
         pending: 'pending', verified: 'verified', escalated: 'escalated',
         en_route: 'enRoute', resolved: 'resolved', dismissed: 'dismissed',
       };
-      const inc: Record<string, keyof StatsState> = { ...dec };
-      if (oldStatus && dec[oldStatus]) next[dec[oldStatus]] = Math.max(0, next[dec[oldStatus]] - 1);
-      if (inc[newStatus]) next[inc[newStatus]] = next[inc[newStatus]] + 1;
+      if (oldStatus && STATUS_KEY[oldStatus]) next[STATUS_KEY[oldStatus]] = Math.max(0, next[STATUS_KEY[oldStatus]] - 1);
+      if (STATUS_KEY[newStatus]) next[STATUS_KEY[newStatus]] = next[STATUS_KEY[newStatus]] + 1;
       return next;
     });
 
-    // Track escalation timestamp for the 2-min re-escalate logic
-    if (pendingAction.type === 'escalate') {
-      setEscalatedAt(prev => ({ ...prev, [id]: Date.now() }));
-    }
 
     setModalOpen(false);
     setPendingAction(null);
@@ -414,7 +372,7 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
             </div>
           ) : (
             filtered.map((alert) => {
-              const lineColor = getLineColor(alert.lineId, lines.findIndex(l => l.lineId === alert.lineId));
+              const lineColor = getLineColor(alert.lineId);
               return (
                 <div
                   key={alert.id}
@@ -498,19 +456,8 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
                           </button>
                         </div>
                       )}
-                      {alert.status === 'verified' && (
-                        <div className="mt-3">
-                          <button
-                            onClick={e => openModal('escalate', alert.id, e)}
-                            className="w-full text-xs font-semibold py-1.5 rounded-lg text-white hover:opacity-90 transition-opacity"
-                            style={{ backgroundColor: '#7B5EA7' }}
-                          >
-                            Escalate
-                          </button>
-                        </div>
-                      )}
                       {alert.status === 'verified' && (() => {
-                        const vAtMs = alert.verifiedAt ? new Date(alert.verifiedAt.replace(' ', 'T') + '+08:00').getTime() : null;
+                        const vAtMs = alert.verifiedAt ? parseMYTDatetime(alert.verifiedAt).getTime() : null;
                         const canEscalate = vAtMs ? Date.now() - vAtMs >= 2 * 60 * 1000 : false;
                         if (!canEscalate) return null;
                         return (
@@ -520,7 +467,7 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
                               className="w-full text-xs font-semibold py-1.5 rounded-lg text-white hover:opacity-90 transition-opacity"
                               style={{ backgroundColor: '#7B5EA7' }}
                             >
-                              Escalate — No Response
+                              Escalate
                             </button>
                           </div>
                         );
@@ -688,7 +635,7 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
 
                   {selectedAlert.status === 'verified' && (() => {
                     const vAtMs = selectedAlert.verifiedAt
-                      ? new Date(selectedAlert.verifiedAt.replace(' ', 'T') + '+08:00').getTime()
+                      ? parseMYTDatetime(selectedAlert.verifiedAt).getTime()
                       : null;
                     const secondsLeft = vAtMs
                       ? Math.max(0, Math.ceil((2 * 60 * 1000 - (Date.now() - vAtMs)) / 1000))
@@ -712,10 +659,21 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
                   })()}
 
                   {selectedAlert.status === 'escalated' && (() => {
-                    const ts = escalatedAt[selectedAlert.id];
-                    const elapsed = ts ? (Date.now() - ts) / 1000 : Infinity;
-                    const canReEscalate = elapsed >= 120;
-                    return canReEscalate ? (
+                    const eAtMs = selectedAlert.escalatedAt
+                      ? parseMYTDatetime(selectedAlert.escalatedAt).getTime()
+                      : null;
+                    const secondsLeft = eAtMs
+                      ? Math.max(0, Math.ceil((2 * 60 * 1000 - (Date.now() - eAtMs)) / 1000))
+                      : 0;
+                    return secondsLeft > 0 ? (
+                      <div className="text-center">
+                        <p className="text-xs text-gray-400">Waiting for auxiliary response…</p>
+                        <p className="text-sm font-bold mt-0.5" style={{ color: '#D34026' }}>
+                          {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, '0')}
+                        </p>
+                        <p className="text-[10px] text-gray-300 mt-0.5">Re-escalate available after 2 minutes</p>
+                      </div>
+                    ) : (
                       <div>
                         <button
                           onClick={() => openModal('escalate', selectedAlert.id)}
@@ -725,11 +683,6 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
                           Re-Escalate Alert
                         </button>
                         <p className="text-[10px] text-gray-400 text-center mt-1">No response received after 2 minutes</p>
-                      </div>
-                    ) : (
-                      <div className="text-center">
-                        <p className="text-xs text-gray-400">Waiting for auxiliary response…</p>
-                        <p className="text-[10px] text-gray-300 mt-0.5">Re-escalate in {Math.ceil(120 - elapsed)}s</p>
                       </div>
                     );
                   })()}

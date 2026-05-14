@@ -6,9 +6,9 @@ import {
 } from 'lucide-react';
 import { useTime } from '../../context/TimeContext';
 import { formatClockTime } from '../../utils/Time';
+import { API } from '../../api/config';
 
 const ACCENT = '#0B4F6C';
-const API = `${import.meta.env.VITE_API_BASE}/api/data`;
 
 interface ShiftRow {
   shiftId: number;
@@ -25,8 +25,8 @@ interface ShiftRow {
 function getShiftStatus(shift: ShiftRow): 'upcoming' | 'in_progress' | 'completed' {
   const now = new Date();
   const dateStr = shift.shiftDate.split('T')[0];
-  const shiftStart = new Date(`${dateStr}T${shift.startTime}`);
-  const shiftEnd = new Date(`${dateStr}T${shift.endTime}`);
+  const shiftStart = new Date(`${dateStr}T${shift.startTime}+08:00`);
+  const shiftEnd = new Date(`${dateStr}T${shift.endTime}+08:00`);
 
   if (shiftEnd < shiftStart) {
     shiftEnd.setDate(shiftEnd.getDate() + 1); // Handle overnight shifts
@@ -61,7 +61,7 @@ export function ShiftManagementPanel({ session }: { session?: { token?: string }
   const fetchShifts = () => {
     setLoading(true);
     fetch(`${API}/operator/shifts`, {
-      headers: { Authorization: `Bearer ${session?.token}` },
+      headers: { ...(session?.token && { Authorization: `Bearer ${session.token}` }) },
       credentials: 'include'
     })
       .then(r => r.json())
@@ -84,7 +84,7 @@ export function ShiftManagementPanel({ session }: { session?: { token?: string }
   const filtered = shifts.filter(s => {
     const q = search.toLowerCase();
     const displayDate = new Date(s.shiftDate).toLocaleDateString('en-MY', {
-      day: '2-digit',
+      timeZone: 'Asia/Kuala_Lumpur', day: '2-digit',
       month: 'short',
       year: 'numeric'
     }).toLowerCase()
@@ -196,7 +196,7 @@ export function ShiftManagementPanel({ session }: { session?: { token?: string }
     try {
       const res = await fetch(`${API}/operator/shifts/import`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${session?.token}` },
+        headers: { ...(session?.token && { Authorization: `Bearer ${session.token}` }) },
         body: form,
         credentials: 'include'
       });
@@ -442,7 +442,7 @@ export function ShiftManagementPanel({ session }: { session?: { token?: string }
                   {/* Date */}
                   <td className="px-4 py-3 text-gray-700 text-sm">
                     {new Date(s.shiftDate).toLocaleDateString('en-MY', {
-                      day: '2-digit', month: 'short', year: 'numeric',
+                      timeZone: 'Asia/Kuala_Lumpur', day: '2-digit', month: 'short', year: 'numeric',
                     })}
                   </td>
 

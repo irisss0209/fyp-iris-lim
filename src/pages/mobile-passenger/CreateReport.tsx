@@ -11,6 +11,14 @@ import {
 
 import { detectNearbyStations } from '../../utils/location';
 import { queueReport } from '../../utils/offlineQueue';
+import { UserSession } from '../../types/session';
+
+interface LineData { lineId: string; lineName: string; coaches?: number[]; trains?: number[] }
+interface StationData { stationId: string; stationName: string }
+interface NearbyStation {
+  stationId: string; stationName: string; distance: number;
+  lines: { id: string; name: string; trainId?: number }[];
+}
 
 function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
@@ -21,29 +29,28 @@ function FieldLabel({ children, required }: { children: React.ReactNode; require
   );
 }
 
-export function CreateReport({ session, onBack }: { session: any, onBack: () => void }) {
+export function CreateReport({ session, onBack }: { session: UserSession, onBack: () => void }) {
   const [step, setStep] = useState<'form' | 'sent' | 'sending' | 'queued'>('form');
-  const [line, setLine] = useState('');
-  const [station, setStation] = useState('');
-  const [coach, setCoach] = useState('');
-  const [type, setType] = useState('');
-  const [desc, setDesc] = useState('');
+  const [form, setForm] = useState({
+    line: '', station: '', coach: '', type: '', desc: '', trainNumber: '',
+    selectedStationId: null as string | null,
+    selectedLineId: null as string | null,
+    selectedTrainId: 0,
+    selectedCoachId: 0,
+  });
+  const setF = <K extends keyof typeof form>(k: K, v: typeof form[K]) =>
+    setForm(f => ({ ...f, [k]: v }));
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLocating, setIsLocating] = useState(false);
-  const [nearbyStations, setNearbyStations] = useState<any[]>([]);
-  const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
-  const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
-  const [selectedTrainId, setSelectedTrainId] = useState<number>(0);
-  const [selectedCoachId, setSelectedCoachId] = useState<number>(0);
-  const [trainNumber, setTrainNumber] = useState('');
+  const [nearbyStations, setNearbyStations] = useState<NearbyStation[]>([]);
   const [showSampleImage, setShowSampleImage] = useState(false);
 
-  const [linesData, setLinesData] = useState<any[]>([]);
-  const [stationsData, setStationsData] = useState<any[]>([]);
+  const [linesData, setLinesData] = useState<LineData[]>([]);
+  const [stationsData, setStationsData] = useState<StationData[]>([]);
 
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -76,17 +83,17 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
   }, []);
 
   useEffect(() => {
-    if (selectedLineId) {
-      fetch(`${import.meta.env.VITE_API_BASE}/api/data/stations-by-line/${selectedLineId}`, { credentials: 'include' })
+    if (form.selectedLineId) {
+      fetch(`${import.meta.env.VITE_API_BASE}/api/data/stations-by-line/${form.selectedLineId}`, { credentials: 'include' })
         .then(res => res.json())
         .then(setStationsData)
         .catch(console.error);
     } else {
       setStationsData([]);
     }
-  }, [selectedLineId]);
+  }, [form.selectedLineId]);
 
-  const selectedLineData = linesData.find(l => l.lineName === line);
+  const selectedLineData = linesData.find(l => l.lineName === form.line);
   const availableCoaches = selectedLineData?.coaches || [];
   const availableTrains = selectedLineData?.trains || [];
 
@@ -98,11 +105,11 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    if (!line) newErrors.line = 'Please select a line';
-    if (!station) newErrors.station = 'Please select a station';
-    if (!trainNumber.trim()) newErrors.trainNumber = 'Please select a train number';
-    if (!coach) newErrors.coach = 'Please enter coach ID (or "Unknown")';
-    if (!desc) newErrors.desc = 'Please describe what is happening';
+    if (!form.line) newErrors.line = 'Please select a line';
+    if (!form.station) newErrors.station = 'Please select a station';
+    if (!form.trainNumber.trim()) newErrors.trainNumber = 'Please select a train number';
+    if (!form.coach) newErrors.coach = 'Please enter coach ID (or "Unknown")';
+    if (!form.desc) newErrors.desc = 'Please describe what is happening';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -120,6 +127,7 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
     if (!validate()) return;
     setStep('sending');
 
+    const { line, station, coach, trainNumber, type, desc, selectedTrainId, selectedCoachId, selectedLineId, selectedStationId } = form;
     const reportPayload = {
       line, station, coach, trainNumber,
       trainId: selectedTrainId,
@@ -241,18 +249,16 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
           <p className="text-[10px] font-bold text-[#0B4F6C] uppercase tracking-wider mb-2">Closest Stations</p>
           <div className="flex flex-wrap gap-2">
             {nearbyStations.flatMap((s) =>
-              (s.lines && s.lines.length > 0 ? s.lines : []).map((lineEntry: any) => (
+              s.lines.map((lineEntry) => (
                 <button
                   key={`${s.stationId}-${lineEntry.id}`}
                   onClick={() => {
-                    setLine(lineEntry.name);
-                    setStation(s.stationName);
-                    setCoach('');
+                    setForm(f => ({ ...f,
+                      line: lineEntry.name, station: s.stationName, coach: '',
+                      selectedStationId: s.stationId, selectedLineId: lineEntry.id,
+                      selectedTrainId: lineEntry.trainId ?? 0, selectedCoachId: 0,
+                    }));
                     setErrors(v => ({ ...v, line: '', station: '' }));
-                    setSelectedStationId(s.stationId);
-                    setSelectedLineId(lineEntry.id);
-                    setSelectedTrainId(lineEntry.trainId ?? 0);
-                    setSelectedCoachId(0);
                   }}
                   className="bg-white border border-[#0B4F6C]/20 px-3 py-1.5 rounded-xl text-xs font-semibold text-[#0B4F6C] shadow-sm active:bg-[#0B4F6C] active:text-white transition-colors"
                 >
@@ -273,17 +279,15 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
         <div>
           <FieldLabel required>Train Line</FieldLabel>
           <select
-            value={line}
+            value={form.line}
             onChange={e => {
               const selected = linesData.find(l => l.lineName === e.target.value);
-              setLine(e.target.value);
-              setCoach('');
+              setForm(f => ({ ...f,
+                line: e.target.value, coach: '', trainNumber: '',
+                selectedStationId: null, selectedLineId: selected?.lineId || null,
+                selectedTrainId: 0, selectedCoachId: 0,
+              }));
               setErrors(v => ({ ...v, line: '' }));
-              setSelectedStationId(null);
-              setSelectedLineId(selected?.lineId || null);
-              setSelectedTrainId(0);
-              setTrainNumber('');
-              setSelectedCoachId(0);
             }}
             className={inputClass('line')}
             disabled={linesData.length === 0}
@@ -297,14 +301,13 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
         <div>
           <FieldLabel required>Station</FieldLabel>
           <select
-            value={station}
+            value={form.station}
             onChange={e => {
-              setStation(e.target.value);
+              setForm(f => ({ ...f, station: e.target.value, selectedStationId: stationsData.find(s => s.stationName === e.target.value)?.stationId || null }));
               setErrors(v => ({ ...v, station: '' }));
-              setSelectedStationId(stationsData.find(s => s.stationName === e.target.value)?.stationId || null);
             }}
             className={inputClass('station')}
-            disabled={!line || stationsData.length === 0}
+            disabled={!form.line || stationsData.length === 0}
           >
             <option value="">Select station</option>
             {stationsData.map(s => <option key={s.stationId} value={s.stationName}>{s.stationName}</option>)}
@@ -341,17 +344,16 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
           )}
 
           <select
-            value={trainNumber}
+            value={form.trainNumber}
             onChange={e => {
               const val = e.target.value;
-              setTrainNumber(val);
-              setSelectedTrainId(parseInt(val, 10) || 0);
+              setForm(f => ({ ...f, trainNumber: val, selectedTrainId: parseInt(val, 10) || 0 }));
               setErrors(v => ({ ...v, trainNumber: '' }));
             }}
             className={inputClass('trainNumber')}
-            disabled={!line || availableTrains.length === 0}
+            disabled={!form.line || availableTrains.length === 0}
           >
-            <option value="">{!line ? 'Select a line first…' : 'Select train…'}</option>
+            <option value="">{!form.line ? 'Select a line first…' : 'Select train…'}</option>
             {availableTrains.map((t: number) => (
               <option key={t} value={t}>{t}</option>
             ))}
@@ -363,17 +365,16 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
         <div>
           <FieldLabel required>Coach Number</FieldLabel>
           <select
-            value={coach}
+            value={form.coach}
             onChange={e => {
               const val = e.target.value;
-              setCoach(val);
-              setSelectedCoachId(parseInt(val, 10));
+              setForm(f => ({ ...f, coach: val, selectedCoachId: parseInt(val, 10) }));
               setErrors(v => ({ ...v, coach: '' }));
             }}
             className={inputClass('coach')}
-            disabled={!line || availableCoaches.length === 0}
+            disabled={!form.line || availableCoaches.length === 0}
           >
-            <option value="">{!line ? 'Select a line first…' : 'Select coach…'}</option>
+            <option value="">{!form.line ? 'Select a line first…' : 'Select coach…'}</option>
             {availableCoaches.map((c: number) => <option key={c} value={c}>{c}</option>)}
           </select>
           {errors.coach && <p className="text-xs text-red-500 mt-1">{errors.coach}</p>}
@@ -383,8 +384,8 @@ export function CreateReport({ session, onBack }: { session: any, onBack: () => 
         <div>
           <FieldLabel required>Description</FieldLabel>
           <textarea
-            value={desc}
-            onChange={e => { setDesc(e.target.value); setErrors(v => ({ ...v, desc: '' })); }}
+            value={form.desc}
+            onChange={e => { setF('desc', e.target.value); setErrors(v => ({ ...v, desc: '' })); }}
             placeholder="Briefly describe the incident…"
             rows={4}
             className={`${inputClass('desc')} resize-none`}

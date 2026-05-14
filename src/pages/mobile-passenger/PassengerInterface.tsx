@@ -82,7 +82,7 @@ export function PassengerInterface({ session, onLogout }: PassengerInterface) {
       {/* ── Scrollable Content ── */}
       <div className="flex-1 overflow-y-auto" style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}>
         <AnimatePresence mode="wait">
-          {activeTab === 'home' && <Home key="home" onNavigate={setActiveTab} session={session} />}
+          {activeTab === 'home' && <Home key="home" onNavigate={(tab) => setActiveTab(tab as Tab)} session={session} />}
           {activeTab === 'incident' && <IncidentNearMe key="incident" />}
           {activeTab === 'report' && <Report key="report" session={session} />}
           {activeTab === 'insights' && <Insights key="insights" session={session} />}

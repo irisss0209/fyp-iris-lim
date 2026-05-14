@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { SearchIcon, ChevronRightIcon, HistoryIcon } from 'lucide-react';
 import { Alert } from '../../type/Alert';
 import { AlertDetailView } from './AlertDetailView';
+import { getMYTDateStr } from '../../utils/myt';
+import { STATUS_THEME } from '../../utils/reportUtils';
 
 const ACCENT = '#0B4F6C';
 
@@ -37,21 +39,13 @@ interface Case {
   dismissedComment?: string;
 }
 
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  resolved: { bg: '#F0FBF6', text: '#2D7A5D' },
-  escalated: { bg: '#FEF2F0', text: '#D34026' },
-  dismissed: { bg: '#F7FAFC', text: '#4A5568' },
-  en_route: { bg: '#EFF6FF', text: '#1E3A8A' },
-  pending: { bg: '#FEF3C7', text: '#92400E' },
-  verified: { bg: '#F0FBF6', text: '#2D7A5D' },
-};
-
 const LABELS: Record<string, string> = { resolved: 'Resolved', escalated: 'Escalated', dismissed: 'Dismissed', en_route: 'En Route', pending: 'Pending', verified: 'Verified' };
 
 const getOutcomeConfig = (status: string) => {
-  const s = STATUS_COLORS[status?.toLowerCase()];
-  return s
-    ? { color: s.text, bg: s.bg, label: LABELS[status?.toLowerCase()] ?? status }
+  const key = status?.toLowerCase();
+  const t = STATUS_THEME[key];
+  return t
+    ? { color: t.color, bg: t.bg, label: LABELS[key] ?? status }
     : { color: '#4A5568', bg: '#F7FAFC', label: status };
 };
 
@@ -94,12 +88,16 @@ export function AlertsHistory({ userId, token }: { userId: string; token?: strin
     const matchesSearch =
       c.id.toLowerCase().includes(search.toLowerCase()) ||
       (c.station && c.station.toLowerCase().includes(search.toLowerCase()));
-    const caseDate = new Date(c.date);
-    const now = new Date();
     let matchesDate = true;
-    if (dateFilter === 'today') matchesDate = caseDate.toDateString() === now.toDateString();
-    else if (dateFilter === 'week') { const w = new Date(now); w.setDate(now.getDate() - 7); matchesDate = caseDate >= w; }
-    else if (dateFilter === 'month') { const m = new Date(now); m.setMonth(now.getMonth() - 1); matchesDate = caseDate >= m; }
+    if (dateFilter === 'today') {
+      matchesDate = c.date === getMYTDateStr();
+    } else if (dateFilter === 'week') {
+      const w = new Date(Date.now() - 7 * 24 * 3600_000);
+      matchesDate = new Date(c.date) >= w;
+    } else if (dateFilter === 'month') {
+      const m = new Date(Date.now() - 30 * 24 * 3600_000);
+      matchesDate = new Date(c.date) >= m;
+    }
     return matchesSearch && matchesDate;
   });
 

@@ -42,7 +42,8 @@ try
         GetSecret(smClient, "railly/vapid-private-key"),
         GetSecret(smClient, "railly/google-geocoding-api-key"),
         GetSecret(smClient, "railly/vertex-project-id"),
-        GetSecret(smClient, "railly/vertex-service-account-json")
+        GetSecret(smClient, "railly/vertex-service-account-json"),
+        GetSecret(smClient, "railly/lambda-notify-key")
     );
     if (smResults[0] is { } jwt)          builder.Configuration["JwtSettings:SecretKey"]              = jwt;
     if (smResults[1] is { } db)           builder.Configuration["ConnectionStrings:DefaultConnection"] = db;
@@ -50,6 +51,7 @@ try
     if (smResults[3] is { } google)       builder.Configuration["Google:GeocodingApiKey"]              = google;
     if (smResults[4] is { } vertexProj)   builder.Configuration["VertexAI:ProjectId"]                 = vertexProj;
     if (smResults[5] is { } vertexJson)   builder.Configuration["VertexAI:ServiceAccountJson"]        = vertexJson;
+    if (smResults[6] is { } lambdaKey)    builder.Configuration["Lambda:NotifyApiKey"]                = lambdaKey;
     Console.WriteLine(" Secrets loaded from AWS Secrets Manager.");
 }
 catch (Exception ex)
@@ -120,26 +122,31 @@ builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<IEmailVerificationSender, EmailService>();
 builder.Services.AddSingleton<AuthChallengeStore>();
+builder.Services.AddHostedService<ChallengeCleanupService>();
+builder.Services.AddSingleton<TotpUsedCodeCache>();
 builder.Services.AddSingleton<ITotpService, TotpService>();
 builder.Services.AddScoped<IAlertService, AlertService>();
 builder.Services.AddScoped<IS3Service, S3Service>();
 builder.Services.AddSingleton<IGeminiService, GeminiService>();
 builder.Services.AddSingleton<IPushNotificationService, PushNotificationService>();
 
-// Rate limiting — 10 req/min per IP on auth; 120 req/min on general API endpoints
+// Rate limiting — sliding window prevents boundary-burst attacks that fixed-window allows.
+// Auth: 10 req/min per IP; General API: 120 req/min per IP.
 builder.Services.AddRateLimiter(options =>
 {
-    options.AddFixedWindowLimiter("auth", opt =>
+    options.AddSlidingWindowLimiter("auth", opt =>
     {
         opt.PermitLimit = 10;
         opt.Window = TimeSpan.FromMinutes(1);
+        opt.SegmentsPerWindow = 6;
         opt.QueueLimit = 0;
         opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
     });
-    options.AddFixedWindowLimiter("api", opt =>
+    options.AddSlidingWindowLimiter("api", opt =>
     {
         opt.PermitLimit = 120;
         opt.Window = TimeSpan.FromMinutes(1);
+        opt.SegmentsPerWindow = 6;
         opt.QueueLimit = 0;
         opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
     });
@@ -201,7 +208,7 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-app.MapHub<AlertHub>("/hubs/alerts");
+app.MapHub<AlertHub>("/hubs/alerts").RequireAuthorization();
 app.MapGet("/health", () => "OK");
 app.Urls.Add("http://0.0.0.0:8080");
 app.Run();

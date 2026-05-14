@@ -184,38 +184,13 @@ namespace backend.Controllers
 
             // Default window: last 35 days (covers today + last-week comparison + current month
             // that the Insights page needs). Filter at DB level — never return all-time data.
-            var mytToday = DateTime.UtcNow.AddHours(8).Date;
-            var windowStart = DateTime.SpecifyKind(mytToday.AddHours(-8), DateTimeKind.Utc).AddDays(-35);
+            var windowStart = MytTodayUtc.AddDays(-35);
 
             var incidentsQuery = _context.Incidents
                 .AsNoTracking()
                 .Where(i => i.CreatedAt >= windowStart)
-                .Include(i => i.Detection)
-                    .ThenInclude(d => d!.Camera)
-                        .ThenInclude(c => c!.TrainCoach)
-                            .ThenInclude(tc => tc!.TrainAsset)
-                                .ThenInclude(ta => ta!.TrainLine)
-                .Include(i => i.Detection)
-                    .ThenInclude(d => d!.LineStation)
-                        .ThenInclude(ls => ls!.TrainLine)
-                .Include(i => i.Detection)
-                    .ThenInclude(d => d!.LineStation)
-                        .ThenInclude(ls => ls!.Station)
-                .Include(i => i.UserReport)
-                    .ThenInclude(r => r!.TrainCoach)
-                        .ThenInclude(tc => tc!.TrainAsset)
-                            .ThenInclude(ta => ta!.TrainLine)
-                .Include(i => i.UserReport)
-                    .ThenInclude(r => r!.LineStation)
-                        .ThenInclude(ls => ls!.TrainLine)
-                .Include(i => i.UserReport)
-                    .ThenInclude(r => r!.LineStation)
-                        .ThenInclude(ls => ls!.Station)
-                .Include(i => i.VerifiedByUser)
-                .Include(i => i.EscalatedByUser)
-                .Include(i => i.EnrouteByUser)
-                .Include(i => i.ResolvedByUser)
-                .Include(i => i.DismissedByUser)
+                .WithFullNavigations()
+                .WithStatusUsers()
                 .AsQueryable();
 
             var incidents = await incidentsQuery
@@ -243,8 +218,7 @@ namespace backend.Controllers
         [HttpPost("incident-alerts/{id}/status")]
         public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateStatusRequest request)
         {
-            var incidentIdStr = id.Replace("ALT-", "").Replace("RPT-", "");
-            if (!int.TryParse(incidentIdStr, out var incidentId))
+            if (!TryParseIncidentId(id, out var incidentId))
                 return BadRequest(new { error = $"Invalid ID format: {id}" });
 
             var incident = await _context.Incidents.FindAsync(incidentId);
@@ -280,15 +254,33 @@ namespace backend.Controllers
                     break;
 
                 case IncidentStatus.Escalated:
+                    if (previousStatus == IncidentStatus.Escalated)
+                    {
+                        // Re-escalation: status stays Escalated, refresh fields, notify aux only
+                        if (!incident.EscalatedAt.HasValue || DateTime.UtcNow - incident.EscalatedAt.Value < TimeSpan.FromMinutes(2))
+                        {
+                            incident.Status = previousStatus;
+                            return BadRequest(new { error = "You can re-escalate only after 2 minutes of no response." });
+                        }
+                        incident.EscalatedBy      = userId;
+                        incident.EscalatedAt      = DateTime.UtcNow;
+                        incident.EscalatedComment = string.IsNullOrWhiteSpace(request.Comment) ? "No comment" : request.Comment;
+                        incident.Status           = previousStatus;
+                        await _context.SaveChangesAsync();
+                        await _hub.Clients.All.SendAsync("IncidentStatusChanged", incident.IncidentId);
+                        await _pushService.SafeNotifyReEscalation(incident.IncidentId, userId, _logger);
+                        return Ok(new { incidentId = incident.IncidentId, status = incident.Status.ToString().ToLower() });
+                    }
+                    // First escalation: operator — Verified only
                     if (previousStatus != IncidentStatus.Verified)
                     {
                         incident.Status = previousStatus;
-                        return BadRequest(new { error = "You can only escalate a verified incident." });
+                        return BadRequest(new { error = "Operators can only escalate a Verified incident." });
                     }
                     if (!incident.VerifiedAt.HasValue || DateTime.UtcNow - incident.VerifiedAt.Value < TimeSpan.FromMinutes(2))
                     {
                         incident.Status = previousStatus;
-                        return BadRequest(new { error = "You can only escalate after 2 minutes with no response since verification." });
+                        return BadRequest(new { error = "You can only escalate after 2 minutes since verification." });
                     }
                     incident.EscalatedBy      = userId;
                     incident.EscalatedAt      = DateTime.UtcNow;
@@ -316,7 +308,7 @@ namespace backend.Controllers
 
             await _context.SaveChangesAsync();
             await _hub.Clients.All.SendAsync("IncidentStatusChanged", incident.IncidentId);
-            _ = Task.Run(() => _pushService.NotifyStatusChange(incident.IncidentId));
+            await _pushService.SafeNotifyStatusChange(incident.IncidentId, userId, _logger);
             return Ok(new
             {
                 incidentId = incident.IncidentId,
@@ -345,8 +337,7 @@ namespace backend.Controllers
             // If no range supplied at all, default to today in MYT (UTC+8)
             if (!fromUtc.HasValue && !toUtc.HasValue)
             {
-                var mytToday = DateTime.UtcNow.AddHours(8).Date; // today's date in MYT
-                fromUtc = DateTime.SpecifyKind(mytToday.AddHours(-8), DateTimeKind.Utc); // MYT midnight → UTC
+                fromUtc = MytTodayUtc; // MYT midnight → UTC
                 toUtc   = fromUtc.Value.AddDays(1);
             }
 
@@ -355,14 +346,24 @@ namespace backend.Controllers
             if (toUtc.HasValue)   baseIncidents = baseIncidents.Where(i => i.CreatedAt <  toUtc.Value);
 
 
-            // Stats
-            var pending   = await baseIncidents.CountAsync(i => i.Status == IncidentStatus.Pending);
-            var verified  = await baseIncidents.CountAsync(i => i.Status == IncidentStatus.Verified || i.Status == IncidentStatus.Escalated);
-            var resolved  = await baseIncidents.CountAsync(i => i.Status == IncidentStatus.Resolved);
-            var dismissed = await baseIncidents.CountAsync(i => i.Status == IncidentStatus.Dismissed);
+            // Stats — single GROUP BY per table instead of 6 separate round-trips
+            var statusCounts = await baseIncidents
+                .GroupBy(i => i.Status)
+                .Select(g => new { Status = g.Key, Count = g.Count() })
+                .ToListAsync();
 
-            var camerasOnline = await _context.Cameras.CountAsync(c => c.Status == CameraStatus.Active);
-            var camerasTotal  = await _context.Cameras.CountAsync();
+            int StatusCount(IncidentStatus s) => statusCounts.FirstOrDefault(x => x.Status == s)?.Count ?? 0;
+            var pending   = StatusCount(IncidentStatus.Pending);
+            var verified  = StatusCount(IncidentStatus.Verified) + StatusCount(IncidentStatus.Escalated);
+            var resolved  = StatusCount(IncidentStatus.Resolved);
+            var dismissed = StatusCount(IncidentStatus.Dismissed);
+
+            var cameraCounts = await _context.Cameras
+                .GroupBy(c => c.Status == CameraStatus.Active)
+                .Select(g => new { IsActive = g.Key, Count = g.Count() })
+                .ToListAsync();
+            var camerasOnline = cameraCounts.FirstOrDefault(x => x.IsActive)?.Count ?? 0;
+            var camerasTotal  = cameraCounts.Sum(x => x.Count);
 
             // Average response time (verified_at - created_at) for incidents that have been verified
             var verifiedIncidents = await baseIncidents
@@ -379,34 +380,8 @@ namespace backend.Controllers
             var incidents = await baseIncidents
                 .AsNoTracking()
                 .AsSplitQuery()
-                .Include(i => i.Detection)
-                    .ThenInclude(d => d!.Camera)
-                        .ThenInclude(c => c!.TrainCoach)
-                            .ThenInclude(tc => tc!.TrainAsset)
-                                .ThenInclude(ta => ta!.TrainLine)
-                .Include(i => i.Detection)
-                    .ThenInclude(d => d!.LineStation)
-                        .ThenInclude(ls => ls!.TrainLine)
-                .Include(i => i.Detection)
-                    .ThenInclude(d => d!.LineStation)
-                        .ThenInclude(ls => ls!.Station)
-                .Include(i => i.UserReport)
-                    .ThenInclude(r => r!.TrainCoach)
-                        .ThenInclude(tc => tc!.TrainAsset)
-                            .ThenInclude(ta => ta!.TrainLine)
-                .Include(i => i.UserReport)
-                    .ThenInclude(r => r!.LineStation)
-                        .ThenInclude(ls => ls!.TrainLine)
-                .Include(i => i.UserReport)
-                    .ThenInclude(r => r!.LineStation)
-                        .ThenInclude(ls => ls!.Station)
-                .Include(i => i.UserReport)
-                    .ThenInclude(r => r!.User)
-                .Include(i => i.VerifiedByUser)
-                .Include(i => i.EscalatedByUser)
-                .Include(i => i.EnrouteByUser)
-                .Include(i => i.ResolvedByUser)
-                .Include(i => i.DismissedByUser)
+                .WithFullNavigations()
+                .WithStatusUsers()
                 .OrderByDescending(i => i.CreatedAt)
                 .ToListAsync();
 
@@ -461,35 +436,13 @@ namespace backend.Controllers
                 }).ToList();
 
             // All incidents from today in MYT (UTC+8)
-            var mytToday = DateTime.UtcNow.AddHours(8).Date;
-            var today = DateTime.SpecifyKind(mytToday.AddHours(-8), DateTimeKind.Utc);
+            var today = MytTodayUtc;
             var incidents = await _context.Incidents
                 .AsNoTracking()
+                .AsSplitQuery()
                 .Where(i => i.CreatedAt >= today)
-                .Include(i => i.Detection)
-                    .ThenInclude(d => d!.Camera)
-                        .ThenInclude(c => c!.TrainCoach)
-                .Include(i => i.Detection)
-                    .ThenInclude(d => d!.LineStation)
-                        .ThenInclude(ls => ls!.TrainLine)
-                .Include(i => i.Detection)
-                    .ThenInclude(d => d!.LineStation)
-                        .ThenInclude(ls => ls!.Station)
-                .Include(i => i.UserReport)
-                    .ThenInclude(r => r!.TrainCoach)
-                .Include(i => i.UserReport)
-                    .ThenInclude(r => r!.LineStation)
-                        .ThenInclude(ls => ls!.TrainLine)
-                .Include(i => i.UserReport)
-                    .ThenInclude(r => r!.LineStation)
-                        .ThenInclude(ls => ls!.Station)
-                .Include(i => i.UserReport)
-                    .ThenInclude(r => r!.User)
-                .Include(i => i.VerifiedByUser)
-                .Include(i => i.EnrouteByUser)
-                .Include(i => i.ResolvedByUser)
-                .Include(i => i.EscalatedByUser)
-                .Include(i => i.DismissedByUser)
+                .WithFullNavigations()
+                .WithStatusUsers()
                 .OrderByDescending(i => i.CreatedAt)
                 .ToListAsync();
 
@@ -586,26 +539,9 @@ namespace backend.Controllers
             // ── Load all incidents for the month ──────────────────────────────
             var incidents = await _context.Incidents
                 .AsNoTracking()
-                // TrainId/CoachId via AI camera chain (also provides TrainAsset fallback for line)
-                .Include(i => i.Detection)
-                    .ThenInclude(d => d!.Camera)
-                        .ThenInclude(c => c!.TrainCoach)
-                            .ThenInclude(tc => tc!.TrainAsset)
-                                .ThenInclude(ta => ta!.TrainLine)
-                // TrainId/CoachId via user report chain (also provides TrainAsset fallback for line)
-                .Include(i => i.UserReport)
-                    .ThenInclude(r => r!.TrainCoach)
-                        .ThenInclude(tc => tc!.TrainAsset)
-                            .ThenInclude(ta => ta!.TrainLine)
-                // Passenger reporter name
-                .Include(i => i.UserReport)
-                    .ThenInclude(r => r!.User)
-                // Handler names for timeline steps
-                .Include(i => i.VerifiedByUser)
-                .Include(i => i.EnrouteByUser)
-                .Include(i => i.ResolvedByUser)
-                .Include(i => i.EscalatedByUser)
-                .Include(i => i.DismissedByUser)
+                .AsSplitQuery()
+                .WithFullNavigations()
+                .WithStatusUsers()
                 .Where(i => i.CreatedAt >= from && i.CreatedAt < to)
                 .OrderByDescending(i => i.CreatedAt)
                 .ToListAsync();
@@ -686,9 +622,11 @@ namespace backend.Controllers
             // ── Daily bar-chart data (by day-of-week, grouped by line) ────────
             var dayNames = new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 
+            // Pre-compute line info per incident once — avoids O(n × lines × 7) ResolveLineInfo calls inside the loop
+            var incidentLineCache = incidents.ToDictionary(i => i.IncidentId, i => ResolveLineInfo(i));
+
             // Get unique lines present in this month's data
-            var lineGroups = incidents
-                .Select(i => ResolveLineInfo(i))
+            var lineGroups = incidentLineCache.Values
                 .GroupBy(x => x.lineId)
                 .Select(g => (lineId: g.Key, lineName: g.First().lineName))
                 .ToList();
@@ -699,7 +637,7 @@ namespace backend.Controllers
                 var dayIncs = incidents.Where(i => (int)i.CreatedAt.AddHours(8).DayOfWeek == d).ToList();
                 var dayObj  = new Dictionary<string, object> { ["day"] = dayNames[d] };
                 foreach (var (lineId, lineName) in lineGroups)
-                    dayObj[lineName] = dayIncs.Count(i => ResolveLineInfo(i).lineId == lineId);
+                    dayObj[lineName] = dayIncs.Count(i => incidentLineCache[i.IncidentId].lineId == lineId);
                 return dayObj;
             }).ToList();
 
@@ -823,14 +761,7 @@ namespace backend.Controllers
             });
         }
 
-        private string GetTimeSince(DateTime time)
-        {
-            var ts = DateTime.UtcNow - time;
-            if (ts.TotalMinutes < 1) return "Just now";
-            if (ts.TotalMinutes < 60) return $"{(int)ts.TotalMinutes} min ago";
-            if (ts.TotalHours < 24) return $"{(int)ts.TotalHours}h ago";
-            return $"{(int)ts.TotalDays}d ago";
-        }
+
 
         // ── User Management ───────────────────────────────────────────────────
 
@@ -892,7 +823,7 @@ namespace backend.Controllers
 
         [Authorize]
         [HttpGet("operator/shifts")]
-        public async Task<IActionResult> GetOperatorShifts()
+        public async Task<IActionResult> GetAuxiliaryShiftAssignments()
         {
             var lineStations = await _context.LineStations
                 .Include(ls => ls.TrainLine)

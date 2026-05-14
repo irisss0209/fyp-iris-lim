@@ -2,13 +2,15 @@ import React, { useState } from 'react';
 import {
   EyeIcon,
   EyeOffIcon,
-  CheckCircleIcon,
   LockIcon,
   MailIcon,
 } from 'lucide-react';
 import { MfaVerification } from './MfaVerification';
 
 import { UserSession } from '../../types/session';
+import { usePasswordToggle } from '../../hooks/usePasswordToggle';
+import { Spinner } from '../../components/Spinner';
+import { validatePassword } from '../../utils/validatePassword';
 
 type SignupStep = 'details' | 'mfa' | 'success';
 
@@ -25,13 +27,10 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const { isVisible, toggle } = usePasswordToggle(['reg', 'confirm']);
   const [isLoading, setIsLoading] = useState(false);
   const [signupChallengeId, setSignupChallengeId] = useState<string | null>(null);
   const [error, setError] = useState('');
-
-  // Success → fire callback after animation
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,19 +49,8 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
       return;
     }
 
-    // Password strength validation
-    const missingRequirements: string[] = [];
-
-    if (password.length < 8) missingRequirements.push('at least 8 characters');
-    if (!/[A-Z]/.test(password)) missingRequirements.push('one uppercase letter');
-    if (!/[a-z]/.test(password)) missingRequirements.push('one lowercase letter');
-    if (!/[0-9]/.test(password)) missingRequirements.push('one number');
-    if (!/[!@#$%^&*(),.?":{}|<>_~-]/.test(password)) missingRequirements.push('one special character');
-
-    if (missingRequirements.length > 0) {
-      setError(`Password must contain: ${missingRequirements.join(', ')}.`);
-      return;
-    }
+    const pwError = validatePassword(password);
+    if (pwError) { setError(pwError); return; }
 
     setIsLoading(true);
     try {
@@ -153,13 +141,6 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
     }
   };
 
-  const Spinner = () => (
-    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
-      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-    </svg>
-  );
-
   return (
     <div className="min-h-screen w-full bg-[#FAF9F5] flex flex-col items-center justify-center px-4 py-8 sm:py-12">
       {/* Logo */}
@@ -186,8 +167,6 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
       <div
         className="w-full max-w-sm sm:max-w-md bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden"
       >
-        <>
-
           {/* ── STEP 1: Details ── */}
           {step === 'details' && (
             <div
@@ -201,7 +180,6 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
               </div>
 
               <form onSubmit={handleSignupSubmit} className="space-y-3 sm:space-y-4" noValidate>
-                {/* Name */}
                 <div>
                   <label htmlFor="reg-name" className="block text-xs font-semibold text-gray-700 mb-1.5">
                     Full Name
@@ -216,7 +194,6 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
                   />
                 </div>
 
-                {/* Email Input */}
                 <div>
                   <label htmlFor="reg-email" className="block text-xs font-semibold text-gray-700 mb-1.5">
                     Email address
@@ -236,7 +213,6 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
                 </div>
 
 
-                {/* Password */}
                 <div>
                   <label htmlFor="reg-password" className="block text-xs font-semibold text-gray-700 mb-1.5">
                     Password
@@ -245,7 +221,7 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
                     <LockIcon size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     <input
                       id="reg-password"
-                      type={showPassword ? 'text' : 'password'}
+                      type={isVisible('reg') ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => { setPassword(e.target.value); setError(''); }}
                       placeholder="Enter your password"
@@ -254,16 +230,15 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
                     />
                     <button
                       type="button"
-                      onClick={() => setShowPassword((v) => !v)}
+                      onClick={() => toggle('reg')}
                       className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      aria-label={isVisible('reg') ? 'Hide password' : 'Show password'}
                     >
-                      {showPassword ? <EyeOffIcon size={15} /> : <EyeIcon size={15} />}
+                      {isVisible('reg') ? <EyeOffIcon size={15} /> : <EyeIcon size={15} />}
                     </button>
                   </div>
                 </div>
 
-                {/* Confirm Password */}
                 <div>
                   <label htmlFor="reg-confirm-password" className="block text-xs font-semibold text-gray-700 mb-1.5">
                     Confirm Password
@@ -272,7 +247,7 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
                     <LockIcon size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     <input
                       id="reg-confirm-password"
-                      type={showConfirmPassword ? 'text' : 'password'}
+                      type={isVisible('confirm') ? 'text' : 'password'}
                       value={confirmPassword}
                       onChange={(e) => { setConfirmPassword(e.target.value); setError(''); }}
                       placeholder="Confirm your password"
@@ -281,16 +256,15 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
                     />
                     <button
                       type="button"
-                      onClick={() => setShowConfirmPassword((v) => !v)}
+                      onClick={() => toggle('confirm')}
                       className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                      aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                      aria-label={isVisible('confirm') ? 'Hide password' : 'Show password'}
                     >
-                      {showConfirmPassword ? <EyeOffIcon size={15} /> : <EyeIcon size={15} />}
+                      {isVisible('confirm') ? <EyeOffIcon size={15} /> : <EyeIcon size={15} />}
                     </button>
                   </div>
                 </div>
 
-                {/* Error */}
                 {error && (
                   <p
                     className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2"
@@ -300,7 +274,6 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
                   </p>
                 )}
 
-                {/* Submit */}
                 <button
                   type="submit"
                   disabled={isLoading}
@@ -358,7 +331,6 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
               </div>
             </div>
           )}
-        </>
 
         {/* Footer */}
         {step !== 'success' && (

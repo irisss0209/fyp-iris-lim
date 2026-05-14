@@ -1,5 +1,5 @@
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
-import { ReportStats, StatusSlice } from '../utils/reportUtils';
+import { ReportStats, StatusSlice, statusColor } from '../utils/reportUtils';
 
 const NAVY  = '#0B4F6C';
 const RED   = '#D34026';
@@ -87,15 +87,6 @@ export function ReportPDF({ month, stats, topInsights, statusBreakdown, aiSummar
     { label: 'Unresolved',            value: String(stats.unresolvedCount),               d: null },
   ];
 
-  const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-    pending:   { bg: '#FFF7ED', text: '#C05621' },
-    verified:  { bg: '#EFF6FF', text: '#1D4ED8' },
-    en_route:  { bg: '#EFF6FF', text: NAVY },
-    escalated: { bg: '#FEF2F0', text: RED },
-    resolved:  { bg: '#F0FBF6', text: '#2D7A5D' },
-    dismissed: { bg: '#F7FAFC', text: GRAY3 },
-  };
-
   const hasCharts = chartImages && (chartImages.daily || chartImages.status || chartImages.train || chartImages.source);
 
   return (
@@ -112,7 +103,7 @@ export function ReportPDF({ month, stats, topInsights, statusBreakdown, aiSummar
           </View>
           <View style={s.headerRight}>
             <Text style={s.monthBadge}>{month}</Text>
-            <Text style={s.genDate}>Generated {new Date().toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
+            <Text style={s.genDate}>Generated {new Date().toLocaleDateString('en-MY', { timeZone: 'Asia/Kuala_Lumpur', day: 'numeric', month: 'short', year: 'numeric' })}</Text>
           </View>
         </View>
 
@@ -144,7 +135,7 @@ export function ReportPDF({ month, stats, topInsights, statusBreakdown, aiSummar
             <Text style={s.sectionTitle}>Status Breakdown</Text>
             <View style={s.pillRow}>
               {statusBreakdown.map(sb => {
-                const c = STATUS_COLORS[sb.name.toLowerCase()] ?? { bg: BG, text: GRAY2 };
+                const c = statusColor(sb.name.toLowerCase());
                 return (
                   <View key={sb.name} style={[s.pill, { backgroundColor: c.bg }]}>
                     <Text style={[s.pillVal, { color: c.text }]}>{sb.value}</Text>

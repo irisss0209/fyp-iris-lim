@@ -1,5 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
-import { HubConnectionBuilder } from '@microsoft/signalr';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useAlertHub } from '../../hooks/useAlertHub';
+import { parseMYTDatetime } from '../../utils/myt';
+import { UserSession } from '../../types/session';
+import { STATUS_THEME } from '../../utils/reportUtils';
 import { AnimatePresence } from 'framer-motion';
 import {
   ClockIcon,
@@ -19,31 +22,43 @@ const STATUS_BADGE: Record<string, string> = {
   dismissed: 'bg-gray-50 text-gray-400',
 };
 
-const AUDIT_THEME: Record<string, { color: string; bg: string }> = {
-  verified:  { color: '#2D7A5D', bg: '#F0FBF6' },
-  escalated: { color: '#7B5EA7', bg: '#F5F0FF' },
-  en_route:  { color: '#0B4F6C', bg: '#EFF6FF' },
-  resolved:  { color: '#1D4ED8', bg: '#EBF8FF' },
-  dismissed: { color: '#718096', bg: '#F7FAFC' },
-};
+interface ReportHistoryItem {
+  id: string;
+  incidentId: string;
+  status: string;
+  line: string;
+  station: string;
+  type: string;
+  time: string;
+  date: string;
+  source: string;
+  coach?: string | number;
+  description?: string;
+  createdAt?: string;
+  verifiedBy?: string | null; verifiedAt?: string | null; verifiedComment?: string | null;
+  escalatedBy?: string | null; escalatedAt?: string | null; escalatedComment?: string | null;
+  enrouteBy?: string | null; enrouteAt?: string | null; enrouteComment?: string | null;
+  resolvedBy?: string | null; resolvedAt?: string | null; resolvedComment?: string | null;
+  dismissedBy?: string | null; dismissedAt?: string | null; dismissedComment?: string | null;
+}
 
 function fmtStatus(s: string) {
   return s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
-export function Report({ session }: { session: any }) {
+export function Report({ session }: { session: UserSession }) {
   const [view, setView] = useState<'dashboard' | 'create'>('dashboard');
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<ReportHistoryItem[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('');
-  const [selectedReport, setSelectedReport] = useState<any | null>(null);
+  const [selectedReport, setSelectedReport] = useState<ReportHistoryItem | null>(null);
   const [reportComment, setReportComment] = useState('');
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [escalateSecondsLeft, setEscalateSecondsLeft] = useState(0);
   const escalateTimerRef = useRef<ReturnType<typeof setInterval>>();
 
-  const fetchHistory = () => {
+  const fetchHistory = useCallback(() => {
     fetch(`${import.meta.env.VITE_API_BASE}/api/data/my-history?userId=${session.userId}`, {
       headers: session.token ? { Authorization: `Bearer ${session.token}` } : {},
       credentials: 'include'
@@ -53,28 +68,13 @@ export function Report({ session }: { session: any }) {
         setHistory(Array.isArray(data) ? data : []);
       })
       .catch(console.error);
-  };
+  }, [session.userId, session.token]);
 
   useEffect(() => {
-    if (view !== 'dashboard') return;
-    fetchHistory();
+    if (view === 'dashboard') fetchHistory();
+  }, [view, fetchHistory]);
 
-    const connection = new HubConnectionBuilder()
-      .withUrl(`${import.meta.env.VITE_API_BASE}/hubs/alerts`, { withCredentials: true })
-      .withAutomaticReconnect()
-      .build();
-
-    connection.on('IncidentStatusChanged', fetchHistory);
-    connection.start().catch(console.error);
-
-    const onVisible = () => { if (document.visibilityState === 'visible') fetchHistory(); };
-    document.addEventListener('visibilitychange', onVisible);
-
-    return () => {
-      connection.stop();
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [view]);
+  useAlertHub(fetchHistory, view === 'dashboard');
 
   useEffect(() => {
     clearInterval(escalateTimerRef.current);
@@ -88,7 +88,7 @@ export function Report({ session }: { session: any }) {
       if (isPending && selectedReport.createdAt)
         return new Date(selectedReport.createdAt).getTime();
       if (isVerified && selectedReport.verifiedAt)
-        return new Date(selectedReport.verifiedAt.replace(' ', 'T') + '+08:00').getTime();
+        return parseMYTDatetime(selectedReport.verifiedAt).getTime();
       return null;
     };
 
@@ -114,18 +114,18 @@ export function Report({ session }: { session: any }) {
 
     const newStatus = action === 'Cancel' ? 'dismissed' : 'escalated';
     const now = new Date().toISOString();
-    const byName = session.name ?? session.username ?? 'You';
+    const byName = session.userName ?? 'You';
     const comment = reportComment.trim();
 
     // Optimistic update — close modal feel + immediate list + audit trail
-    const patch: any = { status: newStatus };
+    const patch: Partial<ReportHistoryItem> = { status: newStatus };
     if (action === 'Escalate') {
       patch.escalatedAt = now; patch.escalatedBy = byName; patch.escalatedComment = comment || null;
     } else {
       patch.dismissedAt = now; patch.dismissedBy = byName; patch.dismissedComment = comment;
     }
     setHistory(prev => prev.map(r => r.id === selectedReport.id ? { ...r, ...patch } : r));
-    setSelectedReport((prev: any) => prev ? { ...prev, ...patch } : prev);
+    setSelectedReport(prev => prev ? { ...prev, ...patch } : prev);
     setReportComment('');
 
     setIsUpdatingStatus(true);
@@ -172,15 +172,15 @@ export function Report({ session }: { session: any }) {
   const auditSteps: { label: string; by?: string | null; at?: string | null; comment?: string | null; color: string; bg: string }[] = [];
   if (selectedReport) {
     if (selectedReport.verifiedAt || selectedReport.verifiedBy)
-      auditSteps.push({ label: 'Verified',  by: selectedReport.verifiedBy,  at: selectedReport.verifiedAt,  comment: selectedReport.verifiedComment,  ...AUDIT_THEME.verified });
+      auditSteps.push({ label: 'Verified',  by: selectedReport.verifiedBy,  at: selectedReport.verifiedAt,  comment: selectedReport.verifiedComment,  ...STATUS_THEME.verified });
     if (selectedReport.escalatedAt || selectedReport.escalatedBy)
-      auditSteps.push({ label: 'Escalated', by: selectedReport.escalatedBy, at: selectedReport.escalatedAt, comment: selectedReport.escalatedComment, ...AUDIT_THEME.escalated });
+      auditSteps.push({ label: 'Escalated', by: selectedReport.escalatedBy, at: selectedReport.escalatedAt, comment: selectedReport.escalatedComment, ...STATUS_THEME.escalated });
     if (selectedReport.enrouteAt || selectedReport.enrouteBy)
-      auditSteps.push({ label: 'En Route',  by: selectedReport.enrouteBy,   at: selectedReport.enrouteAt,  comment: selectedReport.enrouteComment,   ...AUDIT_THEME.en_route });
+      auditSteps.push({ label: 'En Route',  by: selectedReport.enrouteBy,   at: selectedReport.enrouteAt,  comment: selectedReport.enrouteComment,   ...STATUS_THEME.en_route });
     if (selectedReport.resolvedAt || selectedReport.resolvedBy)
-      auditSteps.push({ label: 'Resolved',  by: selectedReport.resolvedBy,  at: selectedReport.resolvedAt,  comment: selectedReport.resolvedComment,  ...AUDIT_THEME.resolved });
+      auditSteps.push({ label: 'Resolved',  by: selectedReport.resolvedBy,  at: selectedReport.resolvedAt,  comment: selectedReport.resolvedComment,  ...STATUS_THEME.resolved });
     if (selectedReport.dismissedAt || selectedReport.dismissedBy)
-      auditSteps.push({ label: 'Dismissed', by: selectedReport.dismissedBy, at: selectedReport.dismissedAt, comment: selectedReport.dismissedComment, ...AUDIT_THEME.dismissed });
+      auditSteps.push({ label: 'Dismissed', by: selectedReport.dismissedBy, at: selectedReport.dismissedAt, comment: selectedReport.dismissedComment, ...STATUS_THEME.dismissed });
   }
 
   return (

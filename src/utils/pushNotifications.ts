@@ -1,5 +1,6 @@
+import { API_BASE } from '../api/config';
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as string
-const API = import.meta.env.VITE_API_BASE as string
+const API = API_BASE
 
 function urlBase64ToUint8Array(base64: string): Uint8Array {
   const padding = '='.repeat((4 - (base64.length % 4)) % 4)

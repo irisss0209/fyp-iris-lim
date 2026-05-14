@@ -11,9 +11,9 @@ import { ReportCharts } from '../../components/ReportCharts';
 import {
   ReportStats, StatusSlice, LineInfo, IncidentRow, ByTrainItem,
 } from '../../utils/reportUtils';
+import { parseMYTDatetime, toMYTHour } from '../../utils/myt';
+import { API } from '../../api/config';
 import '../../Operator.css';
-
-const API = `${import.meta.env.VITE_API_BASE}/api/data`;
 const ACCENT = '#0B4F6C';
 
 type ReportTab = 'overview' | 'incidents';
@@ -41,13 +41,9 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
   const [aiSummaryError, setAiSummaryError] = useState(false);
   const [isPdfGenerating, setIsPdfGenerating] = useState(false);
 
-  // Incidents-tab filters
-  const [statusFilter, setStatusFilter] = useState('');
-  const [sourceFilter, setSourceFilter] = useState('');
-  const [lineFilter, setLineFilter]     = useState('');
-  const [trainFilter, setTrainFilter]   = useState('');
-  const [search, setSearch]             = useState('');
-  const [page, setPage]                 = useState(1);
+  const [filter, setFilter] = useState({ status: '', source: '', line: '', train: '', search: '', page: 1 });
+  const setF = <K extends keyof typeof filter>(k: K, v: typeof filter[K]) =>
+    setFilter(f => ({ ...f, [k]: v, ...(k !== 'page' && { page: 1 }) }));
   const PAGE_SIZE = 10;
 
   const getToken = () => session?.token;
@@ -67,7 +63,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
         } else {
           const now = new Date();
           const cur = { year: now.getFullYear(), month: now.getMonth() + 1,
-            label: now.toLocaleDateString('en-MY', { month: 'short', year: 'numeric' }) };
+            label: now.toLocaleDateString('en-MY', { timeZone: 'Asia/Kuala_Lumpur', month: 'short', year: 'numeric' }) };
           setMonths([cur]);
           setSelectedMonth(cur);
         }
@@ -178,7 +174,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
 
     const hourTotals = new Array(24).fill(0);
     allIncidents.forEach(i => {
-      if (i.datetime) { const h = new Date(i.datetime).getHours(); if (!isNaN(h)) hourTotals[h]++; }
+      if (i.datetime) { const h = toMYTHour(parseMYTDatetime(i.datetime)); hourTotals[h]++; }
     });
     let peakHour = 0, maxIncidents = 0;
     for (let i = 0; i < 24; i++) { if (hourTotals[i] > maxIncidents) { maxIncidents = hourTotals[i]; peakHour = i; } }
@@ -188,9 +184,9 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
     const dateTotals: Record<string, number> = {};
     allIncidents.forEach(i => {
       if (i.datetime) {
-        const d = new Date(i.datetime);
+        const d = parseMYTDatetime(i.datetime);
         if (!isNaN(d.getTime())) {
-          const key = d.toLocaleDateString('en-MY', { month: 'short', day: 'numeric' });
+          const key = d.toLocaleDateString('en-MY', { timeZone: 'Asia/Kuala_Lumpur', month: 'short', day: 'numeric' });
           dateTotals[key] = (dateTotals[key] || 0) + 1;
         }
       }
@@ -212,12 +208,12 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
   }, [allIncidents]);
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
+    const q = filter.search.toLowerCase();
     return allIncidents.filter(inc => {
-      const matchStatus = !statusFilter || inc.status?.toLowerCase() === statusFilter;
-      const matchSource = !sourceFilter || inc.type === sourceFilter;
-      const matchLine   = !lineFilter   || inc.lineId === lineFilter;
-      const matchTrain  = !trainFilter  || String(inc.trainId) === trainFilter;
+      const matchStatus = !filter.status || inc.status?.toLowerCase() === filter.status;
+      const matchSource = !filter.source || inc.type === filter.source;
+      const matchLine   = !filter.line   || inc.lineId === filter.line;
+      const matchTrain  = !filter.train  || String(inc.trainId) === filter.train;
       const matchSearch = !q
         || inc.id?.toLowerCase().includes(q)
         || String(inc.trainId).includes(q)
@@ -225,10 +221,10 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
         || [inc.verifiedBy, inc.resolvedBy, inc.escalatedBy, inc.dismissedBy].some(v => v?.toLowerCase().includes(q));
       return matchStatus && matchSource && matchLine && matchTrain && matchSearch;
     });
-  }, [allIncidents, statusFilter, sourceFilter, lineFilter, trainFilter, search]);
+  }, [allIncidents, filter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const paginated  = filtered.slice((filter.page - 1) * PAGE_SIZE, filter.page * PAGE_SIZE);
 
   // ── Exports ──────────────────────────────────────────────────────────────────
   const exportCSV = () => {
@@ -335,7 +331,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
               {months.map(m => (
                 <button
                   key={`${m.year}-${m.month}`}
-                  onClick={() => { setSelectedMonth(m); setPickerOpen(false); setPage(1); }}
+                  onClick={() => { setSelectedMonth(m); setPickerOpen(false); setFilter(f => ({ ...f, page: 1 })); }}
                   className={`w-full text-left px-4 py-2 text-sm transition-colors ${
                     selectedMonth?.year === m.year && selectedMonth?.month === m.month
                       ? 'bg-[#EFF6FF] text-[#0B4F6C] font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
@@ -453,11 +449,11 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
             <input
               type="text"
               placeholder="Search ID, train, line, operator…"
-              value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              value={filter.search}
+              onChange={e => setF('search', e.target.value)}
               className="flex-1 min-w-[180px] px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B4F6C] bg-white text-gray-800"
             />
-            <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
+            <select value={filter.status} onChange={e => setF('status', e.target.value)}
               className="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]">
               <option value="">All Statuses</option>
               <option value="pending">Pending</option>
@@ -467,18 +463,18 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
               <option value="resolved">Resolved</option>
               <option value="dismissed">Dismissed</option>
             </select>
-            <select value={sourceFilter} onChange={e => { setSourceFilter(e.target.value); setPage(1); }}
+            <select value={filter.source} onChange={e => setF('source', e.target.value)}
               className="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]">
               <option value="">All Sources</option>
               <option value="AI Detection">AI Detection</option>
               <option value="Passenger Report">Passenger Report</option>
             </select>
-            <select value={lineFilter} onChange={e => { setLineFilter(e.target.value); setPage(1); }}
+            <select value={filter.line} onChange={e => setF('line', e.target.value)}
               className="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]">
               <option value="">All Lines</option>
               {(data?.lines ?? []).map(l => <option key={l.lineId} value={l.lineId}>{l.lineName}</option>)}
             </select>
-            <select value={trainFilter} onChange={e => { setTrainFilter(e.target.value); setPage(1); }}
+            <select value={filter.train} onChange={e => setF('train', e.target.value)}
               className="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]">
               <option value="">All Trains</option>
               {uniqueTrains.map(t => <option key={t} value={String(t)}>Train {t}</option>)}
@@ -489,10 +485,10 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
             incidents={paginated}
             title={`All Incident Reports (${filtered.length})`}
             showPagination
-            page={page}
+            page={filter.page}
             totalPages={totalPages}
             totalCount={filtered.length}
-            onPageChange={setPage}
+            onPageChange={p => setF('page', p)}
           />
         </div>
       )}

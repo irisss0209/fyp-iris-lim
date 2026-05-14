@@ -13,15 +13,10 @@ const TimeContext = createContext<TimeContextType>({
 export const useTime = () => useContext(TimeContext);
 
 export function TimeProvider({ children }: { children: React.ReactNode }) {
-  const [format, setFormat] = useState<"12h" | "24h">("24h");
+  const [format, setFormat] = useState<"12h" | "24h">(() =>
+    (localStorage.getItem("timeFormat") as "12h" | "24h") || "24h"
+  );
 
-  // load from localStorage on app start
-  useEffect(() => {
-    const saved = localStorage.getItem("timeFormat") as "12h" | "24h";
-    if (saved) setFormat(saved);
-  }, []);
-
-  // save whenever changed
   useEffect(() => {
     localStorage.setItem("timeFormat", format);
   }, [format]);

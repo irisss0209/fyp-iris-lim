@@ -9,7 +9,7 @@ namespace backend.Controllers
 {
     [ApiController]
     [Route("api/stations")]
-    public class GeoController : ControllerBase
+    public class GeoController : BaseApiController
     {
         private readonly AppDbContext _context;
         private readonly IConfiguration _config;

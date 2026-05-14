@@ -1,7 +1,9 @@
 using backend.Data;
+using backend.Hubs;
 using backend.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using backend.Models.DTOs;
 using backend.Services;
@@ -14,19 +16,29 @@ namespace backend.Controllers
     {
         private readonly AppDbContext _context;
         private readonly IAlertService _alertService;
+        private readonly IPushNotificationService _pushService;
+        private readonly IHubContext<AlertHub> _hub;
+        private readonly ILogger<AuxiliaryController> _logger;
 
-        public AuxiliaryController(AppDbContext context, IAlertService alertService)
+        public AuxiliaryController(AppDbContext context, IAlertService alertService,
+            IPushNotificationService pushService, IHubContext<AlertHub> hub,
+            ILogger<AuxiliaryController> logger)
         {
             _context = context;
             _alertService = alertService;
+            _pushService = pushService;
+            _hub = hub;
+            _logger = logger;
         }
+
+        private static bool IsShiftOnDuty(TimeSpan start, TimeSpan end, TimeSpan now) =>
+            end > start ? start <= now && end > now : now >= start || now < end;
 
         [HttpGet("auxiliary/shift")]
         public async Task<IActionResult> GetAuxiliaryShift()
         {
-            var userId = GetCurrentUserId();
-            if (string.IsNullOrWhiteSpace(userId))
-                return Unauthorized(new { error = "Unable to identify user from token." });
+            var (userId, authError) = RequireUserId();
+            if (authError != null) return authError;
 
             // Shifts are stored in MYT (UTC+8), so always compare against MYT time
             var now = DateTime.UtcNow.AddHours(8);
@@ -65,15 +77,7 @@ namespace backend.Controllers
             if (shift == null)
                 return Ok(new AuxiliaryShiftDto { Active = false });
 
-            // Calculate isOnDuty only for today's shifts
-            bool isOnDuty = false;
-            if (shift.ShiftDate.Date == today)
-            {
-                if (shift.EndTime > shift.StartTime)
-                    isOnDuty = shift.StartTime <= nowTime && shift.EndTime > nowTime;
-                else
-                    isOnDuty = nowTime >= shift.StartTime || nowTime < shift.EndTime;
-            }
+            bool isOnDuty = shift.ShiftDate.Date == today && IsShiftOnDuty(shift.StartTime, shift.EndTime, nowTime);
 
             return Ok(new AuxiliaryShiftDto
             {
@@ -116,9 +120,8 @@ namespace backend.Controllers
         [HttpGet("auxiliary/alerts")]
         public async Task<IActionResult> GetAlertsByStation([FromQuery] string? stationId)
         {
-            var userId = GetCurrentUserId();
-            if (string.IsNullOrWhiteSpace(userId))
-                return Unauthorized(new { error = "Unable to identify user from token." });
+            var (userId, authError) = RequireUserId();
+            if (authError != null) return authError;
 
             // 1. Shift Verification
             // Shifts are stored in MYT (UTC+8), so always compare against MYT time
@@ -133,11 +136,7 @@ namespace backend.Controllers
             if (shift == null)
                 return Ok(new List<object>()); // No shift today
 
-            bool isOnDuty;
-            if (shift.EndTime > shift.StartTime)
-                isOnDuty = shift.StartTime <= nowTimeMyt && shift.EndTime > nowTimeMyt;
-            else
-                isOnDuty = nowTimeMyt >= shift.StartTime || nowTimeMyt < shift.EndTime;
+            bool isOnDuty = IsShiftOnDuty(shift.StartTime, shift.EndTime, nowTimeMyt);
 
             if (!isOnDuty)
                 return Ok(new List<object>()); // Not currently on duty
@@ -178,31 +177,13 @@ namespace backend.Controllers
 
             // 3. Fetch and Filter Incidents
             var nowUtc = DateTime.UtcNow;
-            var mytToday = nowUtc.AddHours(8).Date;
-            var todayUtc = DateTime.SpecifyKind(mytToday.AddHours(-8), DateTimeKind.Utc);
+            var todayUtc = MytTodayUtc;
 
             var incidents = await _context.Incidents
-                .Include(i => i.Detection)
-                    .ThenInclude(d => d!.Camera)
-                        .ThenInclude(c => c!.TrainCoach)
-                            .ThenInclude(tc => tc!.TrainAsset)
-                                .ThenInclude(ta => ta.TrainLine)
-                .Include(i => i.Detection)
-                    .ThenInclude(d => d!.LineStation)
-                        .ThenInclude(ls => ls!.Station)
-                .Include(i => i.UserReport)
-                    .ThenInclude(r => r!.TrainCoach)
-                        .ThenInclude(tc => tc!.TrainAsset)
-                            .ThenInclude(ta => ta.TrainLine)
-                .Include(i => i.UserReport)
-                    .ThenInclude(r => r!.LineStation)
-                        .ThenInclude(ls => ls!.Station)
-                .Include(i => i.UserReport).ThenInclude(r => r!.User)
-                .Include(i => i.VerifiedByUser)
-                .Include(i => i.EnrouteByUser)
-                .Include(i => i.ResolvedByUser)
-                .Include(i => i.EscalatedByUser)
-                .Include(i => i.DismissedByUser)
+                .AsNoTracking()
+                .AsSplitQuery()
+                .WithFullNavigations()
+                .WithStatusUsers()
                 .Where(i => i.CreatedAt >= todayUtc)
                 .OrderByDescending(i => i.CreatedAt)
                 .Take(100)
@@ -213,8 +194,7 @@ namespace backend.Controllers
                 .Where(dto =>
                 {
                     // Find original incident to get stationId
-                    var incidentIdStr = dto.Id.Replace("ALT-", "").Replace("RPT-", "");
-                    if (!int.TryParse(incidentIdStr, out var incidentId)) return false;
+                    if (!TryParseIncidentId(dto.Id, out var incidentId)) return false;
                     var original = incidents.FirstOrDefault(x => x.IncidentId == incidentId);
                     if (original == null) return false;
 
@@ -227,8 +207,7 @@ namespace backend.Controllers
                 })
                 .Select(dto =>
                 {
-                    var incidentIdStr = dto.Id.Replace("ALT-", "").Replace("RPT-", "");
-                    if (!int.TryParse(incidentIdStr, out var incidentId)) return (object)dto;
+                    if (!TryParseIncidentId(dto.Id, out var incidentId)) return (object)dto;
                     var i = incidents.FirstOrDefault(x => x.IncidentId == incidentId);
                     if (i == null) return (object)dto;
 
@@ -265,8 +244,7 @@ namespace backend.Controllers
     [HttpPost("auxiliary/alerts/{id}/status")]
     public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateStatusRequest req)
     {
-            var incidentIdStr = id.Replace("ALT-", "").Replace("RPT-", "");
-            if (!int.TryParse(incidentIdStr, out var incidentId)) return BadRequest();
+            if (!TryParseIncidentId(id, out var incidentId)) return BadRequest();
 
             var incident = await _context.Incidents.FindAsync(incidentId);
             if (incident == null) return NotFound();
@@ -284,6 +262,7 @@ namespace backend.Controllers
             if (!Enum.TryParse<IncidentStatus>(normalizedStatus, true, out var parsedStatus))
                 return BadRequest(new { error = "Invalid status" });
 
+            var previousStatus = incident.Status;
             incident.Status = parsedStatus;
 
             var userId = GetCurrentUserId();
@@ -306,13 +285,32 @@ namespace backend.Controllers
                     incident.DismissedBy = userId;
                     break;
                 case IncidentStatus.Escalated:
-                    incident.EscalatedAt = DateTime.UtcNow;
+                    if (previousStatus == IncidentStatus.Escalated)
+                    {
+                        // Re-escalation: status stays Escalated, notify aux only
+                        if (!incident.EscalatedAt.HasValue || DateTime.UtcNow - incident.EscalatedAt.Value < TimeSpan.FromMinutes(2))
+                        {
+                            incident.Status = previousStatus;
+                            return BadRequest(new { error = "You can re-escalate only after 2 minutes of no response." });
+                        }
+                        incident.EscalatedBy      = userId;
+                        incident.EscalatedAt      = DateTime.UtcNow;
+                        incident.EscalatedComment = string.IsNullOrWhiteSpace(req.Comment) ? "No comment" : req.Comment;
+                        incident.Status           = previousStatus;
+                        await _context.SaveChangesAsync();
+                        await _hub.Clients.All.SendAsync("IncidentStatusChanged", incident.IncidentId);
+                        await _pushService.SafeNotifyReEscalation(incident.IncidentId, userId, _logger);
+                        return Ok(new { message = "Status updated." });
+                    }
+                    incident.EscalatedAt      = DateTime.UtcNow;
                     incident.EscalatedComment = req.Comment;
-                    incident.EscalatedBy = userId;
+                    incident.EscalatedBy      = userId;
                     break;
             }
 
             await _context.SaveChangesAsync();
+            await _hub.Clients.All.SendAsync("IncidentStatusChanged", incident.IncidentId);
+            await _pushService.SafeNotifyStatusChange(incident.IncidentId, userId, _logger);
 
             return Ok(new { message = "Status updated." });
         }
@@ -320,35 +318,16 @@ namespace backend.Controllers
        [HttpGet("auxiliary/history")]
     public async Task<IActionResult> GetHistoryByUser()
     {
-        var userId = GetCurrentUserId();
-        if (string.IsNullOrWhiteSpace(userId))
-            return Unauthorized(new { error = "Unable to identify user from token." });
+        var (userId, authError) = RequireUserId();
+        if (authError != null) return authError;
 
         var now = DateTime.UtcNow;
 
         var incidents = await _context.Incidents
-            .Include(i => i.Detection)
-                .ThenInclude(d => d!.Camera)
-                    .ThenInclude(c => c!.TrainCoach)
-                        .ThenInclude(tc => tc!.TrainAsset)
-                            .ThenInclude(ta => ta.TrainLine)
-            .Include(i => i.Detection)
-                .ThenInclude(d => d!.LineStation)
-                    .ThenInclude(ls => ls!.Station)
-            .Include(i => i.UserReport)
-                .ThenInclude(r => r!.TrainCoach)
-                    .ThenInclude(tc => tc!.TrainAsset)
-                        .ThenInclude(ta => ta.TrainLine)
-            .Include(i => i.UserReport)
-                .ThenInclude(r => r!.LineStation)
-                    .ThenInclude(ls => ls!.Station)
-            .Include(i => i.UserReport)
-                .ThenInclude(r => r!.User)
-            .Include(i => i.VerifiedByUser)
-            .Include(i => i.ResolvedByUser)
-            .Include(i => i.EscalatedByUser)
-            .Include(i => i.DismissedByUser)
-            .Include(i => i.EnrouteByUser)
+            .AsNoTracking()
+            .AsSplitQuery()
+            .WithFullNavigations()
+            .WithStatusUsers()
             .Where(i =>
                 i.EnrouteBy == userId ||
                 i.ResolvedBy == userId ||

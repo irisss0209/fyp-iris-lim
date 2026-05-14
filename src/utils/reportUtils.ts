@@ -56,6 +56,15 @@ export interface ByTrainItem {
 export const ACCENT = '#0B4F6C';
 export const LINE_PALETTE = ['#D34026', '#0B4F6C', '#2D7A5D', '#7B5EA7', '#B45309', '#0E7490'];
 
+export const STATUS_THEME: Record<string, { color: string; bg: string }> = {
+  pending:   { color: '#C2410C', bg: '#FFF7ED' },
+  verified:  { color: '#2D7A5D', bg: '#F0FBF6' },
+  escalated: { color: '#7B5EA7', bg: '#F5F0FF' },
+  en_route:  { color: '#0B4F6C', bg: '#EFF6FF' },
+  resolved:  { color: '#1D4ED8', bg: '#EBF8FF' },
+  dismissed: { color: '#4A5568', bg: '#F7FAFC' },
+};
+
 const lineColorCache: Record<string, string> = {};
 let _colorIdx = 0;
 

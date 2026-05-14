@@ -11,7 +11,7 @@ import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { OfflineBanner } from './components/OfflineBanner';
 import { requestAndSubscribe, unsubscribeFromPush } from './utils/pushNotifications';
 import { flushPendingReports } from './utils/offlineQueue';
-import type { UserRole } from './types/session';
+import type { UserRole, UserSession } from './types/session';
 
 export type { UserRole };
 export type { UserSession } from './types/session';

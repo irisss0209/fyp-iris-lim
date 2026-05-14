@@ -19,8 +19,8 @@ import {
   DownloadIcon,
   XIcon
 } from 'lucide-react';
+import { API } from '../../api/config';
 const ACCENT = '#0B4F6C';
-const API = `${import.meta.env.VITE_API_BASE}/api/data`;
 const mapToBackendStatus = (action: string) => {
   switch (action) {
     case 'Suspend': return 'Suspended';
@@ -73,7 +73,7 @@ export function UserManagement({ session }: { session: { userId?: string; token?
   const fetchUsers = () => {
     setLoading(true);
     fetch(`${API}/operator/users`, {
-      headers: { 'Authorization': `Bearer ${session?.token}` },
+      headers: { ...(session?.token && { Authorization: `Bearer ${session.token}` }) },
       credentials: 'include'
     })
       .then(r => r.json())
@@ -99,7 +99,7 @@ export function UserManagement({ session }: { session: { userId?: string; token?
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.token}`
+          ...(session?.token && { Authorization: `Bearer ${session.token}` }),
         },
         body: JSON.stringify({ status: mapToBackendStatus(newStatus) }),
         credentials: 'include'
@@ -164,7 +164,7 @@ export function UserManagement({ session }: { session: { userId?: string; token?
       const res = await fetch(`${API}/operator/users/import`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${session?.token}`
+          ...(session?.token && { Authorization: `Bearer ${session.token}` }),
         },
         body: form,
         credentials: 'include'
@@ -413,7 +413,7 @@ export function UserManagement({ session }: { session: { userId?: string; token?
                     <td className="px-4 py-3 text-gray-700 text-sm">{u.role}</td>
                     <td className="px-4 py-3 text-gray-700 text-sm">
                       {new Date(u.createdAt).toLocaleDateString('en-MY', {
-                        day: '2-digit', month: 'short', year: 'numeric'
+                        timeZone: 'Asia/Kuala_Lumpur', day: '2-digit', month: 'short', year: 'numeric'
                       })}
                     </td>
                     <td className="px-4 py-3">

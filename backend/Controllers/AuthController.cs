@@ -14,7 +14,7 @@ namespace backend.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class AuthController : ControllerBase
+    public class AuthController : BaseApiController
     {
         private readonly AppDbContext _context;
         private readonly IConfiguration _configuration;
@@ -408,7 +408,7 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
             if (user == null) return NotFound(new { error = "User not found." });
 
-            if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+            if (string.IsNullOrWhiteSpace(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
                 return BadRequest(new { error = "Incorrect current password." });
 
             var challenge = _challengeStore.Create(user.UserId, TimeSpan.FromMinutes(10));
@@ -637,8 +637,7 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
         [HttpGet("me")]
         public async Task<IActionResult> Me()
         {
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                      ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+            var userId = GetCurrentUserId();
             if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
 
             var user = await _context.Users.FindAsync(userId);

@@ -9,8 +9,8 @@ import { StatusTimeline, buildTimelineSteps } from '../../components/StatusTimel
 import type { NavPage } from '../../types/operator';
 import { useTime } from '../../context/TimeContext';
 import { formatClockTime } from '../../utils/Time';
-
-const API = `${import.meta.env.VITE_API_BASE}/api/data`;
+import { getLineColor, STATUS_THEME } from '../../utils/reportUtils';
+import { API } from '../../api/config';
 
 interface DashboardProps {
   onNavigate?: (page: NavPage, id?: string | number) => void;
@@ -58,17 +58,6 @@ interface DashboardStats {
   avgResponseMinutes: number;
 }
 
-// Deterministic line colour per lineId
-const LINE_PALETTE = ['#D34026', '#0B4F6C', '#2D7A5D', '#7B5EA7', '#B45309', '#0E7490'];
-const lineColorCache: Record<string, string> = {};
-let _colorIdx = 0;
-function getLineColor(lineId: string) {
-  if (!lineColorCache[lineId]) {
-    lineColorCache[lineId] = LINE_PALETTE[_colorIdx % LINE_PALETTE.length];
-    _colorIdx++;
-  }
-  return lineColorCache[lineId];
-}
 function formatResponseTime(minutes?: number) {
   if (!minutes || minutes === 0) {
     return { value: '—', unit: '' };
@@ -88,15 +77,6 @@ function formatResponseTime(minutes?: number) {
     unit: 'hr',
   };
 }
-const STATUS_THEME: Record<string, { color: string, bg: string }> = {
-  pending: { color: '#C2410C', bg: '#FFF7ED' },
-  verified: { color: '#2D7A5D', bg: '#F0FBF6' },
-  escalated: { color: '#7B5EA7', bg: '#F5F0FF' },
-  en_route: { color: '#0B4F6C', bg: '#EFF6FF' },
-  resolved: { color: '#1D4ED8', bg: '#EBF8FF' },
-  dismissed: { color: '#4A5568', bg: '#F7FAFC' }
-}
-
 const PAGE_SIZE = 10;
 
 export function Dashboard({ onNavigate, session }: DashboardProps) {
@@ -176,10 +156,10 @@ export function Dashboard({ onNavigate, session }: DashboardProps) {
     yesterday.setDate(now.getDate() - 1);
 
     const fmt = (d: Date) =>
-      d.toLocaleDateString('en-MY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      d.toLocaleDateString('en-MY', { timeZone: 'Asia/Kuala_Lumpur', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
     const fmtShort = (d: Date) =>
-      d.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' });
+      d.toLocaleDateString('en-MY', { timeZone: 'Asia/Kuala_Lumpur', day: 'numeric', month: 'short', year: 'numeric' });
 
     const sevenAgo = new Date(now); sevenAgo.setDate(now.getDate() - 6);
     const thirtyAgo = new Date(now); thirtyAgo.setDate(now.getDate() - 29);
@@ -338,7 +318,7 @@ export function Dashboard({ onNavigate, session }: DashboardProps) {
 
         const dateLabel = (() => {
           const now = new Date();
-          const fmtShort = (d: Date) => d.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' });
+          const fmtShort = (d: Date) => d.toLocaleDateString('en-MY', { timeZone: 'Asia/Kuala_Lumpur', day: 'numeric', month: 'short', year: 'numeric' });
           if (selectedRange === 'yesterday') {
             const y = new Date(now); y.setDate(now.getDate() - 1);
             return fmtShort(y);

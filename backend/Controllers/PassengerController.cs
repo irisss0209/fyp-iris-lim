@@ -67,9 +67,8 @@ namespace backend.Controllers
         [HttpPost("report")]
         public async Task<IActionResult> SubmitReport([FromBody] SubmitReportRequest req)
         {
-            var userId = GetCurrentUserId();
-            if (string.IsNullOrWhiteSpace(userId))
-                return Unauthorized(new { error = "Unable to identify user from token." });
+            var (userId, authError) = RequireUserId();
+            if (authError != null) return authError;
 
             var user = await _context.Users.FindAsync(userId);
             if (user == null)
@@ -115,7 +114,7 @@ namespace backend.Controllers
                 await _context.SaveChangesAsync();
                 await tx.CommitAsync();
                 await _hub.Clients.All.SendAsync("NewIncident", incident.IncidentId);
-                _ = Task.Run(() => _pushService.NotifyNewIncident(incident.IncidentId));
+                await _pushService.SafeNotifyNewIncident(incident.IncidentId, userId, _logger);
 
                 return StatusCode(StatusCodes.Status201Created, new ReportSubmitResponseDto { Success = true, ReportId = report.ReportId });
             }
@@ -132,9 +131,8 @@ namespace backend.Controllers
         public async Task<IActionResult> UploadReportImage(int reportId, [FromForm] ImageUploadDto dto)
         {
             var image = dto.Image;
-            var userId = GetCurrentUserId();
-            if (string.IsNullOrWhiteSpace(userId))
-                return Unauthorized(new { error = "Unable to identify user from token." });
+            var (userId, authError) = RequireUserId();
+            if (authError != null) return authError;
 
             if (image == null || image.Length == 0)
             {
@@ -184,9 +182,8 @@ namespace backend.Controllers
         [HttpGet("profile")]
         public async Task<IActionResult> GetProfile()
         {
-            var userId = GetCurrentUserId();
-            if (string.IsNullOrWhiteSpace(userId))
-                return Unauthorized(new { error = "Unable to identify user from token." });
+            var (userId, authError) = RequireUserId();
+            if (authError != null) return authError;
 
             var user = await _context.Users.FindAsync(userId);
             if (user == null) return NotFound();
@@ -234,31 +231,12 @@ namespace backend.Controllers
         [HttpGet("incident-near-me")]
         public async Task<IActionResult> GetIncidentNearMe()
         {
-            var mytToday = DateTime.UtcNow.AddHours(8).Date;
-            var todayUtc = DateTime.SpecifyKind(mytToday.AddHours(-8), DateTimeKind.Utc);
+            var todayUtc = MytTodayUtc;
 
             var incidents = await _context.Incidents
-                .Include(i => i.Detection)
-                    .ThenInclude(d => d!.Camera)
-                        .ThenInclude(c => c!.TrainCoach)
-                            .ThenInclude(tc => tc.TrainAsset)
-                                .ThenInclude(ta => ta.TrainLine)
-                .Include(i => i.Detection)
-                    .ThenInclude(d => d!.LineStation)
-                        .ThenInclude(ls => ls!.TrainLine)
-                .Include(i => i.Detection)
-                    .ThenInclude(d => d!.LineStation)
-                        .ThenInclude(ls => ls!.Station)
-                .Include(i => i.UserReport)
-                    .ThenInclude(r => r!.TrainCoach)
-                        .ThenInclude(tc => tc!.TrainAsset)
-                            .ThenInclude(ta => ta.TrainLine)
-                .Include(i => i.UserReport)
-                    .ThenInclude(r => r!.LineStation)
-                        .ThenInclude(ls => ls!.TrainLine)
-                .Include(i => i.UserReport)
-                    .ThenInclude(r => r!.LineStation)
-                        .ThenInclude(ls => ls!.Station)
+                .AsNoTracking()
+                .AsSplitQuery()
+                .WithFullNavigations()
                 .Where(i => (i.Status == IncidentStatus.Pending || i.Status == IncidentStatus.Verified || i.Status == IncidentStatus.En_Route || i.Status == IncidentStatus.Escalated) && i.CreatedAt >= todayUtc)
                 .OrderByDescending(i => i.CreatedAt)
                 .Take(10)
@@ -291,9 +269,8 @@ namespace backend.Controllers
         [HttpGet("my-history")]
         public async Task<IActionResult> GetMyHistory()
         {
-            var userId = GetCurrentUserId();
-            if (string.IsNullOrWhiteSpace(userId))
-                return Unauthorized(new { error = "Unable to identify user from token." });
+            var (userId, authError) = RequireUserId();
+            if (authError != null) return authError;
 
             var incidents = await _context.Incidents
                 .AsNoTracking()
@@ -354,13 +331,12 @@ namespace backend.Controllers
             return Ok(result);
         }
 
-        [Authorize]
+        [Authorize(Roles = "passenger")]
         [HttpPost("incident/{incidentId}/status")]
         public async Task<IActionResult> UpdateIncidentStatus(int incidentId, [FromBody] UpdatePassengerStatusRequest req)
         {
-            var userId = GetCurrentUserId();
-            if (string.IsNullOrWhiteSpace(userId))
-                return Unauthorized(new { error = "Unable to identify user from token." });
+            var (userId, authError) = RequireUserId();
+            if (authError != null) return authError;
 
             var incident = await _context.Incidents.Include(i => i.UserReport).FirstOrDefaultAsync(i => i.IncidentId == incidentId);
             if (incident == null) return NotFound();
@@ -376,6 +352,24 @@ namespace backend.Controllers
 
             if (req.Action == "Escalate")
             {
+                bool isEscalated = incident.Status == IncidentStatus.Escalated;
+
+                if (isEscalated)
+                {
+                    // Re-escalation: status stays Escalated, notify aux only
+                    if (!incident.EscalatedAt.HasValue || DateTime.UtcNow - incident.EscalatedAt.Value < TimeSpan.FromMinutes(2))
+                        return BadRequest(new { error = "You can re-escalate only after 2 minutes of no response." });
+
+                    incident.EscalatedBy      = userId;
+                    incident.EscalatedAt      = DateTime.UtcNow;
+                    incident.EscalatedComment = string.IsNullOrWhiteSpace(req.Comment) ? "No comment" : req.Comment;
+                    await _context.SaveChangesAsync();
+                    await _hub.Clients.All.SendAsync("IncidentStatusChanged", incident.IncidentId);
+                    await _pushService.SafeNotifyReEscalation(incident.IncidentId, userId, _logger);
+                    return Ok(new { success = true, status = incident.Status.ToString() });
+                }
+
+                // First escalation: passenger — Pending or Verified only
                 if (!isPending && !isVerified)
                     return BadRequest(new { error = "You can only escalate pending or verified reports." });
 
@@ -385,9 +379,9 @@ namespace backend.Controllers
                 if (isVerified && (!incident.VerifiedAt.HasValue || DateTime.UtcNow - incident.VerifiedAt.Value < TimeSpan.FromMinutes(2)))
                     return BadRequest(new { error = "You can only escalate after 2 minutes with no further operator response." });
 
-                incident.Status       = IncidentStatus.Escalated;
-                incident.EscalatedBy  = userId;
-                incident.EscalatedAt  = DateTime.UtcNow;
+                incident.Status           = IncidentStatus.Escalated;
+                incident.EscalatedBy      = userId;
+                incident.EscalatedAt      = DateTime.UtcNow;
                 incident.EscalatedComment = req.Comment;
             }
             else if (req.Action == "Dismiss")
@@ -407,7 +401,7 @@ namespace backend.Controllers
 
             await _context.SaveChangesAsync();
             await _hub.Clients.All.SendAsync("IncidentStatusChanged", incident.IncidentId);
-            _ = Task.Run(() => _pushService.NotifyStatusChange(incident.IncidentId));
+            await _pushService.SafeNotifyStatusChange(incident.IncidentId, userId, _logger);
             return Ok(new { success = true, status = incident.Status.ToString() });
         }
 

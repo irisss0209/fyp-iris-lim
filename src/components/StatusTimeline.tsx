@@ -53,9 +53,12 @@ export function buildTimelineSteps(inc: TimelineSource): TimelineStep[] {
   return steps;
 }
 
+import { parseMYTDatetime } from '../utils/myt';
+
 const fmtAt = (d?: string | null) =>
   d
-    ? new Date(d).toLocaleString('en-MY', {
+    ? parseMYTDatetime(d).toLocaleString('en-MY', {
+        timeZone: 'Asia/Kuala_Lumpur',
         day: '2-digit',
         month: 'short',
         year: 'numeric',

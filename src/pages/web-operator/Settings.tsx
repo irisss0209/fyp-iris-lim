@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { Clock, Bell, Lock, InfoIcon } from 'lucide-react';
 import { useTime } from '../../context/TimeContext';
 import { requestAndSubscribe, unsubscribeFromPush } from '../../utils/pushNotifications';
-
-const API = `${import.meta.env.VITE_API_BASE}/api/data`;
+import { API } from '../../api/config';
 type Page = 'settings' | 'change-password';
 
 export function Settings({ onNavigate }: { onNavigate: (page: Page) => void }) {

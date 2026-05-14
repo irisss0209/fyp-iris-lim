@@ -22,7 +22,7 @@ export function MfaSetup({
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
-  const [step, setStep] = useState<'qr' | 'verify'>('qr');
+  const [step, setStep] = useState<'qr' | 'verify' | 'done'>('qr');
 
   useEffect(() => {
     fetchSetupData();
@@ -79,7 +79,7 @@ export function MfaSetup({
       });
 
       if (response.ok) {
-        onActivate();
+        setStep('done');
       } else {
         const data = await response.json();
         setError(data.error || 'Invalid code. Please try again.');
@@ -195,16 +195,38 @@ export function MfaSetup({
             </div>
           </div>
         )}
+        {step === 'done' && (
+          <div className="space-y-6 text-center py-4">
+            <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mx-auto">
+              <ShieldCheck size={32} className="text-green-500" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Authenticator Set Up Successfully!</h2>
+              <p className="text-sm text-gray-500 mt-2 px-2">
+                Your account is now secured. Click the button below to verify using the 6-digit code from your app to continue.
+              </p>
+            </div>
+            <button
+              onClick={onActivate}
+              className="w-full py-3.5 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+              style={{ backgroundColor: accentColor }}
+            >
+              Continue to Login <ArrowRight size={18} />
+            </button>
+          </div>
+        )}
       </>
 
-      <div className="mt-8 pt-6 border-t border-gray-100">
-        <button
-          onClick={onBack}
-          className="text-sm text-gray-400 hover:text-gray-600 font-medium"
-        >
-          Cancel Setup
-        </button>
-      </div>
+      {step !== 'done' && (
+        <div className="mt-8 pt-6 border-t border-gray-100">
+          <button
+            onClick={onBack}
+            className="text-sm text-gray-400 hover:text-gray-600 font-medium"
+          >
+            Cancel Setup
+          </button>
+        </div>
+      )}
     </div>
   );
 }

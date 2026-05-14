@@ -1,42 +1,28 @@
 using Amazon;
 using Amazon.S3;
 using Amazon.S3.Transfer;
-using Amazon.Runtime;
 using Microsoft.AspNetCore.Http;
 
 namespace backend.Services
 {
     public class S3Service : IS3Service
     {
-        private readonly IConfiguration _config;
         private readonly IAmazonS3 _s3Client;
         private readonly string _bucketName;
         private readonly string _region;
+        private readonly ILogger<S3Service> _logger;
 
-        public S3Service(IConfiguration config)
+        public S3Service(IConfiguration config, ILogger<S3Service> logger)
         {
-            _config = config;
-            
-            var accessKey = _config["AWS:AccessKey"];
-            var secretKey = _config["AWS:SecretKey"];
-            _region = _config["AWS:Region"] ?? "ap-southeast-1";
-            _bucketName = _config["AWS:BucketName"] ?? "railly";
+            _logger = logger;
+            _region = config["AWS:Region"] ?? "ap-southeast-1";
+            _bucketName = config["AWS:BucketName"] ?? "railly";
 
-            var regionEndpoint = RegionEndpoint.GetBySystemName(_region);
-            
-            if (!string.IsNullOrEmpty(accessKey) && !string.IsNullOrEmpty(secretKey) && 
-                accessKey != "your-access-key-id" && secretKey != "your-secret-access-key")
-            {
-                var credentials = new BasicAWSCredentials(accessKey, secretKey);
-                _s3Client = new AmazonS3Client(credentials, regionEndpoint);
-            }
-            else
-            {
-                _s3Client = new AmazonS3Client(regionEndpoint);
-                Console.WriteLine("[S3 SERVICE] Initialized using Default Credential Provider Chain.");
-            }
-
-            Console.WriteLine($"[S3 SERVICE] Initialized with Bucket: {_bucketName}, Region: {_region}");
+            // Always use the Default Credential Provider Chain (IAM role on EC2/ECS,
+            // environment variables in CI, ~/.aws/credentials locally).
+            // Never use static access keys in configuration.
+            _s3Client = new AmazonS3Client(RegionEndpoint.GetBySystemName(_region));
+            _logger.LogInformation("[S3] Initialized — bucket: {Bucket}, region: {Region}", _bucketName, _region);
         }
 
         public async Task<string> UploadFileAsync(IFormFile file, string folderName)
@@ -44,31 +30,28 @@ namespace backend.Services
             try
             {
                 var fileName = $"{folderName}/{Guid.NewGuid()}_{file.FileName}";
-                
-                using (var stream = file.OpenReadStream())
+
+                using var stream = file.OpenReadStream();
+                var uploadRequest = new TransferUtilityUploadRequest
                 {
-                    var uploadRequest = new TransferUtilityUploadRequest
-                    {
-                        InputStream = stream,
-                        Key = fileName,
-                        BucketName = _bucketName
-                    };
+                    InputStream = stream,
+                    Key = fileName,
+                    BucketName = _bucketName
+                };
 
-                    var fileTransferUtility = new TransferUtility(_s3Client);
-                    await fileTransferUtility.UploadAsync(uploadRequest);
+                var fileTransferUtility = new TransferUtility(_s3Client);
+                await fileTransferUtility.UploadAsync(uploadRequest);
 
-                    // Construct the public URL
-                    return $"https://{_bucketName}.s3.{_region}.amazonaws.com/{fileName}";
-                }
+                return $"https://{_bucketName}.s3.{_region}.amazonaws.com/{fileName}";
             }
             catch (AmazonS3Exception e)
             {
-                Console.WriteLine($"[S3 ERROR] AWS Error Code: {e.ErrorCode}, Message: {e.Message}");
+                _logger.LogError("[S3] AWS error {Code}: {Message}", e.ErrorCode, e.Message);
                 throw;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[S3 UPLOAD ERROR] {ex.Message}");
+                _logger.LogError(ex, "[S3] Upload failed");
                 throw;
             }
         }
@@ -85,7 +68,6 @@ namespace backend.Services
                     Key = key,
                     BucketName = _bucketName,
                     ContentType = file.ContentType
-                    // Removed PublicRead ACL as it may cause Access Denied on buckets with Block Public Access
                 };
 
                 var fileTransferUtility = new TransferUtility(_s3Client);
@@ -95,12 +77,12 @@ namespace backend.Services
             }
             catch (AmazonS3Exception e)
             {
-                Console.WriteLine($"[S3 ERROR] AWS Error Code: {e.ErrorCode}, Message: {e.Message}");
+                _logger.LogError("[S3] AWS error {Code}: {Message}", e.ErrorCode, e.Message);
                 throw;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[S3 UPLOAD ERROR] {ex.Message}");
+                _logger.LogError(ex, "[S3] Upload failed");
                 throw;
             }
         }
@@ -121,8 +103,6 @@ namespace backend.Services
         {
             try
             {
-                // Extract key from URL
-                // Example: https://railly.s3.ap-southeast-1.amazonaws.com/reports/uuid_filename.jpg
                 var uri = new Uri(fileUrl);
                 var key = uri.AbsolutePath.TrimStart('/');
 
@@ -137,7 +117,7 @@ namespace backend.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[S3 DELETE ERROR] {ex.Message}");
+                _logger.LogError(ex, "[S3] Delete failed for {Url}", fileUrl);
                 return false;
             }
         }

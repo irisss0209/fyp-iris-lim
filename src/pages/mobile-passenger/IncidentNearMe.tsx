@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { MapPinIcon, ChevronRightIcon, SearchIcon } from 'lucide-react';
 import { detectNearbyLines } from '../../utils/location';
+interface PublicIncident { id: string; date?: string; line: string; status: string; station: string; trainId?: string | number; type: string }
+interface StationGroup { name: string; statuses: Record<string, number> }
+interface TrainGroup { label: string; line: string; stations: Record<string, StationGroup> }
 
 export function IncidentNearMe() {
-  const [incidents, setIncidents] = useState<any[]>([]);
+  const [incidents, setIncidents] = useState<PublicIncident[]>([]);
   const [loading, setLoading] = useState(true);
   const [isLocating, setIsLocating] = useState(false);
   const [selectedLine, setSelectedLine] = useState('All Lines');
@@ -46,7 +49,7 @@ export function IncidentNearMe() {
     fetch(`${import.meta.env.VITE_API_BASE}/api/data/lines`, { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
-        const names = data.map((l: any) => l.lineName);
+        const names = data.map((l: { lineName: string }) => l.lineName);
         setLines(['All Lines', ...names]);
       })
       .catch(console.error);
@@ -216,27 +219,17 @@ export function IncidentNearMe() {
         </div>
       ) : (
         <div className="space-y-4 ">
-          {Object.values(filteredIncidents.reduce((acc: any, inc) => {
+          {Object.values(filteredIncidents.reduce((acc: Record<string, TrainGroup>, inc) => {
             const trainLabel = inc.trainId ? `Train ${inc.trainId}` : `Station: ${inc.station}`;
             const key = `${trainLabel}-${inc.line}`;
-            if (!acc[key]) {
-              acc[key] = {
-                label: trainLabel,
-                line: inc.line,
-                stations: {}
-              };
-            }
-            if (!acc[key].stations[inc.station]) {
-              acc[key].stations[inc.station] = {
-                name: inc.station,
-                statuses: {}
-              };
-            }
-            const st = acc[key].stations[inc.station];
+            if (!acc[key]) acc[key] = { label: trainLabel, line: inc.line, stations: {} };
+            const stKey = inc.station;
+            if (!acc[key].stations[stKey]) acc[key].stations[stKey] = { name: inc.station, statuses: {} };
+            const st = acc[key].stations[stKey];
             st.statuses[inc.status] = (st.statuses[inc.status] || 0) + 1;
             return acc;
-          }, {})).map((group: any) => (
-            <div key={`${group.line}-${group.trainId}`} className="bg-white rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-gray-100 p-5 active:scale-[0.99] transition-transform">
+          }, {})).map((group: TrainGroup) => (
+            <div key={`${group.line}-${group.label}`} className="bg-white rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-gray-100 p-5 active:scale-[0.99] transition-transform">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <h3 className="font-black text-base text-gray-900 leading-none">
@@ -246,7 +239,7 @@ export function IncidentNearMe() {
               </div>
 
               <div className="space-y-6">
-                {Object.values(group.stations).map((st: any) => (
+                {Object.values(group.stations).map((st: StationGroup) => (
                   <div key={st.name} className="space-y-3">
                     <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                       <MapPinIcon size={12} className="text-[#0B4F6C]" />
@@ -254,7 +247,7 @@ export function IncidentNearMe() {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      {Object.entries(st.statuses).map(([status, count]: [any, any]) => {
+                      {Object.entries(st.statuses).map(([status, count]) => {
                         let displayStatus = status;
                         if (status === 'Verified') displayStatus = 'En Route';
 
