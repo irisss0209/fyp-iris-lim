@@ -345,6 +345,7 @@ namespace backend.Controllers
                 dto.TrainId,
                 dto.CoachId,
                 dto.Source,
+                dto.Confidence,
                 dto.ImageUrl,
 
                 reportedBy = dto.ReportedBy,
