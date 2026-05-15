@@ -235,6 +235,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
       'Resolved At', 'Resolved By', 'Resolution Comment',
       'Escalated At', 'Escalated By', 'Escalation Comment',
       'Dismissed At', 'Dismissed By', 'Dismissal Comment',
+      'Evidence Link',
     ];
     const rows = [
       headers,
@@ -246,6 +247,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
         i.resolvedAt ?? '', i.resolvedBy ?? '', i.resolvedComment ?? '',
         i.escalatedAt ?? '', i.escalatedBy ?? '', i.escalatedComment ?? '',
         i.dismissedAt ?? '', i.dismissedBy ?? '', i.dismissedComment ?? '',
+        i.imageUrl ? `${import.meta.env.VITE_API_BASE}/api/data/incident/${i.id.replace('ALT-', '').replace('RPT-', '')}/image-redirect` : '',
       ]),
     ];
     const csv  = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');

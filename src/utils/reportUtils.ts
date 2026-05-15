@@ -22,7 +22,7 @@ export interface ReportStats {
 }
 
 export interface StatusSlice { name: string; value: number; color: string; }
-export interface LineInfo    { lineId: string; lineName: string; }
+export interface LineInfo { lineId: string; lineName: string; }
 
 export interface IncidentRow {
   id: string;
@@ -37,11 +37,12 @@ export interface IncidentRow {
   status: string;
   source: string;
   reportedBy?: string;
-  verifiedBy?: string;  verifiedAt?: string;  verifiedComment?: string;
-  enrouteBy?: string;   enrouteAt?: string;   enrouteComment?: string;
-  resolvedBy?: string;  resolvedAt?: string;  resolvedComment?: string;
+  verifiedBy?: string; verifiedAt?: string; verifiedComment?: string;
+  enrouteBy?: string; enrouteAt?: string; enrouteComment?: string;
+  resolvedBy?: string; resolvedAt?: string; resolvedComment?: string;
   escalatedBy?: string; escalatedAt?: string; escalatedComment?: string;
   dismissedBy?: string; dismissedAt?: string; dismissedComment?: string;
+  imageUrl?: string;
 }
 
 export interface ByTrainItem {
@@ -57,11 +58,11 @@ export const ACCENT = '#0B4F6C';
 export const LINE_PALETTE = ['#D34026', '#0B4F6C', '#2D7A5D', '#7B5EA7', '#B45309', '#0E7490'];
 
 export const STATUS_THEME: Record<string, { color: string; bg: string }> = {
-  pending:   { color: '#C2410C', bg: '#FFF7ED' },
-  verified:  { color: '#2D7A5D', bg: '#F0FBF6' },
+  pending: { color: '#C2410C', bg: '#FFF7ED' },
+  verified: { color: '#2D7A5D', bg: '#F0FBF6' },
   escalated: { color: '#7B5EA7', bg: '#F5F0FF' },
-  en_route:  { color: '#0B4F6C', bg: '#EFF6FF' },
-  resolved:  { color: '#1D4ED8', bg: '#EBF8FF' },
+  en_route: { color: '#0B4F6C', bg: '#EFF6FF' },
+  resolved: { color: '#1D4ED8', bg: '#EBF8FF' },
   dismissed: { color: '#4A5568', bg: '#F7FAFC' },
 };
 
@@ -80,13 +81,13 @@ export function getLineColor(lineId: string) {
 
 export const statusColor = (status: string) => {
   const s = status?.toLowerCase() ?? '';
-  if (s === 'resolved')  return { bg: '#F0FBF6', text: '#2D7A5D' };
+  if (s === 'resolved') return { bg: '#F0FBF6', text: '#2D7A5D' };
   if (s === 'escalated') return { bg: '#FEF2F0', text: '#D34026' };
-  if (s === 'pending')   return { bg: '#FFF7ED', text: '#C05621' };
-  if (s === 'verified')  return { bg: '#EFF6FF', text: '#1D4ED8' };
-  if (s === 'en_route')  return { bg: '#EFF6FF', text: '#0B4F6C' };
+  if (s === 'pending') return { bg: '#FFF7ED', text: '#C05621' };
+  if (s === 'verified') return { bg: '#EFF6FF', text: '#1D4ED8' };
+  if (s === 'en_route') return { bg: '#EFF6FF', text: '#0B4F6C' };
   if (s === 'dismissed') return { bg: '#F7FAFC', text: '#4A5568' };
-  return                        { bg: '#F7FAFC', text: '#718096' };
+  return { bg: '#F7FAFC', text: '#718096' };
 };
 
 export const fmtDelta = (v: number, invertGood = false, diff?: number) => {
