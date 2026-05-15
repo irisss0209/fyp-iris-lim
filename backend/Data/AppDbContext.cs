@@ -105,6 +105,7 @@ namespace backend.Data
 
             // ── NotificationPreference → User (PK is also the FK) ────────────────
             modelBuilder.Entity<NotificationPreference>()
+                .ToTable("Notification_Preferences")
                 .HasOne(np => np.User)
                 .WithMany()
                 .HasForeignKey(np => np.UserId)
