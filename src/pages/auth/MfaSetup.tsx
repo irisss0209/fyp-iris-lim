@@ -95,12 +95,14 @@ export function MfaSetup({
     <div
       className="p-6 sm:p-8"
     >
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Secure Your Account</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Set up an authenticator app to add an extra layer of security.
-        </p>
-      </div>
+      {step !== 'done' && (
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">Secure Your Account</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Set up an authenticator app to add an extra layer of security.
+          </p>
+        </div>
+      )}
 
       <>
         {step === 'qr' ? (
@@ -147,7 +149,7 @@ export function MfaSetup({
               I've scanned the code <ArrowRight size={18} />
             </button>
           </div>
-        ) : (
+        ) : step === 'verify' ? (
           <div
             className="space-y-6"
           >
@@ -194,16 +196,13 @@ export function MfaSetup({
               </button>
             </div>
           </div>
-        )}
-        {step === 'done' && (
+        ) : (
           <div className="space-y-6 text-center py-4">
-            <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mx-auto">
-              <ShieldCheck size={32} className="text-green-500" />
-            </div>
+
             <div>
               <h2 className="text-lg font-bold text-gray-900">Authenticator Set Up Successfully!</h2>
               <p className="text-sm text-gray-500 mt-2 px-2">
-                Your account is now secured. Click the button below to verify using the 6-digit code from your app to continue.
+                Your authenticator app is now linked. On the next screen, enter the 6-digit code from your app to complete login. You'll need to do this every time you sign in.
               </p>
             </div>
             <button
@@ -211,7 +210,7 @@ export function MfaSetup({
               className="w-full py-3.5 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
               style={{ backgroundColor: accentColor }}
             >
-              Continue to Login <ArrowRight size={18} />
+              Continue to Login
             </button>
           </div>
         )}

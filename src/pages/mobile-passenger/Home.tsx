@@ -89,7 +89,7 @@ export function Home({ onNavigate, session }: HomeProps) {
     return true;
   });
 
-  const activeIncident = filteredIncidents.find(i => i.status === 'Verified') || filteredIncidents[0];
+  const activeIncident = filteredIncidents.find(i => i.status === 'verified') || filteredIncidents[0];
 
   return (
     <div

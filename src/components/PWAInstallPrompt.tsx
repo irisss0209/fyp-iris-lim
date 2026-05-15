@@ -74,7 +74,7 @@ export function PWAInstallPrompt() {
           {/* Logo */}
           <div className="w-20 h-20 rounded-2xl mb-6 shadow-md overflow-hidden">
             <img
-              src="https://railly.s3.ap-southeast-1.amazonaws.com/assets/Railly_logo_192x192.png"
+              src="/Railly_logo_192x192.png"
               alt="Railly Logo"
               className="w-full h-full object-cover"
             />

@@ -276,7 +276,7 @@ export function LoginPage({
             <div
               className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex-shrink-0"
               style={{
-                backgroundImage: 'url(https://railly.s3.ap-southeast-1.amazonaws.com/assets/Railly_logo.png)',
+                backgroundImage: 'url(/Railly_logo.png)',
                 backgroundSize: '100%',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',

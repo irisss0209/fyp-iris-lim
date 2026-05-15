@@ -6,7 +6,10 @@
       "Bash(npx tsc *)",
       "PowerShell(ls *)",
       "PowerShell(head *)",
-      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\iriss\\\\Downloads\\\\fyp-tp076823\\\\backend\" -Recurse -Filter \"*.cs\")"
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\iriss\\\\Downloads\\\\fyp-tp076823\\\\backend\" -Recurse -Filter \"*.cs\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\iriss\\\\Downloads\\\\fyp-tp076823\\\\src\" -Recurse -Filter \"*.tsx\")",
+      "Bash(Select-Object FullName)",
+      "Bash(Sort-Object FullName)"
     ]
   }
 }

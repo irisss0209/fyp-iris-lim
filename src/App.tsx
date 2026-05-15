@@ -83,7 +83,7 @@ export function App() {
           <div
             className="w-14 h-14 rounded-xl"
             style={{
-              backgroundImage: 'url(https://railly.s3.ap-southeast-1.amazonaws.com/assets/Railly_logo.png)',
+              backgroundImage: 'url(/Railly_logo.png)',
               backgroundSize: '100%',
               backgroundPosition: 'center',
               backgroundRepeat: 'no-repeat',

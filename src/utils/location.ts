@@ -20,8 +20,8 @@ const getCurrentPosition = (options: LocationOptions = {}): Promise<GeolocationP
     }
     navigator.geolocation.getCurrentPosition(resolve, reject, {
       enableHighAccuracy: true,
-      timeout: 5000,
-      maximumAge: 0,
+      timeout: 15000,
+      maximumAge: 30000,
       ...options
     });
   });

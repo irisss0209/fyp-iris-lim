@@ -161,10 +161,11 @@ export function Report({ session }: { session: UserSession }) {
   }
 
   const filteredHistory = history.filter(r => {
-    if (statusFilter !== 'all' && r.status !== statusFilter) return false;
+    if (statusFilter !== 'all' && r.status.toLowerCase() !== statusFilter) return false;
     if (dateFilter && r.date !== dateFilter) return false;
     return true;
   });
+
 
   const displayedHistory = isExpanded ? filteredHistory : filteredHistory.slice(0, 3);
 
@@ -254,7 +255,6 @@ export function Report({ session }: { session: UserSession }) {
                 </span>
                 <input
                   type="date"
-                  value=""
                   onChange={e => setDateFilter(e.target.value)}
                   className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
                 />

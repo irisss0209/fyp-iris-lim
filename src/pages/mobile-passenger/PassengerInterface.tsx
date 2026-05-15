@@ -65,7 +65,7 @@ export function PassengerInterface({ session, onLogout }: PassengerInterface) {
           <div
             className="w-9 h-9 rounded-lg flex-shrink-0"
             style={{
-              backgroundImage: 'url(https://railly.s3.ap-southeast-1.amazonaws.com/assets/Railly_logo.png)',
+              backgroundImage: 'url(/Railly_logo.png)',
               backgroundSize: '100%',
               backgroundPosition: 'center',
               backgroundRepeat: 'no-repeat',

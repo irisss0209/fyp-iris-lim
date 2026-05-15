@@ -15,7 +15,7 @@ export function IncidentNearMe() {
   const [showSampleImage, setShowSampleImage] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const handleDetectLocation = () => {
     if (selectedLine !== 'All Lines') {
@@ -60,7 +60,7 @@ export function IncidentNearMe() {
     if (selectedLine !== 'All Lines' && inc.line !== selectedLine) return false;
 
     // Status filter
-    if (statusFilter !== 'All' && inc.status !== statusFilter) return false;
+    if (statusFilter !== 'all' && inc.status.toLowerCase() !== statusFilter) return false;
 
     // Search query filter
     if (searchQuery) {
@@ -76,7 +76,7 @@ export function IncidentNearMe() {
     return true;
   });
 
-  const statuses = ['All', ...Array.from(new Set(incidents.map(i => i.status)))];
+  const statuses = ['all', ...Array.from(new Set(incidents.map(i => i.status.toLowerCase()))).sort()];
 
   return (
     <div
@@ -153,9 +153,13 @@ export function IncidentNearMe() {
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value)}
-          className="bg-white border border-gray-100 rounded-xl py-2.5 px-3 text-xs focus:outline-none shadow-sm font-bold text-gray-600"
+          className="bg-white border border-gray-100 rounded-xl py-2.5 px-3 text-xs focus:outline-none shadow-sm font-bold text-gray-600 capitalize"
         >
-          {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+          {statuses.map(s => (
+            <option key={s} value={s}>
+              {s === 'all' ? 'All' : s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -173,7 +177,7 @@ export function IncidentNearMe() {
         {showSampleImage && (
           <div className="mt-2 rounded-xl overflow-hidden border border-[#0B4F6C]/20 shadow-sm relative">
             <img
-              src="https://railly.s3.ap-southeast-1.amazonaws.com/assets/trainid_coachid_sample.png"
+              src="/trainid_coachid_sample.png"
               alt="Sample sticker showing Car No. and Door No. inside the train"
               className="w-full object-cover max-h-44"
             />
@@ -188,7 +192,7 @@ export function IncidentNearMe() {
         {showSampleImage && (
           <div className="mt-2 rounded-xl overflow-hidden border border-[#0B4F6C]/20 shadow-sm relative">
             <img
-              src="https://railly.s3.ap-southeast-1.amazonaws.com/assets/trainid_outside_sample.jpeg"
+              src="/trainid_outside_sample.jpeg"
               alt="Sample sticker showing Car No. outside the train"
               className="w-full object-cover max-h-44"
             />
@@ -210,7 +214,7 @@ export function IncidentNearMe() {
         <div className="flex flex-col items-center justify-center py-20 px-4 text-center bg-white rounded-2xl border border-gray-100 shadow-sm">
           <p className="text-sm font-bold text-gray-900">No Incidents Found</p>
           <p className="text-xs text-gray-400 mt-1 max-w-[200px]">
-            {searchQuery || statusFilter !== 'All'
+            {searchQuery || statusFilter !== 'all'
               ? 'Try adjusting your filters or search terms.'
               : selectedLine !== 'All Lines'
                 ? `No incidents on the ${selectedLine}.`
