@@ -89,13 +89,13 @@ namespace backend.Controllers
 
                 var report = new UserReport
                 {
-                    UserId      = userId,
+                    UserId      = userId!,
                     TrainId     = req.TrainId,
                     CoachId     = coachId,
                     Description = req.Desc,
                     CreatedAt   = DateTime.UtcNow,
-                    LineId      = req.LineId,
-                    StationId   = req.StationId
+                    LineId      = req.LineId!,
+                    StationId   = req.StationId!
                 };
 
                 _context.UserReports.Add(report);
