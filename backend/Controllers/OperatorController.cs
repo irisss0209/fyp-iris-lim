@@ -767,7 +767,43 @@ namespace backend.Controllers
             });
         }
 
+        [Authorize]
+        [HttpGet("incident/{incidentId}/image-redirect")]
+        public async Task<IActionResult> GetImageRedirect(int incidentId)
+        {
+            var incident = await _context.Incidents
+                .Include(i => i.Detection)
+                .Include(i => i.UserReport)
+                .FirstOrDefaultAsync(i => i.IncidentId == incidentId);
 
+            if (incident == null) return NotFound();
+
+            string? imageUrl = incident.Source == IncidentSource.AI_DETECTION
+                ? incident.Detection?.ImageUrl
+                : incident.UserReport?.ImageUrl;
+
+            if (string.IsNullOrEmpty(imageUrl))
+                return NotFound(new { error = "No image associated with this incident." });
+
+            try
+            {
+                if (Uri.TryCreate(imageUrl, UriKind.Absolute, out var uri))
+                {
+                    var key = uri.AbsolutePath.TrimStart('/');
+                    // Handle bucket name in path if present
+                    if (key.StartsWith("railly/")) key = key.Substring("railly/".Length);
+
+                    var presignedUrl = _s3Service.GeneratePresignedUrl(key, 900); // 15 min expiry
+                    return Redirect(presignedUrl);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate redirect for incident {IncidentId}", incidentId);
+            }
+
+            return BadRequest(new { error = "Failed to generate image link." });
+        }
 
         // ── User Management ───────────────────────────────────────────────────
 
