@@ -94,9 +94,10 @@ export function AlertDetailView({ alert, onBack, onAction }: AlertDetailViewProp
               onClick={() => setLightboxUrl(alert.snapshotUrl || alert.imageUrl || null)}
             />
           ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+            <div className="w-full h-full flex flex-col items-center justify-center gap-2 px-6 text-center">
               <CameraIcon className="w-10 h-10 text-white/20" />
-              <span className="text-white/40 text-xs font-medium">Snapshot Unavailable</span>
+              <span className="text-white/40 text-xs font-medium">Snapshot archived for privacy</span>
+              <span className="text-white/20 text-[10px]">Images are hidden for historical records</span>
             </div>
           )}
         </div>

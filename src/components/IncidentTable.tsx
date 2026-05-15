@@ -136,30 +136,8 @@ export function IncidentTable({
 
                   {open && (
                     <tr className="bg-gray-50/80">
-                      <td colSpan={7} className="px-6 pb-6 pt-2">
-                        <div className="flex flex-col lg:flex-row gap-6">
-                          {inc.imageUrl && (
-                            <div className="lg:w-1/3 xl:w-1/4 flex-shrink-0">
-                              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Incident Evidence</div>
-                              <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm flex flex-col items-center justify-center text-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center">
-                                  <CameraIcon className="w-5 h-5 text-gray-400" />
-                                </div>
-                                <div>
-                                  <p className="text-xs font-semibold text-gray-900">Snapshot available</p>
-                                  <p className="text-[10px] text-gray-400 mt-0.5">Requires authentication</p>
-                                </div>
-                                <a
-                                  href={`${import.meta.env.VITE_API_BASE}/api/data/incident/${inc.id.replace('ALT-', '').replace('RPT-', '')}/image-redirect`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="w-full py-2 bg-gray-900 text-white text-[10px] font-bold rounded-lg hover:bg-black transition-colors"
-                                >
-                                  View Snapshot
-                                </a>
-                              </div>
-                            </div>
-                          )}
+                      <td colSpan={8} className="px-6 pb-6 pt-2">
+                        <div className="flex flex-col gap-6">
                           <div className="flex-1">
                             <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Audit Timeline</div>
                             <StatusTimeline steps={steps} />
