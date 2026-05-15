@@ -204,6 +204,7 @@ export function RecentAlerts({ assignedStationId, userName, token }: { assignedS
         if (action === 'en_route') {
           update.enrouteBy = userName;
           update.enrouteAt = now;
+          update.enrouteComment = comment;
         } else if (action === 'resolved') {
           update.resolvedBy = userName;
           update.resolvedAt = now;
@@ -227,6 +228,7 @@ export function RecentAlerts({ assignedStationId, userName, token }: { assignedS
       if (action === 'en_route') {
         update.enrouteBy = userName;
         update.enrouteAt = now;
+        update.enrouteComment = comment;
       } else if (action === 'resolved') {
         update.resolvedBy = userName;
         update.resolvedAt = now;

@@ -40,6 +40,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
   const [aiSummaryError, setAiSummaryError] = useState(false);
   const [isPdfGenerating, setIsPdfGenerating] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
 
   const [filter, setFilter] = useState({ status: '', source: '', line: '', train: '', search: '', page: 1 });
   const setF = <K extends keyof typeof filter>(k: K, v: typeof filter[K]) =>
@@ -260,7 +261,10 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
   const downloadPDF = async () => {
     if (!stats) return;
     try {
-      // Capture charts before the overlay appears so the DOM elements are visible
+      // Disable Recharts animation so html2canvas doesn't capture a mid-sweep state
+      setIsCapturing(true);
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
       const h2c = (await import('html2canvas')).default;
       const capture = async (id: string): Promise<string | null> => {
         const el = document.getElementById(id);
@@ -296,6 +300,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
     } catch (err) {
       console.error('PDF export failed:', err);
     } finally {
+      setIsCapturing(false);
       setIsPdfGenerating(false);
     }
   };
@@ -431,6 +436,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
             byTrain={byTrain}
             sourceSplit={sourceSplit}
             selectedMonthLabel={selectedMonth?.label ?? ''}
+            isCapturing={isCapturing}
           />
 
           <IncidentTable

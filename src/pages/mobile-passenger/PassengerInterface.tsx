@@ -88,10 +88,11 @@ export function PassengerInterface({ session, onLogout }: PassengerInterface) {
           {activeTab === 'insights' && <Insights key="insights" session={session} />}
           {activeTab === 'profile' && (
             showChangePassword ? (
-              <ChangePasswordPage 
-                key="change-password" 
-                session={session} 
-                onBack={() => setShowChangePassword(false)} 
+              <ChangePasswordPage
+                key="change-password"
+                session={session}
+                onBack={() => setShowChangePassword(false)}
+                onLogout={onLogout}
               />
             ) : (
               <Profile 

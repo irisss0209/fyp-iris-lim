@@ -89,12 +89,12 @@ export function AuxiliaryProfile({ session, onLogout, onChangePassword }: Auxili
       <div className="flex gap-4 mt-2 w-full">
         <div className="flex-1 bg-white rounded-2xl p-4 border border-gray-100 shadow-sm text-center">
           <p className="text-xl font-bold text-gray-900">
-            {stats.avgReactionTime >= 60 
+            {stats.avgReactionTime >= 60
               ? <>{(stats.avgReactionTime / 60).toFixed(1)}<span className="text-xs ml-0.5">hr</span></>
               : <>{stats.avgReactionTime}<span className="text-xs ml-0.5">m</span></>
             }
           </p>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Avg Reaction</p>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Average Response Time</p>
         </div>
         <div className="flex-1 bg-white rounded-2xl p-4 border border-gray-100 shadow-sm text-center">
           <p className="text-xl font-bold text-gray-900">{stats.resolved}</p>

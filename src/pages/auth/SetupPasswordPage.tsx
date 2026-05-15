@@ -3,8 +3,7 @@ import {
   LockIcon,
   EyeIcon,
   EyeOffIcon,
-  ArrowLeftIcon,
-  CheckCircle2Icon
+  ArrowLeftIcon
 } from 'lucide-react';
 
 import { MfaVerification } from './MfaVerification';
@@ -130,15 +129,15 @@ export function SetupPasswordPage({ email, onSuccess, onBack }: SetupPasswordPag
     return (
       <div className="min-h-screen w-full bg-[#FAF9F5] flex items-center justify-center px-4">
         <div className="w-full max-w-md bg-white p-8 rounded-3xl shadow-xl text-center border border-gray-100">
-          <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle2Icon size={40} className="text-green-500" />
+          <div className="w-20 h-20 bg-[#EBF4F8] rounded-full flex items-center justify-center mx-auto mb-6">
+            <Spinner className="w-10 h-10 text-[#0B4F6C]" />
           </div>
           <h1 className="text-2xl font-black text-gray-900 mb-2">Setup Complete!</h1>
           <p className="text-gray-500 mb-8">Redirecting you to your dashboard...</p>
           <div className="flex justify-center gap-1">
-            <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-            <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-            <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            <div className="w-1.5 h-1.5 bg-[#0B4F6C] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+            <div className="w-1.5 h-1.5 bg-[#0B4F6C] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+            <div className="w-1.5 h-1.5 bg-[#0B4F6C] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
           </div>
         </div>
       </div>

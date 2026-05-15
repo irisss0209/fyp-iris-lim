@@ -92,6 +92,12 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
 
   useEffect(() => { fetchAlerts(); }, [fetchAlerts]);
 
+  // Polling fallback — keeps the list fresh if SignalR drops
+  useEffect(() => {
+    const id = setInterval(fetchAlerts, 30_000);
+    return () => clearInterval(id);
+  }, [fetchAlerts]);
+
   // Handle initial selection from navigation
   useEffect(() => {
     if (initialAlertId && alerts.length > 0) {

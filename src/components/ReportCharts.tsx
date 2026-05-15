@@ -11,9 +11,10 @@ interface Props {
   byTrain: ByTrainItem[];
   sourceSplit: StatusSlice[];
   selectedMonthLabel: string;
+  isCapturing?: boolean;
 }
 
-export function ReportCharts({ dailyData, lines, statusBreakdown, byTrain, sourceSplit, selectedMonthLabel }: Props) {
+export function ReportCharts({ dailyData, lines, statusBreakdown, byTrain, sourceSplit, selectedMonthLabel, isCapturing = false }: Props) {
   return (
     <>
       {/* Row 1: Daily by Line + Status Breakdown */}
@@ -32,7 +33,7 @@ export function ReportCharts({ dailyData, lines, statusBreakdown, byTrain, sourc
                 <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #E2E8F0' }} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 {lines.map(l => (
-                  <Bar key={l.lineId} dataKey={l.lineName} fill={getLineColor(l.lineId)} radius={[3, 3, 0, 0]} />
+                  <Bar key={l.lineId} dataKey={l.lineName} fill={getLineColor(l.lineId)} radius={[3, 3, 0, 0]} isAnimationActive={!isCapturing} />
                 ))}
               </BarChart>
             </ResponsiveContainer>
@@ -48,7 +49,7 @@ export function ReportCharts({ dailyData, lines, statusBreakdown, byTrain, sourc
             <div className="flex items-center gap-4">
               <ResponsiveContainer width="55%" height={220}>
                 <PieChart>
-                  <Pie data={statusBreakdown} cx="50%" cy="50%" innerRadius={52} outerRadius={82} paddingAngle={3} dataKey="value">
+                  <Pie data={statusBreakdown} cx="50%" cy="50%" innerRadius={52} outerRadius={82} paddingAngle={3} dataKey="value" isAnimationActive={!isCapturing}>
                     {statusBreakdown.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                   </Pie>
                   <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
@@ -107,7 +108,7 @@ export function ReportCharts({ dailyData, lines, statusBreakdown, byTrain, sourc
                     `${value} incidents · ${props.payload.resolved} resolved`, 'Count',
                   ]}
                 />
-                <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                <Bar dataKey="count" radius={[0, 4, 4, 0]} isAnimationActive={!isCapturing}>
                   {byTrain.map((entry, i) => {
                     const rate = entry.count > 0 ? entry.resolved / entry.count : 0;
                     const fill = rate >= 0.7 ? '#2D7A5D' : rate >= 0.4 ? '#B45309' : '#D34026';
@@ -128,7 +129,7 @@ export function ReportCharts({ dailyData, lines, statusBreakdown, byTrain, sourc
             <div>
               <ResponsiveContainer width="100%" height={160}>
                 <PieChart>
-                  <Pie data={sourceSplit} cx="50%" cy="50%" innerRadius={44} outerRadius={68} paddingAngle={4} dataKey="value">
+                  <Pie data={sourceSplit} cx="50%" cy="50%" innerRadius={44} outerRadius={68} paddingAngle={4} dataKey="value" isAnimationActive={!isCapturing}>
                     {sourceSplit.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                   </Pie>
                   <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />

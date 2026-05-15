@@ -8,6 +8,7 @@ import { Spinner } from '../../components/Spinner';
 interface ChangePasswordPageProps {
   session: UserSession;
   onBack: () => void;
+  onLogout?: () => void;
 }
 
 const DARKBLUE = '#0B4F6C';
@@ -15,7 +16,7 @@ const API = import.meta.env.VITE_API_BASE as string;
 
 type Step = 'passwords' | 'otp' | 'success';
 
-export function ChangePasswordPage({ session, onBack }: ChangePasswordPageProps) {
+export function ChangePasswordPage({ session, onBack, onLogout }: ChangePasswordPageProps) {
   const [step, setStep] = useState<Step>('passwords');
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
@@ -70,7 +71,7 @@ export function ChangePasswordPage({ session, onBack }: ChangePasswordPageProps)
         return false;
       }
       setStep('success');
-      setTimeout(() => onBack(), 2000);
+      setTimeout(() => onLogout ? onLogout() : onBack(), 2000);
       return true;
     } catch {
       setError('Network error. Please try again.');
@@ -108,15 +109,9 @@ export function ChangePasswordPage({ session, onBack }: ChangePasswordPageProps)
   if (step === 'success') {
     return (
       <div className="min-h-screen bg-[#FAF9F5] flex items-center justify-center px-4">
-        <div className="bg-white rounded-[32px] p-8 border border-gray-100 shadow-sm text-center space-y-3 max-w-sm w-full">
-          <div className="w-16 h-16 mx-auto bg-green-50 rounded-full flex items-center justify-center">
-            <svg className="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-bold text-gray-900">Password Updated</h2>
-          <p className="text-sm text-gray-500">Your password has been changed successfully.</p>
-        </div>
+
+        <h2 className="text-xl font-bold text-gray-900">Password Updated</h2>
+        <p className="text-sm text-gray-500">Your password has been changed. Signing you out…</p>
       </div>
     );
   }
@@ -138,7 +133,7 @@ export function ChangePasswordPage({ session, onBack }: ChangePasswordPageProps)
           <div className="space-y-4">
             {[
               { key: 'current', label: 'Current Password', value: currentPw, onChange: setCurrentPw },
-              { key: 'new',     label: 'New Password',     value: newPw,     onChange: setNewPw },
+              { key: 'new', label: 'New Password', value: newPw, onChange: setNewPw },
               { key: 'confirm', label: 'Confirm Password', value: confirmPw, onChange: setConfirmPw },
             ].map(({ key, label, value, onChange }) => (
               <div key={key} className="space-y-1.5">
@@ -187,9 +182,6 @@ export function ChangePasswordPage({ session, onBack }: ChangePasswordPageProps)
           </button>
         </div>
 
-        <p className="text-center text-[10px] text-gray-400 px-8">
-          Changing your password will not log you out of this session.
-        </p>
       </div>
     </div>
   );

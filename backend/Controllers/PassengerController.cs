@@ -239,7 +239,6 @@ namespace backend.Controllers
                 .WithFullNavigations()
                 .Where(i => (i.Status == IncidentStatus.Pending || i.Status == IncidentStatus.Verified || i.Status == IncidentStatus.En_Route || i.Status == IncidentStatus.Escalated) && i.CreatedAt >= todayUtc)
                 .OrderByDescending(i => i.CreatedAt)
-                .Take(10)
                 .ToListAsync();
 
             var now = DateTime.UtcNow;

@@ -175,68 +175,49 @@ namespace backend.Controllers
                     allowedStationIds.Add(sid);
             }
 
-            // 3. Fetch and Filter Incidents
+            // 3. Fetch incidents whose station falls within the allowed set — filter at DB level
             var nowUtc = DateTime.UtcNow;
-            var todayUtc = MytTodayUtc;
+            var allowedList = allowedStationIds.ToList(); // EF Core translates List to SQL IN
 
             var incidents = await _context.Incidents
                 .AsNoTracking()
                 .AsSplitQuery()
                 .WithFullNavigations()
                 .WithStatusUsers()
-                .Where(i => i.CreatedAt >= todayUtc)
+                .Where(i => i.CreatedAt >= MytTodayUtc)
+                .Where(i =>
+                    (i.UserReport != null && allowedList.Contains(i.UserReport.StationId)) ||
+                    (i.Detection  != null && allowedList.Contains(i.Detection.StationId)))
                 .OrderByDescending(i => i.CreatedAt)
-                .Take(100)
                 .ToListAsync();
 
-            var alerts = incidents
-                .Select(i => _alertService.MapToAlertDTO(i, nowUtc))
-                .Where(dto =>
+            var alerts = incidents.Select(i =>
+            {
+                var dto = _alertService.MapToAlertDTO(i, nowUtc);
+                return new
                 {
-                    // Find original incident to get stationId
-                    if (!TryParseIncidentId(dto.Id, out var incidentId)) return false;
-                    var original = incidents.FirstOrDefault(x => x.IncidentId == incidentId);
-                    if (original == null) return false;
-
-                    // Match on stationId only — incidents at any physically nearby station
-                    // are shown regardless of which line the incident itself was tagged to.
-                    string? incidentStationId = original.Detection?.StationId ?? original.UserReport?.StationId;
-                    if (string.IsNullOrEmpty(incidentStationId)) return false;
-
-                    return allowedStationIds.Contains(incidentStationId);
-                })
-                .Select(dto =>
-                {
-                    if (!TryParseIncidentId(dto.Id, out var incidentId)) return (object)dto;
-                    var i = incidents.FirstOrDefault(x => x.IncidentId == incidentId);
-                    if (i == null) return (object)dto;
-
-                    return new
-                    {
-                        dto.Id, dto.TrainId, dto.CoachId, dto.Line, dto.LineId, dto.Station,
-                        dto.Status, dto.Source, dto.Time, dto.Date, dto.Elapsed,
-                        dto.Confidence, dto.DeviceId, dto.ImageUrl,
-                        reportedBy = dto.ReportedBy,
-                        // Include the passenger's own description so the audit trail can display it
-                        passengerComment = i.UserReport?.Description ?? dto.PassengerComment,
-                        verifiedBy = i.VerifiedByUser?.UserName ?? dto.VerifiedBy,
-                        verifiedAt = dto.VerifiedAt,
-                        verifiedComment = dto.VerifiedComment,
-                        enrouteBy = i.EnrouteByUser?.UserName ?? dto.EnrouteBy,
-                        enrouteAt = dto.EnrouteAt,
-                        enrouteComment = dto.EnrouteComment,
-                        resolvedBy = i.ResolvedByUser?.UserName ?? dto.ResolvedBy,
-                        resolvedAt = dto.ResolvedAt,
-                        resolvedComment = dto.ResolvedComment,
-                        escalatedBy = i.EscalatedByUser?.UserName ?? dto.EscalatedBy,
-                        escalatedAt = dto.EscalatedAt,
-                        escalatedComment = dto.EscalatedComment,
-                        dismissedBy = i.DismissedByUser?.UserName ?? dto.DismissedBy,
-                        dismissedAt = dto.DismissedAt,
-                        dismissedComment = dto.DismissedComment,
-                    };
-                })
-                .ToList();
+                    dto.Id, dto.TrainId, dto.CoachId, dto.Line, dto.LineId, dto.Station,
+                    dto.Status, dto.Source, dto.Time, dto.Date, dto.Elapsed,
+                    dto.Confidence, dto.DeviceId, dto.ImageUrl,
+                    reportedBy      = dto.ReportedBy,
+                    passengerComment = i.UserReport?.Description ?? dto.PassengerComment,
+                    verifiedBy      = i.VerifiedByUser?.UserName ?? dto.VerifiedBy,
+                    verifiedAt      = dto.VerifiedAt,
+                    verifiedComment = dto.VerifiedComment,
+                    enrouteBy       = i.EnrouteByUser?.UserName ?? dto.EnrouteBy,
+                    enrouteAt       = dto.EnrouteAt,
+                    enrouteComment  = dto.EnrouteComment,
+                    resolvedBy      = i.ResolvedByUser?.UserName ?? dto.ResolvedBy,
+                    resolvedAt      = dto.ResolvedAt,
+                    resolvedComment = dto.ResolvedComment,
+                    escalatedBy     = i.EscalatedByUser?.UserName ?? dto.EscalatedBy,
+                    escalatedAt     = dto.EscalatedAt,
+                    escalatedComment = dto.EscalatedComment,
+                    dismissedBy     = i.DismissedByUser?.UserName ?? dto.DismissedBy,
+                    dismissedAt     = dto.DismissedAt,
+                    dismissedComment = dto.DismissedComment,
+                };
+            }).ToList();
 
             return Ok(alerts);
         }

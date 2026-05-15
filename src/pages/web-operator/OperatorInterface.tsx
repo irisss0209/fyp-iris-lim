@@ -21,6 +21,7 @@ import { ShiftManagementPanel } from './ShiftManagement';
 import { UserSession } from '../../types/session';
 import type { NavPage } from '../../types/operator';
 import { ChangePasswordPage } from '../auth/ChangePasswordPage';
+import { useAlertHub } from '../../hooks/useAlertHub';
 
 export type { NavPage };
 
@@ -208,10 +209,24 @@ export function OperatorInterface({
   const [activePage, setActivePage] = useState<NavPage>('dashboard');
   const [initialAlertId, setInitialAlertId] = useState<string | number | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [unreadAlerts, setUnreadAlerts] = useState(0);
   const { showWarning, secondsLeft, extendSession } = useInactivityLogout(onLogout);
+
+  // Use a ref so the SignalR callback stays stable (no reconnects on page change)
+  const activePageRef = useRef(activePage);
+  useEffect(() => { activePageRef.current = activePage; }, [activePage]);
+
+  const handleAlertEvent = useCallback(() => {
+    if (activePageRef.current !== 'live-alerts') {
+      setUnreadAlerts(prev => prev + 1);
+    }
+  }, []);
+
+  useAlertHub(handleAlertEvent);
 
   const handleNavigate = (page: NavPage, id?: string | number) => {
     setActivePage(page);
+    if (page === 'live-alerts') setUnreadAlerts(0);
     if (id) setInitialAlertId(id);
   };
 
@@ -230,7 +245,7 @@ export function OperatorInterface({
       case 'shifts': return <ShiftManagementPanel session={session} />;
       case 'settings': return <Settings onNavigate={handleNavigate} />;
       case 'change-password':
-        return <ChangePasswordPage session={session!} onBack={() => setActivePage('settings')} />;
+        return <ChangePasswordPage session={session!} onBack={() => setActivePage('settings')} onLogout={onLogout} />;
       default: return <Dashboard onNavigate={handleNavigate} />;
     }
   };
@@ -259,7 +274,7 @@ export function OperatorInterface({
         activePage={activePage}
         onNavigate={handleNavigate}
         onLogout={onLogout}
-        alertCount={0}
+        alertCount={unreadAlerts}
         user={session}
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed(c => !c)}

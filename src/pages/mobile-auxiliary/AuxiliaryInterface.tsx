@@ -67,6 +67,7 @@ export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterface) {
                 key="change-password"
                 session={session}
                 onBack={() => setShowChangePassword(false)}
+                onLogout={onLogout}
               />
             ) : (
               <AuxiliaryProfile

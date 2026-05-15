@@ -29,23 +29,26 @@ namespace backend.Services
             decimal? confidence = null;
             string? deviceId = null;
             string? imageUrl = null;
-            if (i.Source == IncidentSource.AI_DETECTION && i.Detection != null)
+            if (i.Source == IncidentSource.AI_DETECTION)
             {
                 source = "ai";
 
-                coachId = i.Detection.Camera?.CoachId;
-                trainId = i.Detection.Camera?.TrainCoach?.TrainId ?? i.Detection.Camera?.TrainId;
+                if (i.Detection != null)
+                {
+                    coachId = i.Detection.Camera?.CoachId;
+                    trainId = i.Detection.Camera?.TrainCoach?.TrainId ?? i.Detection.Camera?.TrainId;
 
-                lineName = i.Detection.LineStation?.TrainLine?.LineName
-                           ?? i.Detection.Camera?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
+                    lineName = i.Detection.LineStation?.TrainLine?.LineName
+                               ?? i.Detection.Camera?.TrainCoach?.TrainAsset?.TrainLine?.LineName;
 
-                lineId = i.Detection.LineId
-                         ?? i.Detection.Camera?.TrainCoach?.TrainAsset?.TrainLine?.LineId;
+                    lineId = i.Detection.LineId
+                             ?? i.Detection.Camera?.TrainCoach?.TrainAsset?.TrainLine?.LineId;
 
-                stationName = i.Detection.LineStation?.Station?.StationName;
-                confidence = i.Detection.ConfidenceScore;
-                deviceId = i.Detection.CameraId;
-                imageUrl = i.Detection.ImageUrl;
+                    stationName = i.Detection.LineStation?.Station?.StationName;
+                    confidence = i.Detection.ConfidenceScore;
+                    deviceId = i.Detection.CameraId;
+                    imageUrl = i.Detection.ImageUrl;
+                }
             }
             else if (i.UserReport != null)
             {

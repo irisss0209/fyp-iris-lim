@@ -51,6 +51,12 @@ export function App() {
     return () => window.removeEventListener('online', handleOnline);
   }, [session]);
 
+  const handleLoginSuccess = (s: UserSession) => {
+    setSession(s);
+    setPendingMfa(null);
+    requestAndSubscribe();
+  };
+
   const handleLogout = () => {
     fetch(`${API_BASE}/api/auth/logout`, {
       method: 'POST',
@@ -103,16 +109,12 @@ export function App() {
     <>
       <OfflineBanner />
       <UpdatePrompt />
-      <PWAInstallPrompt />
 
       {!session ? (
         <>
           {authView === 'login' && (
             <LoginPage
-              onLoginSuccess={(s) => {
-                setSession(s);
-                setPendingMfa(null);
-              }}
+              onLoginSuccess={handleLoginSuccess}
               onNavigateSignup={() => setAuthView('signup')}
               onNavigateSetupPassword={(email) => {
                 setSetupEmail(email);
@@ -126,7 +128,7 @@ export function App() {
 
           {authView === 'signup' && (
             <SignupPage
-              onSignupSuccess={(s) => setSession(s)}
+              onSignupSuccess={handleLoginSuccess}
               onNavigateLogin={() => setAuthView('login')}
             />
           )}
@@ -134,9 +136,7 @@ export function App() {
           {authView === 'setup-password' && (
             <SetupPasswordPage
               email={setupEmail}
-              onSuccess={(session) => {
-                setSession(session);
-              }}
+              onSuccess={handleLoginSuccess}
               onBack={() => setAuthView('login')}
             />
           )}
@@ -160,12 +160,14 @@ export function App() {
             case 'passenger':
               return (
                 <div className="min-h-screen w-full flex justify-center bg-[#FAF9F5]">
+                  <PWAInstallPrompt />
                   <PassengerInterface session={session} onLogout={handleLogout} />
                 </div>
               );
             case 'auxiliary':
               return (
                 <div className="min-h-screen w-full flex justify-center bg-[#FAF9F5]">
+                  <PWAInstallPrompt />
                   <AuxiliaryInterface session={session} onLogout={handleLogout} />
                 </div>
               );

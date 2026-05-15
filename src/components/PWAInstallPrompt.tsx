@@ -7,8 +7,6 @@ export function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   useEffect(() => {
-    if (localStorage.getItem('pwa_prompt_dismissed') === 'true') return;
-
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches
       || (window.navigator as any).standalone
       || document.referrer.includes('android-app://');
@@ -43,7 +41,6 @@ export function PWAInstallPrompt() {
     const { outcome } = await deferredPrompt.userChoice;
     if (outcome === 'accepted') {
       setShow(false);
-      localStorage.setItem('pwa_prompt_dismissed', 'true');
     }
     setDeferredPrompt(null);
   };
@@ -61,10 +58,7 @@ export function PWAInstallPrompt() {
 
         {/* Close button */}
         <button
-          onClick={() => {
-            setShow(false);
-            localStorage.setItem('pwa_prompt_dismissed', 'true');
-          }}
+          onClick={() => setShow(false)}
           className="absolute top-4 right-4 p-1 text-gray-400 hover:text-gray-600 transition-colors"
         >
           <X size={20} />

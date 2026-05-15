@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useAlertHub } from '../../hooks/useAlertHub';
 import {
   ClockIcon,
   CalendarIcon,
@@ -148,6 +149,8 @@ export function Dashboard({ onNavigate, session }: DashboardProps) {
   }, [selectedRange, customFrom, customTo]);
 
   useEffect(() => { fetchDashboard(); setAlertPage(1); setExpandedId(null); }, [fetchDashboard]);
+
+  useAlertHub(fetchDashboard);
 
   // ── Dynamic subtitle ──────────────────────────────────────────────────────────
   const getSubtitle = () => {

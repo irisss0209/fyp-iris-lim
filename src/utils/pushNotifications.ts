@@ -10,13 +10,15 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
 }
 
 export async function requestAndSubscribe(): Promise<void> {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
+  if (!('Notification' in window)) return
   if (Notification.permission === 'denied') return
 
   if (Notification.permission === 'default') {
     const result = await Notification.requestPermission()
     if (result !== 'granted') return
   }
+
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
 
   const reg = await navigator.serviceWorker.ready
 
