@@ -87,12 +87,12 @@ namespace backend.Services
             {
                 var (title, body) = incident.Status switch
                 {
-                    IncidentStatus.Verified  => ("Report Verified",    $"Your report ({alertId}) has been verified. Assistance will be provided shortly."),
-                    IncidentStatus.En_Route  => ("Help Is On The Way", $"An officer is on the way to assist with your report ({alertId})."),
-                    IncidentStatus.Escalated => ("Report Escalated",   $"Your report ({alertId}) has been escalated to ensure assistance is provided as soon as possible."),
-                    IncidentStatus.Resolved  => ("Report Resolved",    $"Your report ({alertId}) has been successfully resolved. Thank you for your cooperation."),
-                    IncidentStatus.Dismissed => ("Report Closed",      $"Your report ({alertId}) has been reviewed and closed as it does not meet the reporting criteria."),
-                    _                        => ("Report Updated",     $"Your report ({alertId}) status has changed."),
+                    IncidentStatus.Verified  => ("Report Verified",    $"{alertId} has been verified. Assistance will be provided shortly."),
+                    IncidentStatus.En_Route  => ("Help Is On The Way", $"An officer is on the way to assist with {alertId}."),
+                    IncidentStatus.Escalated => ("Report Escalated",   $"{alertId} has been escalated to ensure assistance is provided as soon as possible."),
+                    IncidentStatus.Resolved  => ("Report Resolved",    $"{alertId} has been successfully resolved. Thank you for your cooperation."),
+                    IncidentStatus.Dismissed => ("Report Closed",      $"{alertId} has been reviewed and closed as it does not meet the reporting criteria."),
+                    _                        => ("Report Updated",     $"{alertId} status has changed."),
                 };
                 tasks.Add(NotifyReporter(context, incident.UserReport.UserId, title, body, alertId, actedByUserId));
             }
@@ -139,8 +139,8 @@ namespace backend.Services
 
             var opTitle = $"URGENT! Alert {alertId} Re-Escalated";
             var opBody  = actorLabel != null
-                ? $"Alert {alertId} has been re-escalated — no response received. [By: {actorLabel}]"
-                : $"Alert {alertId} has been re-escalated — immediate action required.";
+                ? $"Alert {alertId} has been re-escalated as no response received. [By: {actorLabel}]"
+                : $"Alert {alertId} has been re-escalated, immediate action required.";
             tasks.Add(NotifyOperators(context, opTitle, opBody, alertId, actedByUserId));
 
             await Task.WhenAll(tasks);
@@ -186,9 +186,9 @@ namespace backend.Services
                 foreach (var sid in nearby) allowedStationIds.Add(sid);
             }
 
-            var today = DateTime.UtcNow.AddHours(8).Date;
+            var todayMyt = DateTime.UtcNow.AddHours(8).Date; // ShiftDate stores MYT calendar dates
             var auxUserIds = await context.AuxiliaryShifts
-                .Where(s => s.ShiftDate.Date == today && allowedStationIds.Contains(s.StationId))
+                .Where(s => s.ShiftDate.Date == todayMyt && allowedStationIds.Contains(s.StationId))
                 .Select(s => s.UserId)
                 .Distinct()
                 .ToListAsync();

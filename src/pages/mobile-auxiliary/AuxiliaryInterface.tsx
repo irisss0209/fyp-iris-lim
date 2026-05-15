@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { BellIcon, ClockIcon, UserIcon } from 'lucide-react';
 import { RecentAlerts } from './RecentAlerts';
@@ -26,6 +26,11 @@ export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterface) {
   const [assignedStationId, setAssignedStationId] = useState<string | undefined>(undefined);
   const [showChangePassword, setShowChangePassword] = useState(false);
 
+  // Stable reference — prevents AuxiliaryShift's useEffect from re-running on every render
+  const handleStationDetected = useCallback((id: string | undefined) => {
+    setAssignedStationId(id);
+  }, []);
+
   return (
     <div 
       className="flex flex-col h-screen relative w-full sm:max-w-md mx-auto overflow-hidden sm:shadow-2xl sm:rounded-[40px] sm:border-[8px] sm:border-white sm:ring-1 sm:ring-gray-100" 
@@ -44,7 +49,7 @@ export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterface) {
       */}
 
       <div className="pt-6">
-        <AuxiliaryShift userId={session.userId} token={session.token} onStationDetected={(id) => setAssignedStationId(id)} />
+        <AuxiliaryShift userId={session.userId} token={session.token} onStationDetected={handleStationDetected} />
       </div>
 
       {/* ── Shift Banner ── */}

@@ -168,7 +168,7 @@ self.addEventListener('message', (event: ExtendableMessageEvent) => {
         tx.objectStore(IDB_STORE).clear()
         tx.oncomplete = () => { db.close(); resolve() }
         tx.onerror = () => { db.close(); resolve() }
-      })).catch(() => {})
+      })).catch(() => { })
     ])
   )
 })

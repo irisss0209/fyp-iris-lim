@@ -124,7 +124,7 @@ namespace backend.Controllers
             if (authError != null) return authError;
 
             // 1. Shift Verification
-            // Shifts are stored in MYT (UTC+8), so always compare against MYT time
+            // ShiftDate stores MYT calendar dates (imported as-is from CSV)
             var nowMyt = DateTime.UtcNow.AddHours(8);
             var todayMyt = nowMyt.Date;
             var nowTimeMyt = nowMyt.TimeOfDay;
