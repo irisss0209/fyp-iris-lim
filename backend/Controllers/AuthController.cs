@@ -614,6 +614,9 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
             if (missing.Any())
                 return BadRequest(new { error = $"Password must contain: {string.Join(", ", missing)}." });
 
+            if (BCrypt.Net.BCrypt.Verify(request.NewPassword, user.PasswordHash))
+                return BadRequest(new { error = "New password cannot be the same as your current password." });
+
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
             await _context.SaveChangesAsync();
 
