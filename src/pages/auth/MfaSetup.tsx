@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { ShieldCheck, Copy, Check, ArrowRight } from 'lucide-react';
+import { Copy, Check, ArrowRight } from 'lucide-react';
 
 interface MfaSetupProps {
   email: string;

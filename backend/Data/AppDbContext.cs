@@ -20,7 +20,7 @@ namespace backend.Data
         public DbSet<Incident>    Incidents    => Set<Incident>();
         public DbSet<AuxiliaryShift> AuxiliaryShifts => Set<AuxiliaryShift>();
         public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
-        public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
+        public DbSet<NotificationPreference> Notification_Preferences => Set<NotificationPreference>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

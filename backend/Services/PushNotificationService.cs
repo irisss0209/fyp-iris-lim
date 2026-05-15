@@ -87,11 +87,11 @@ namespace backend.Services
             {
                 var (title, body) = incident.Status switch
                 {
-                    IncidentStatus.Verified  => ("Report Verified",    $"Your report ({alertId}) has been verified."),
-                    IncidentStatus.En_Route  => ("Help Is On The Way", $"An officer is en route for your report ({alertId})."),
-                    IncidentStatus.Escalated => ("Report Escalated",   $"Your report ({alertId}) has been escalated. More help is coming."),
-                    IncidentStatus.Resolved  => ("Report Resolved",    $"Your report ({alertId}) has been resolved. Thank you!"),
-                    IncidentStatus.Dismissed => ("Report Closed",      $"Your report ({alertId}) has been reviewed and closed."),
+                    IncidentStatus.Verified  => ("Report Verified",    $"Your report ({alertId}) has been verified. Assistance will be provided shortly."),
+                    IncidentStatus.En_Route  => ("Help Is On The Way", $"An officer is on the way to assist with your report ({alertId})."),
+                    IncidentStatus.Escalated => ("Report Escalated",   $"Your report ({alertId}) has been escalated to ensure assistance is provided as soon as possible."),
+                    IncidentStatus.Resolved  => ("Report Resolved",    $"Your report ({alertId}) has been successfully resolved. Thank you for your cooperation."),
+                    IncidentStatus.Dismissed => ("Report Closed",      $"Your report ({alertId}) has been reviewed and closed as it does not meet the reporting criteria."),
                     _                        => ("Report Updated",     $"Your report ({alertId}) status has changed."),
                 };
                 tasks.Add(NotifyReporter(context, incident.UserReport.UserId, title, body, alertId, actedByUserId));
@@ -229,7 +229,7 @@ namespace backend.Services
             {
                 if (sub.UserId == actedByUserId) continue;
 
-                var pref = await context.NotificationPreferences.FindAsync(sub.UserId);
+                var pref = await context.Notification_Preferences.FindAsync(sub.UserId);
                 if (pref != null)
                 {
                     if (pref.SoundAlerts == SoundAlertMode.Off) continue;

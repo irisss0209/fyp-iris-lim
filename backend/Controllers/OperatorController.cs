@@ -1094,7 +1094,7 @@ if (error != null) return BadRequest(new { error });
             var userId = GetCurrentUserId();
             if (userId == null) return Unauthorized();
 
-            var pref = await _context.NotificationPreferences.FindAsync(userId);
+            var pref = await _context.Notification_Preferences.FindAsync(userId);
             return Ok(new
             {
                 soundAlerts = (pref?.SoundAlerts ?? SoundAlertMode.On).ToString().ToLower(),
@@ -1109,11 +1109,11 @@ if (error != null) return BadRequest(new { error });
             var userId = GetCurrentUserId();
             if (userId == null) return Unauthorized();
 
-            var pref = await _context.NotificationPreferences.FindAsync(userId);
+            var pref = await _context.Notification_Preferences.FindAsync(userId);
             if (pref == null)
             {
                 pref = new Models.NotificationPreference { UserId = userId };
-                _context.NotificationPreferences.Add(pref);
+                _context.Notification_Preferences.Add(pref);
             }
 
             if (request.SoundAlerts != null &&
