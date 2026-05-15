@@ -3,8 +3,6 @@ import {
   CalendarIcon, DownloadIcon, TrendingUpIcon,
   RefreshCwIcon, ChevronDownIcon,
 } from 'lucide-react';
-import { pdf } from '@react-pdf/renderer';
-import { ReportPDF } from '../../components/ReportPDF';
 import { IncidentTable } from '../../components/IncidentTable';
 import { ReportKPICards } from '../../components/ReportKPICards';
 import { ReportCharts } from '../../components/ReportCharts';
@@ -280,6 +278,10 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
       ]);
 
       setIsPdfGenerating(true);
+      const [{ pdf }, { ReportPDF }] = await Promise.all([
+        import('@react-pdf/renderer'),
+        import('../../components/ReportPDF'),
+      ]);
       const blob = await pdf(
         <ReportPDF
           month={selectedMonth?.label ?? ''}

@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import ExcelJS from 'exceljs';
 import {
   CalendarIcon, CheckCircleIcon, Loader2Icon,
   DownloadIcon, UploadIcon, XCircleIcon, SearchIcon, XIcon
@@ -129,6 +128,7 @@ export function ShiftManagementPanel({ session }: { session?: { token?: string }
 
   // ── download template ──
   const downloadTemplate = async () => {
+    const ExcelJS = (await import('exceljs')).default;
     const workbook = new ExcelJS.Workbook();
     const ws = workbook.addWorksheet('Shifts');
 

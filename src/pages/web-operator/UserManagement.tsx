@@ -7,7 +7,6 @@ interface UserRow {
   createdAt: string;
 }
 import { useState, useEffect, useRef } from 'react';
-import ExcelJS from 'exceljs';
 
 import {
   Loader2Icon,
@@ -193,6 +192,7 @@ export function UserManagement({ session }: { session: { userId?: string; token?
     }
   };
   const downloadUserTemplate = async () => {
+    const ExcelJS = (await import('exceljs')).default;
     const workbook = new ExcelJS.Workbook();
     const ws = workbook.addWorksheet('Users');
 

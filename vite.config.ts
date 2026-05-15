@@ -10,6 +10,24 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (id.includes('react-dom') || id.includes('/react/'))           return 'vendor-react';
+          if (id.includes('recharts') || id.includes('d3-'))                return 'vendor-charts';
+          if (id.includes('@microsoft/signalr'))                             return 'vendor-signalr';
+          if (id.includes('lucide-react'))                                   return 'vendor-icons';
+          if (id.includes('jspdf') || id.includes('html2canvas'))           return 'vendor-pdf';
+          if (id.includes('@react-pdf'))                                     return 'vendor-pdf-renderer';
+          if (id.includes('exceljs'))                                        return 'vendor-excel';
+          if (id.includes('framer-motion'))                                  return 'vendor-motion';
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       '/api': {
