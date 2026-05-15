@@ -129,9 +129,14 @@ namespace backend.Controllers
             var todayMyt = nowMyt.Date;
             var nowTimeMyt = nowMyt.TimeOfDay;
 
-            var shift = await _context.AuxiliaryShifts
+            var todayShifts = await _context.AuxiliaryShifts
                 .Where(s => s.UserId == userId && s.ShiftDate.Date == todayMyt)
-                .FirstOrDefaultAsync();
+                .OrderBy(s => s.StartTime)
+                .ToListAsync();
+
+            // Pick the currently on-duty shift first; fall back to the first shift of the day
+            var shift = todayShifts.FirstOrDefault(s => IsShiftOnDuty(s.StartTime, s.EndTime, nowTimeMyt))
+                     ?? todayShifts.FirstOrDefault();
 
             if (shift == null)
                 return Ok(new List<object>()); // No shift today
