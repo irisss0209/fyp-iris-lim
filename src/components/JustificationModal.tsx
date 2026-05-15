@@ -21,9 +21,8 @@ const MODAL_CONFIG: Record<string, { color: string; title: string; confirm: stri
     confirm: 'Confirm Verify',
     placeholder: 'Describe why this alert is being verified...',
     reasons: [
-      "Unauthorized male passenger in women's coach",
+      'Violation confirmed via bare eyes',
       'Violation confirmed via CCTV',
-      'Passenger report verified',
       'Repeated violation observed',
     ],
   },
@@ -34,9 +33,6 @@ const MODAL_CONFIG: Record<string, { color: string; title: string; confirm: stri
     placeholder: 'Describe how this was resolved...',
     reasons: [
       'Passenger complied and moved to appropriate coach',
-      'Male passenger accompanied by female family member',
-      'PWD passenger assisted and relocated',
-      'Alert resolved by station staff',
       'No further issues observed after intervention',
     ],
   },
@@ -46,10 +42,9 @@ const MODAL_CONFIG: Record<string, { color: string; title: string; confirm: stri
     confirm: 'Confirm Escalate',
     placeholder: 'Describe why this alert needs escalation...',
     reasons: [
-      'Unauthorized passenger refuses to leave',
       'Potential safety risk to passengers',
       'Repeated violations detected',
-      'Assistance required from auxiliary staff',
+      'No response from auxiliary staff',
     ],
   },
   en_route: {
@@ -58,7 +53,6 @@ const MODAL_CONFIG: Record<string, { color: string; title: string; confirm: stri
     confirm: 'Confirm En Route',
     placeholder: 'Add any notes before routing...',
     reasons: [
-      'Assigned to handle this alert',
       'En route to manage unauthorized passenger',
       'Responding to verified violation',
       'Proceeding to assist with safety concern',
@@ -70,11 +64,10 @@ const MODAL_CONFIG: Record<string, { color: string; title: string; confirm: stri
     confirm: 'Confirm Dismiss',
     placeholder: 'Describe why this alert is being dismissed...',
     reasons: [
-      'No violation — passenger permitted in coach',
       'Male child accompanied by female passenger',
       'PWD passenger allowed in coach',
       'Staff member on duty',
-      'Incorrect detection — no issue observed',
+      'Incorrect detection',
       'Duplicate or already handled alert',
     ],
   },

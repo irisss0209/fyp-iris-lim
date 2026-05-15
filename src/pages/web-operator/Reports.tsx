@@ -138,9 +138,10 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
     const groups: Record<string, ByTrainItem> = {};
     allIncidents.forEach(inc => {
       const key = inc.trainId ? `${inc.trainId}` : 'Unknown';
-      if (!groups[key]) groups[key] = { train: key, count: 0, resolved: 0, line: inc.line ?? '' };
+      if (!groups[key]) groups[key] = { train: key, count: 0, closed: 0, line: inc.line ?? '' };
       groups[key].count++;
-      if (inc.status?.toLowerCase() === 'resolved') groups[key].resolved++;
+      const s = inc.status?.toLowerCase();
+      if (s === 'resolved' || s === 'dismissed') groups[key].closed++;
     });
     return Object.values(groups).sort((a, b) => b.count - a.count).slice(0, 10);
   }, [allIncidents]);

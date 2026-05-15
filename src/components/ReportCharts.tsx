@@ -89,7 +89,7 @@ export function ReportCharts({ dailyData, lines, statusBreakdown, byTrain, sourc
           <div className="flex items-center gap-4 mb-4">
             <p className="text-xs text-gray-400 flex-1">Top {byTrain.length} trains by incident volume</p>
             <div className="flex items-center gap-3 text-[10px] text-gray-400">
-              <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: '#2D7A5D' }} /> ≥70% resolved</span>
+              <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: '#2D7A5D' }} /> ≥70% closed</span>
               <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: '#B45309' }} /> 40–70%</span>
               <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: '#D34026' }} /> &lt;40%</span>
             </div>
@@ -101,16 +101,21 @@ export function ReportCharts({ dailyData, lines, statusBreakdown, byTrain, sourc
               <BarChart data={byTrain} layout="vertical" barSize={14} margin={{ left: 0, right: 24, top: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 11, fill: '#4A5568' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <YAxis type="category" dataKey="train" width={68} tick={{ fontSize: 11, fill: '#4A5568' }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="train" width={190} tick={{ fontSize: 11, fill: '#4A5568' }} axisLine={false} tickLine={false}
+                  tickFormatter={(value) => {
+                    const item = byTrain.find(t => t.train === value);
+                    return item?.line ? `${value} (${item.line})` : value;
+                  }}
+                />
                 <Tooltip
                   contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #E2E8F0' }}
                   formatter={(value: number, _name, props) => [
-                    `${value} incidents · ${props.payload.resolved} resolved`, 'Count',
+                    `${value} incidents · ${props.payload.closed} resolved/dismissed`, 'Count',
                   ]}
                 />
                 <Bar dataKey="count" radius={[0, 4, 4, 0]} isAnimationActive={!isCapturing}>
                   {byTrain.map((entry, i) => {
-                    const rate = entry.count > 0 ? entry.resolved / entry.count : 0;
+                    const rate = entry.count > 0 ? entry.closed / entry.count : 0;
                     const fill = rate >= 0.7 ? '#2D7A5D' : rate >= 0.4 ? '#B45309' : '#D34026';
                     return <Cell key={i} fill={fill} />;
                   })}

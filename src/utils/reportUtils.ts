@@ -48,7 +48,7 @@ export interface IncidentRow {
 export interface ByTrainItem {
   train: string;
   count: number;
-  resolved: number;
+  closed: number;
   line: string;
 }
 

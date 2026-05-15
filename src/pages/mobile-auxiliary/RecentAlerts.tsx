@@ -39,7 +39,7 @@ function StatusBadge({ status }: { status: string }) {
       style={{ backgroundColor: s.bg, color: s.text }}
     >
       <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.dot }} />
-      {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
+      {status === 'en_route' ? 'En Route' : status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
   );
 }
@@ -83,7 +83,7 @@ function AlertCard({
                   </span>
                   {alert.source === 'ai' ? (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FEF2F0] text-[#D34026]">
-                      AI Detected
+                      AI Detected{alert.confidence != null ? ` · ${Math.round(alert.confidence * 100)}%` : ''}
                     </span>
                   ) : (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E]">

@@ -439,7 +439,7 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
                               color: STATUS_THEME[alert.status]?.color || '#718096',
                             }}
                           >
-                            {alert.status.toUpperCase()}
+                            {alert.status === 'en_route' ? 'EN ROUTE' : alert.status.toUpperCase()}
                           </span>
                         </div>
                       </div>

@@ -102,18 +102,18 @@ export function IncidentTable({
                               : '#0B4F6C',
                           }}
                         >
-                          System{inc.confidence != null && ` (${Math.round(inc.confidence * 100)}%)`}
+                          AI Detection{inc.confidence != null && ` (${Math.round(inc.confidence * 100)}%)`}
                         </span>
                       ) : (
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
                           style={{ backgroundColor: '#FEF2F0', color: '#D34026' }}>
-                          Passenger
+                          Passenger Report
                         </span>
                       )}
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: sc.bg, color: sc.text }}>
-                        {inc.status}
+                        {inc.status === 'en_route' ? 'En Route' : inc.status.charAt(0).toUpperCase() + inc.status.slice(1)}
                       </span>
                     </td>
                     <td className="px-4 py-3">

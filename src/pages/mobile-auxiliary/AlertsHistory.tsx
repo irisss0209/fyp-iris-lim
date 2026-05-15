@@ -18,6 +18,7 @@ interface Case {
   trainId: number;
   coachId: number;
   source: string;
+  confidence?: number | null;
   imageUrl?: string;
   snapshotUrl?: string;
   passengerComment?: string;
@@ -55,6 +56,7 @@ function caseToAlert(c: Case): Alert {
     station: c.station, time: c.time, date: c.date, elapsed: c.elapsed,
     status: c.status as Alert['status'], source: c.source as Alert['source'],
     type: c.source === 'ai' ? 'AI Detection' : 'Passenger Report',
+    confidence: c.confidence,
     imageUrl: undefined, // Hidden in history for privacy
     snapshotUrl: undefined, // Hidden in history for privacy
     reportedBy: c.reportedBy, passengerComment: c.passengerComment,
