@@ -47,14 +47,10 @@ namespace backend.Services
             var alertId = (incident.Source == IncidentSource.AI_DETECTION ? "ALT-" : "RPT-")
                           + incident.IncidentId.ToString("D3");
 
-            var tasks = new List<Task>();
-
             if (stationId != null)
-                tasks.Add(NotifyAuxiliary(context, stationId, incident.Status, alertId, actedByUserId, null));
+                await NotifyAuxiliary(context, stationId, incident.Status, alertId, actedByUserId, null);
 
-            tasks.Add(NotifyOperators(context, "New Incident Alert", $"Alert {alertId} requires your attention.", alertId, actedByUserId));
-
-            await Task.WhenAll(tasks);
+            await NotifyOperators(context, "New Incident Alert", $"Alert {alertId} requires your attention.", alertId, actedByUserId);
         }
 
         public async Task NotifyStatusChange(int incidentId, string? actedByUserId = null)
@@ -81,8 +77,6 @@ namespace backend.Services
                 actorLabel = actor?.EmployeeId ?? actor?.UserName ?? "Staff";
             }
 
-            var tasks = new List<Task>();
-
             if (incident.Source == IncidentSource.USER_REPORT && incident.UserReport != null)
             {
                 var (title, body) = incident.Status switch
@@ -94,19 +88,17 @@ namespace backend.Services
                     IncidentStatus.Dismissed => ("Report Closed",      $"{alertId} has been reviewed and closed as it does not meet the reporting criteria."),
                     _                        => ("Report Updated",     $"{alertId} status has changed."),
                 };
-                tasks.Add(NotifyReporter(context, incident.UserReport.UserId, title, body, alertId, actedByUserId));
+                await NotifyReporter(context, incident.UserReport.UserId, title, body, alertId, actedByUserId);
             }
 
             if (stationId != null)
-                tasks.Add(NotifyAuxiliary(context, stationId, incident.Status, alertId, actedByUserId, actorLabel));
+                await NotifyAuxiliary(context, stationId, incident.Status, alertId, actedByUserId, actorLabel);
 
             var opTitle = $"Alert {alertId} – {statusLabel}";
             var opBody  = actorLabel != null
                 ? $"Alert {alertId} is now {statusLabel}. [By: {actorLabel}]"
                 : $"Alert {alertId} status updated to {statusLabel}.";
-            tasks.Add(NotifyOperators(context, opTitle, opBody, alertId, actedByUserId));
-
-            await Task.WhenAll(tasks);
+            await NotifyOperators(context, opTitle, opBody, alertId, actedByUserId);
         }
 
         public async Task NotifyReEscalation(int incidentId, string? actedByUserId = null)
@@ -132,18 +124,14 @@ namespace backend.Services
                 actorLabel = actor?.EmployeeId ?? actor?.UserName ?? "Staff";
             }
 
-            var tasks = new List<Task>();
-
             if (stationId != null)
-                tasks.Add(NotifyAuxiliary(context, stationId, IncidentStatus.Escalated, alertId, actedByUserId, actorLabel));
+                await NotifyAuxiliary(context, stationId, IncidentStatus.Escalated, alertId, actedByUserId, actorLabel);
 
             var opTitle = $"URGENT! Alert {alertId} Re-Escalated";
             var opBody  = actorLabel != null
                 ? $"Alert {alertId} has been re-escalated as no response received. [By: {actorLabel}]"
                 : $"Alert {alertId} has been re-escalated, immediate action required.";
-            tasks.Add(NotifyOperators(context, opTitle, opBody, alertId, actedByUserId));
-
-            await Task.WhenAll(tasks);
+            await NotifyOperators(context, opTitle, opBody, alertId, actedByUserId);
         }
 
         // ── Passenger: notify the reporter ────────────────────────────────────────
@@ -223,14 +211,20 @@ namespace backend.Services
                 .Where(s => s.User.Role == UserRole.Operator)
                 .ToListAsync();
 
+            if (!operatorSubs.Any()) return;
+
+            var operatorUserIds = operatorSubs.Select(s => s.UserId).Distinct().ToList();
+            var prefs = await context.Notification_Preferences
+                .Where(p => operatorUserIds.Contains(p.UserId))
+                .ToDictionaryAsync(p => p.UserId);
+
             var sendTasks = new List<Task>();
 
             foreach (var sub in operatorSubs)
             {
                 if (sub.UserId == actedByUserId) continue;
 
-                var pref = await context.Notification_Preferences.FindAsync(sub.UserId);
-                if (pref != null)
+                if (prefs.TryGetValue(sub.UserId, out var pref))
                 {
                     if (pref.SoundAlerts == SoundAlertMode.Off) continue;
                     if (pref.SoundAlerts == SoundAlertMode.Peak)

@@ -54,7 +54,6 @@ export function App() {
   const handleLoginSuccess = (s: UserSession) => {
     setSession(s);
     setPendingMfa(null);
-    requestAndSubscribe();
   };
 
   const handleLogout = () => {

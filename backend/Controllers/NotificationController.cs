@@ -26,13 +26,17 @@ namespace backend.Controllers
             if (string.IsNullOrWhiteSpace(req.Endpoint) || req.Keys == null) return BadRequest();
 
             var existing = await _context.PushSubscriptions
-                .FirstOrDefaultAsync(s => s.UserId == userId && s.Endpoint == req.Endpoint);
+                .Where(s => s.UserId == userId && s.Endpoint == req.Endpoint)
+                .ToListAsync();
 
-            if (existing != null)
+            if (existing.Count > 0)
             {
-                existing.P256DH = req.Keys.P256DH;
-                existing.Auth = req.Keys.Auth;
-                existing.UpdatedAt = DateTime.UtcNow;
+                var keep = existing[0];
+                keep.P256DH = req.Keys.P256DH;
+                keep.Auth = req.Keys.Auth;
+                keep.UpdatedAt = DateTime.UtcNow;
+                if (existing.Count > 1)
+                    _context.PushSubscriptions.RemoveRange(existing.Skip(1));
             }
             else
             {
