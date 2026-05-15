@@ -40,7 +40,7 @@ export function IncidentTable({
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/50">
               <th className="w-8 px-2" />
-              {['Incident ID', 'Train ID (Coach ID)', 'Line', 'DateTime', 'Source', 'Status'].map(h => (
+              {['Incident ID', 'Train ID (Coach ID)', 'Line', 'DateTime', 'Source', 'Status', 'Evidence'].map(h => (
                 <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-400">{h}</th>
               ))}
             </tr>
@@ -115,6 +115,22 @@ export function IncidentTable({
                       <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: sc.bg, color: sc.text }}>
                         {inc.status}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {inc.imageUrl ? (
+                        <a
+                          href={`${import.meta.env.VITE_API_BASE}/api/data/incident/${inc.id.replace('ALT-', '').replace('RPT-', '')}/image-redirect`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#0B4F6C] hover:underline font-semibold text-xs flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <CameraIcon size={12} />
+                          View
+                        </a>
+                      ) : (
+                        <span className="text-gray-300 text-xs">—</span>
+                      )}
                     </td>
                   </tr>
 

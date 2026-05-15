@@ -247,7 +247,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
         i.resolvedAt ?? '', i.resolvedBy ?? '', i.resolvedComment ?? '',
         i.escalatedAt ?? '', i.escalatedBy ?? '', i.escalatedComment ?? '',
         i.dismissedAt ?? '', i.dismissedBy ?? '', i.dismissedComment ?? '',
-        i.imageUrl ? `${import.meta.env.VITE_API_BASE}/api/data/incident/${i.id.replace('ALT-', '').replace('RPT-', '')}/image-redirect` : '',
+        (i as any).imageUrl || (i as any).ImageUrl ? `${import.meta.env.VITE_API_BASE}/api/data/incident/${i.id.replace('ALT-', '').replace('RPT-', '')}/image-redirect` : 'No Image',
       ]),
     ];
     const csv  = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
