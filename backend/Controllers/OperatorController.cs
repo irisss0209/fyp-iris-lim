@@ -657,6 +657,11 @@ namespace backend.Controllers
                 var dto = _alertService.MapToAlertDTO(i, now);
                 var (resolvedLineId, resolvedLineName) = ResolveLineInfo(i);
 
+                // Force detection of image URL from the source models if DTO fails
+                string? fallbackUrl = i.Source == IncidentSource.AI_DETECTION 
+                    ? i.Detection?.ImageUrl 
+                    : i.UserReport?.ImageUrl;
+
                 return new
                 {
                     id               = dto.Id,
@@ -670,7 +675,7 @@ namespace backend.Controllers
                     type             = i.Source == IncidentSource.AI_DETECTION ? "AI Detection" : "Passenger Report",
                     reportedBy       = i.UserReport?.User?.UserName,
                     passengerComment = i.UserReport?.Description,
-                    confidence = dto.Confidence,
+                    confidence       = dto.Confidence,
                     verifiedBy       = dto.VerifiedBy,
                     verifiedAt       = dto.VerifiedAt,
                     verifiedComment  = dto.VerifiedComment,
@@ -686,6 +691,7 @@ namespace backend.Controllers
                     dismissedBy      = dto.DismissedBy,
                     dismissedAt      = dto.DismissedAt,
                     dismissedComment = dto.DismissedComment,
+                    imageUrl         = dto.ImageUrl ?? fallbackUrl,
                 };
             }).ToList();
             // ── Available months (for the date picker) ────────────────────────
