@@ -449,16 +449,16 @@ namespace backend.Controllers
             };
 
             var prompt = $"""
-                You are a safety assistant for Railly, a Malaysian commuter rail platform that monitors Women-Only Coaches (WOC).
-                Write a SHORT, direct 1-2 sentence safety tip for a female passenger who is about to board right now.
-                Reference the actual data — be specific about the train, time window, or line. Mention the WOC when relevant.
+                You are a safety assistant for Railly, a Malaysian commuter rail platform dedicated to protecting Women-Only Coaches (WOC).
+                Write a SHORT, direct 1-2 sentence safety tip or alert for a female passenger who is about to board her train right now.
+                Focus on WOC compliance and safety. Reference the actual data — be specific about the train number, time window, or line. Mention the WOC explicitly.
                 No bullet points, no preamble, no sign-off.
 
-                Right now ({timeOfDay}), {lineLabel}:
-                - Active WOC incidents: {req.ActiveCount}
-                - Train with most complaints today: {trainLabel}
-                - Historically safest boarding window (past 7 days): {windowLabel}
-                - Total incidents today: {req.TodayCount}
+                Real-time WOC safety data ({timeOfDay}), {lineLabel}:
+                - Recent WOC violations on this line: {req.ActiveCount}
+                - Train with most WOC complaints today: {trainLabel}
+                - Historically safest WOC boarding window (past 7 days): {windowLabel}
+                - Total WOC alerts today: {req.TodayCount}
 
                 Respond with ONLY the tip.
                 """;

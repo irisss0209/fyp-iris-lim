@@ -43,19 +43,19 @@ namespace backend.Controllers
                 : $"down {Math.Abs(req.TotalDelta):F1}% from last month";
 
             var prompt = $"""
-                You are an AI analyst for Railly, a Malaysian transit safety platform.
-                Write a concise 2-3 sentence executive summary of {req.Month}'s incident report for operators.
-                Highlight what is notable, flag what needs attention, and give one actionable recommendation.
+                You are an AI analyst for Railly, a Malaysian transit safety platform specializing in Women-Only Coach (WOC) protection.
+                Write a concise 2-3 sentence executive summary of {req.Month}'s WOC violation report for operators.
+                Highlight safety trends, flag critical WOC zones that need attention, and give one actionable recommendation for improving WOC enforcement.
                 No bullet points, no headers.
 
-                Monthly stats:
-                - Total incidents: {req.Total} ({deltaStr})
-                - Resolution rate: {req.ResolutionRate}%
+                Monthly WOC stats:
+                - Total WOC violations: {req.Total} ({deltaStr})
+                - Enforcement resolution rate: {req.ResolutionRate}%
                 - False alarm rate: {req.FalseAlarmRate}%
-                - Average response time: {req.AvgResponseMinutes:F1} minutes
-                - Most affected line: {(string.IsNullOrWhiteSpace(req.MostAffectedLine) ? "N/A" : req.MostAffectedLine)}
-                - Highest risk train: {(string.IsNullOrWhiteSpace(req.HighestRiskTrain) ? "N/A" : req.HighestRiskTrain)}
-                - Peak incident time: {(string.IsNullOrWhiteSpace(req.PeakTime) ? "N/A" : req.PeakTime)}
+                - Avg response time to WOC alerts: {req.AvgResponseMinutes:F1} minutes
+                - Most affected line (WOC): {(string.IsNullOrWhiteSpace(req.MostAffectedLine) ? "N/A" : req.MostAffectedLine)}
+                - Highest risk train for WOC: {(string.IsNullOrWhiteSpace(req.HighestRiskTrain) ? "N/A" : req.HighestRiskTrain)}
+                - Peak violation time: {(string.IsNullOrWhiteSpace(req.PeakTime) ? "N/A" : req.PeakTime)}
 
                 Respond with ONLY the summary paragraph.
                 """;
