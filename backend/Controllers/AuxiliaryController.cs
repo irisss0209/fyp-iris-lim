@@ -45,14 +45,18 @@ namespace backend.Controllers
             var today = now.Date;
             var nowTime = now.TimeOfDay;
 
-            // 1. Try today's shift
-            var shift = await _context.AuxiliaryShifts
+            // 1. Load all of today's shifts, pick the active one first
+            var todayShifts = await _context.AuxiliaryShifts
                 .Include(s => s.Station)
                 .Where(s => s.UserId == userId && s.ShiftDate.Date == today)
                 .OrderBy(s => s.StartTime)
-                .FirstOrDefaultAsync();
+                .ToListAsync();
 
-            // 2. If no shift today, try upcoming shift
+            var shift = todayShifts.FirstOrDefault(s => IsShiftOnDuty(s.StartTime, s.EndTime, nowTime))
+                     ?? todayShifts.FirstOrDefault(s => s.StartTime > nowTime)   // next upcoming today
+                     ?? todayShifts.LastOrDefault();                              // most recently completed today
+
+            // 2. If no shift today, try next upcoming shift
             if (shift == null)
             {
                 shift = await _context.AuxiliaryShifts

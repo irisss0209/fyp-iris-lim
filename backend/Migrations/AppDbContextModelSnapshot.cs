@@ -317,7 +317,7 @@ namespace backend.Migrations
 
                     b.HasKey("UserId");
 
-                    b.ToTable("NotificationPreferences");
+                    b.ToTable("Notification_Preferences");
                 });
 
             modelBuilder.Entity("backend.Models.PushSubscription", b =>
