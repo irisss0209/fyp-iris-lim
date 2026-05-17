@@ -63,7 +63,7 @@ namespace backend.Controllers
             return Ok(result);
         }
 
-        [Authorize]
+        [Authorize(Roles = "passenger")]
         [HttpPost("report")]
         public async Task<IActionResult> SubmitReport([FromBody] SubmitReportRequest req)
         {
@@ -125,7 +125,7 @@ namespace backend.Controllers
             }
         }
 
-        [Authorize]
+        [Authorize(Roles = "passenger")]
         [Consumes("multipart/form-data")]
         [HttpPost("report/{reportId}/image")]
         public async Task<IActionResult> UploadReportImage(int reportId, [FromForm] ImageUploadDto dto)
@@ -178,56 +178,6 @@ namespace backend.Controllers
             }
         }
 
-        [Authorize]
-        [HttpGet("profile")]
-        public async Task<IActionResult> GetProfile()
-        {
-            var (userId, authError) = RequireUserId();
-            if (authError != null) return authError;
-
-            var user = await _context.Users.FindAsync(userId);
-            if (user == null) return NotFound();
-
-            if (user.Role == UserRole.Auxiliary)
-            {
-                var avgMinutes = await _context.Incidents
-                    .Where(i => i.EnrouteBy == userId && i.EnrouteAt != null)
-                    .Select(i => (double?)(i.EnrouteAt!.Value - i.CreatedAt).TotalMinutes)
-                    .AverageAsync() ?? 0;
-
-                var resolvedCount = await _context.Incidents
-                    .CountAsync(i => i.ResolvedBy == userId && i.Status == IncidentStatus.Resolved);
-
-                return Ok(new AuxiliaryProfileDto
-                {
-                    UserId          = user.UserId,
-                    UserName        = user.UserName,
-                    Email           = user.Email,
-                    Role            = user.Role.ToString(),
-                    AvgReactionTime = Math.Round(avgMinutes, 1),
-                    Resolved        = resolvedCount
-                });
-            }
-            else
-            {
-                var reportsCount = await _context.UserReports.CountAsync(r => r.UserId == userId);
-                var validReports = await _context.Incidents
-                    .Include(i => i.UserReport)
-                    .CountAsync(i => i.UserReport != null && i.UserReport.UserId == userId &&
-                        (i.Status == IncidentStatus.Verified || i.Status == IncidentStatus.Resolved || i.Status == IncidentStatus.Escalated));
-
-                return Ok(new PassengerProfileDto
-                {
-                    UserId   = user.UserId,
-                    UserName = user.UserName,
-                    Email    = user.Email,
-                    Role     = user.Role.ToString(),
-                    Reports  = reportsCount,
-                    Verified = validReports
-                });
-            }
-        }
-
         [HttpGet("incident-near-me")]
         public async Task<IActionResult> GetIncidentNearMe()
         {
@@ -264,7 +214,7 @@ namespace backend.Controllers
             return Ok(result);
         }
 
-        [Authorize]
+        [Authorize(Roles = "passenger")]
         [HttpGet("my-history")]
         public async Task<IActionResult> GetMyHistory()
         {
@@ -421,7 +371,7 @@ namespace backend.Controllers
             return Ok(stations);
         }
 
-        [Authorize]
+        [Authorize(Roles = "passenger")]
         [HttpPost("ai/travel-advice")]
         public async Task<IActionResult> GetTravelAdvice([FromBody] TravelAdviceRequest req, CancellationToken ct)
         {

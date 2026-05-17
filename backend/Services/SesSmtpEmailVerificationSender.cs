@@ -19,9 +19,7 @@ namespace backend.Services
             var region = _config["AWS:Region"] ?? "ap-southeast-1";
             var regionEndpoint = RegionEndpoint.GetBySystemName(region);
 
-            // Use BasicAWSCredentials only if real keys are provided.
-            // If keys are missing or set to the default placeholder, fallback to Default Credential Provider.
-            if (!string.IsNullOrEmpty(accessKey) && !string.IsNullOrEmpty(secretKey) && 
+          if (!string.IsNullOrEmpty(accessKey) && !string.IsNullOrEmpty(secretKey) && 
                 accessKey != "your-access-key-id" && secretKey != "your-secret-access-key")
             {
                 var credentials = new BasicAWSCredentials(accessKey, secretKey);
@@ -29,7 +27,6 @@ namespace backend.Services
             }
             else
             {
-                // This constructor uses the Default Credential Provider Chain (Env Vars, IAM Roles, etc.)
                 _client = new AmazonSimpleEmailServiceClient(regionEndpoint);
                 Console.WriteLine("[EMAIL SERVICE] Initialized using Default Credential Provider Chain.");
             }

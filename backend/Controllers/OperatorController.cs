@@ -162,58 +162,6 @@ namespace backend.Controllers
             });
         }
 
-        [Authorize]
-        [HttpGet("incident-alerts")]
-        public async Task<IActionResult> IncidentAlerts([FromQuery] string? assignedStationId = null)
-        {
-            // Preload all line→station mappings once (first station per line by sequence)
-            var lineStations = await _context.LineStations
-                .Include(ls => ls.Station)
-                .OrderBy(ls => ls.SequenceOrder)
-                .ToListAsync();
-
-            // Resolve lines passing through the assigned station if provided
-            List<string>? allowedLines = null;
-            if (!string.IsNullOrEmpty(assignedStationId))
-            {
-                allowedLines = lineStations
-                    .Where(ls => ls.StationId == assignedStationId)
-                    .Select(ls => ls.LineId)
-                    .ToList();
-            }
-
-            // Default window: last 35 days (covers today + last-week comparison + current month
-            // that the Insights page needs). Filter at DB level — never return all-time data.
-            var windowStart = MytTodayUtc.AddDays(-35);
-
-            var incidentsQuery = _context.Incidents
-                .AsNoTracking()
-                .Where(i => i.CreatedAt >= windowStart)
-                .WithFullNavigations()
-                .WithStatusUsers()
-                .AsQueryable();
-
-            var incidents = await incidentsQuery
-                .OrderByDescending(i => i.CreatedAt)
-                .ToListAsync();
-
-            var now = DateTime.UtcNow;
-
-            var alerts = incidents
-                .Select(i => _alertService.MapToAlertDTO(i, now))
-                .ToList();
-            
-            // Filter by allowed lines if station is assigned
-            if (allowedLines != null)
-            {
-                alerts = alerts
-                    .Where(a => allowedLines.Contains(a.LineId))
-                    .ToList();
-            }
-
-            return Ok(alerts);
-        }
-
         [Authorize(Roles = "operator")]
         [HttpPost("incident-alerts/{id}/status")]
         public async Task<IActionResult> UpdateAlertStatus(string id, [FromBody] UpdateStatusRequest request)
@@ -767,7 +715,7 @@ namespace backend.Controllers
             });
         }
 
-        [Authorize]
+        [Authorize(Roles = "operator")]
         [HttpGet("incident/{incidentId}/image-redirect")]
         public async Task<IActionResult> GetImageRedirect(int incidentId)
         {
@@ -863,7 +811,7 @@ namespace backend.Controllers
 
         // ── Shifts with line info ───────────────────────────────────────────────────
 
-        [Authorize]
+        [Authorize(Roles = "operator")]
         [HttpGet("operator/shifts")]
         public async Task<IActionResult> GetAuxiliaryShiftAssignments()
         {

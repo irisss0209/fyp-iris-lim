@@ -30,6 +30,10 @@ export function ChangePasswordPage({ session, onBack, onLogout }: ChangePassword
   // Step 1 — verify current password + send OTP
   const handleSendOtp = async () => {
     setError('');
+    if (newPw === currentPw) {
+      setError('New password cannot be the same as your current password.');
+      return;
+    }
     setIsLoading(true);
     try {
       const res = await fetch(`${API}/api/auth/change-password/start`, {
@@ -109,9 +113,14 @@ export function ChangePasswordPage({ session, onBack, onLogout }: ChangePassword
   if (step === 'success') {
     return (
       <div className="min-h-screen bg-[#FAF9F5] flex items-center justify-center px-4">
-
-        <h2 className="text-xl font-bold text-gray-900">Password Updated</h2>
-        <p className="text-sm text-gray-500">Your password has been changed. Signing you out…</p>
+        <div className="flex flex-col items-center gap-3 text-center">
+          <svg className="w-8 h-8 text-[#0B4F6C] animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+          </svg>
+          <h2 className="text-xl font-bold text-gray-900">Password Updated</h2>
+          <p className="text-sm text-gray-500">Signing you out…</p>
+        </div>
       </div>
     );
   }
@@ -168,7 +177,7 @@ export function ChangePasswordPage({ session, onBack, onLogout }: ChangePassword
 
           <button
             onClick={handleSendOtp}
-            disabled={isLoading || !currentPw || !newPw || newPw !== confirmPw || newPw.length < 8}
+            disabled={isLoading || !currentPw || !newPw || newPw !== confirmPw || newPw.length < 8 || newPw === currentPw}
             className="w-full py-4 rounded-2xl text-sm font-bold text-white shadow-lg transition-all active:scale-[0.98] disabled:opacity-50"
             style={{ backgroundColor: DARKBLUE }}
           >

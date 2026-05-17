@@ -9,7 +9,9 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\iriss\\\\Downloads\\\\fyp-tp076823\\\\backend\" -Recurse -Filter \"*.cs\")",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\iriss\\\\Downloads\\\\fyp-tp076823\\\\src\" -Recurse -Filter \"*.tsx\")",
       "Bash(Select-Object FullName)",
-      "Bash(Sort-Object FullName)"
+      "Bash(Sort-Object FullName)",
+      "Bash(Get-ChildItem -Recurse -Name)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\iriss\\\\Downloads\\\\fyp-tp076823\\\\src\" -Recurse -File | ForEach-Object { $_.FullName })"
     ]
   }
 }

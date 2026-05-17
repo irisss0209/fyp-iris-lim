@@ -5,7 +5,8 @@ import {
   AlertTriangleIcon,
   MapPinIcon,
   BarChart2Icon,
-  UserIcon
+  UserIcon,
+  SmartphoneIcon,
 } from 'lucide-react';
 import { Home } from './Home';
 import { Report } from './PassengerReport';
@@ -46,14 +47,30 @@ export function PassengerInterface({ session, onLogout }: PassengerInterface) {
   }, []);
 
   return (
-    <div 
-      className="flex flex-col relative w-full sm:max-w-md mx-auto overflow-hidden sm:shadow-2xl sm:rounded-[40px] sm:border-[8px] sm:border-white sm:ring-1 sm:ring-gray-100" 
-      style={{ 
+    <div
+      className="flex flex-col relative w-full sm:max-w-md mx-auto overflow-hidden sm:shadow-2xl sm:rounded-[40px] sm:border-[8px] sm:border-white sm:ring-1 sm:ring-gray-100"
+      style={{
         backgroundColor: '#FAF9F5',
         paddingTop: 'env(safe-area-inset-top, 0px)',
-        height: '100dvh' 
+        height: '100dvh'
       }}
     >
+      {/* ── Mobile-only wall ── shown on any viewport wider than 640 px */}
+      <div className="hidden sm:flex fixed inset-0 z-[100] flex-col items-center justify-center gap-6 bg-[#FAF9F5] p-8 text-center">
+        <div className="w-20 h-20 rounded-2xl flex items-center justify-center" style={{ backgroundColor: '#0B4F6C1A' }}>
+          <SmartphoneIcon size={40} style={{ color: '#0B4F6C' }} />
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold text-gray-900">Mobile Required</h1>
+          <p className="text-sm text-gray-500 max-w-[300px] leading-relaxed">
+            The Railly passenger app is designed for mobile use. Please open it on your smartphone.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gray-100 text-xs text-gray-400 font-medium">
+          <SmartphoneIcon size={13} />
+          Please use a mobile device
+        </div>
+      </div>
 
       {/* ── Top Header (Commented Out) ── */}
       {/* 
