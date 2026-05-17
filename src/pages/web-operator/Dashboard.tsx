@@ -316,9 +316,13 @@ export function Dashboard({ onNavigate, session }: DashboardProps) {
       {/* ── Recent Alerts ── */}
       {(() => {
         const isToday = selectedRange === 'today';
-        const visibleAlerts = isToday ? alerts.slice(0, 5) : alerts.slice((alertPage - 1) * PAGE_SIZE, alertPage * PAGE_SIZE);
+        const sortedAlerts = [...alerts].sort(
+          (a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime()
+        );
+        const visibleAlerts = isToday
+          ? sortedAlerts.slice(0, 5)
+          : sortedAlerts.slice((alertPage - 1) * PAGE_SIZE, alertPage * PAGE_SIZE);
         const totalPages = Math.ceil(alerts.length / PAGE_SIZE);
-
         const dateLabel = (() => {
           const now = new Date();
           const fmtShort = (d: Date) => d.toLocaleDateString('en-MY', { timeZone: 'Asia/Kuala_Lumpur', day: 'numeric', month: 'short', year: 'numeric' });
@@ -427,7 +431,7 @@ export function Dashboard({ onNavigate, session }: DashboardProps) {
                 <h2 className="text-base font-bold text-gray-900">Recent Alerts</h2>
                 {!loading && alerts.length > 0 && (
                   <span className="text-xs bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full font-medium">
-                    {isToday ? '5 latest' : `${alerts.length} total`}
+                    {isToday ? `${Math.min(5, alerts.length)} latest` : `${alerts.length} total`}
                   </span>
                 )}
                 {!isToday && dateLabel && (
