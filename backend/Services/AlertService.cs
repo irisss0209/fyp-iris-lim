@@ -102,7 +102,7 @@ namespace backend.Services
             var localTime = i.CreatedAt.AddHours(8);
 
             static string? LocalFmt(DateTime? dt) =>
-                dt.HasValue ? dt.Value.AddHours(8).ToString("yyyy-MM-dd HH:mm") : null;
+                dt.HasValue ? dt.Value.AddHours(8).ToString("yyyy-MM-dd HH:mm:ss") : null;
 
             return new AlertDTO
             {

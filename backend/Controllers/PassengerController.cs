@@ -250,7 +250,7 @@ namespace backend.Controllers
                     Type        = inc.UserReport?.Description ?? "Violation",
                     Date        = dto.Date,
                     Time        = dto.Time,
-                    CreatedAt   = inc.CreatedAt.ToString("o"),
+                    CreatedAt   = DateTime.SpecifyKind(inc.CreatedAt, DateTimeKind.Utc).ToString("o"),
                     Status      = dto.Status,
                     Line        = dto.Line,
                     Coach       = dto.CoachId?.ToString() ?? "Unknown Coach",

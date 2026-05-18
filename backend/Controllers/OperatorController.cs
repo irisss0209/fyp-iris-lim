@@ -716,7 +716,7 @@ namespace backend.Controllers
                     var key = uri.AbsolutePath.TrimStart('/');
                     if (key.StartsWith("railly/")) key = key.Substring("railly/".Length);
 
-                    var presignedUrl = _s3Service.GeneratePresignedUrl(key, 900); // 15 min expiry
+                    var presignedUrl = _s3Service.GeneratePresignedUrl(key, 900); 
                     return Redirect(presignedUrl);
                 }
             }
