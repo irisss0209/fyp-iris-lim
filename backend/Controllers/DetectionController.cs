@@ -26,9 +26,7 @@ namespace backend.Controllers
             _logger = logger;
         }
 
-        // POST /api/detections/notify
-        // Called by Lambda after inserting a Detection + Incident row into RDS.
-        // Auth: X-Api-Key header — Lambda has no JWT.
+
         [HttpPost("notify")]
         public async Task<IActionResult> NotifyNewDetection([FromBody] DetectionNotifyRequest req)
         {

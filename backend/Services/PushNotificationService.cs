@@ -150,8 +150,6 @@ namespace backend.Services
             await Task.WhenAll(sendTasks);
         }
 
-        // ── Auxiliary: notify within ±2 stations ──────────────────────────────────
-
         private async Task NotifyAuxiliary(AppDbContext context, string stationId, IncidentStatus status, string alertId, string? actedByUserId, string? actorLabel)
         {
             var lineStations = await context.LineStations

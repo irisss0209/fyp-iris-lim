@@ -55,8 +55,8 @@ export function Report({ session }: { session: UserSession }) {
   const [selectedReport, setSelectedReport] = useState<ReportHistoryItem | null>(null);
   const [reportComment, setReportComment] = useState('');
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
-  const [escalateSecondsLeft, setEscalateSecondsLeft] = useState(0);
-  const escalateTimerRef = useRef<ReturnType<typeof setInterval>>();
+  const [, setTick] = useState(0);
+  const tickRef = useRef<ReturnType<typeof setInterval>>();
 
   const fetchHistory = useCallback(() => {
     fetch(`${import.meta.env.VITE_API_BASE}/api/data/my-history?userId=${session.userId}`, {
@@ -77,32 +77,13 @@ export function Report({ session }: { session: UserSession }) {
   useAlertHub(fetchHistory, view === 'dashboard');
 
   useEffect(() => {
-    clearInterval(escalateTimerRef.current);
+    clearInterval(tickRef.current);
     if (!selectedReport) return;
-
     const isPending  = selectedReport.status === 'pending';
     const isVerified = selectedReport.status === 'verified';
     if (!isPending && !isVerified) return;
-
-    const getBaseMs = () => {
-      if (isPending && selectedReport.createdAt)
-        return new Date(selectedReport.createdAt).getTime();
-      if (isVerified && selectedReport.verifiedAt)
-        return parseMYTDatetime(selectedReport.verifiedAt).getTime();
-      return null;
-    };
-
-    const tick = () => {
-      const base = getBaseMs();
-      if (!base) { setEscalateSecondsLeft(0); return; }
-      const left = Math.max(0, Math.ceil((2 * 60 * 1000 - (Date.now() - base)) / 1000));
-      setEscalateSecondsLeft(left);
-      if (left === 0) clearInterval(escalateTimerRef.current);
-    };
-
-    tick();
-    escalateTimerRef.current = setInterval(tick, 1000);
-    return () => clearInterval(escalateTimerRef.current);
+    tickRef.current = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(tickRef.current);
   }, [selectedReport?.id, selectedReport?.status]);
 
   const handleUpdateStatus = async (action: 'Cancel' | 'Escalate') => {
@@ -159,6 +140,21 @@ export function Report({ session }: { session: UserSession }) {
   if (view === 'create') {
     return <CreateReport session={session} onBack={() => setView('dashboard')} />;
   }
+
+  // Computed synchronously on every render so the button is never briefly enabled.
+  const escalateSecondsLeft = (() => {
+    if (!selectedReport) return 0;
+    const isPending  = selectedReport.status === 'pending';
+    const isVerified = selectedReport.status === 'verified';
+    if (!isPending && !isVerified) return 0;
+    const base = isPending && selectedReport.createdAt
+      ? new Date(selectedReport.createdAt).getTime()
+      : isVerified && selectedReport.verifiedAt
+      ? parseMYTDatetime(selectedReport.verifiedAt).getTime()
+      : null;
+    if (!base) return 0;
+    return Math.max(0, Math.ceil((2 * 60 * 1000 - (Date.now() - base)) / 1000));
+  })();
 
   const filteredHistory = history.filter(r => {
     if (statusFilter !== 'all' && r.status.toLowerCase() !== statusFilter) return false;

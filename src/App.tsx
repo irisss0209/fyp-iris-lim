@@ -153,6 +153,7 @@ export function App() {
             case 'operator':
               return (
                 <div className="min-h-screen w-full" style={{ backgroundColor: '#FAF9F5' }}>
+                  <PWAInstallPrompt />
                   <OperatorInterface session={session} onLogout={handleLogout} />
                 </div>
               );

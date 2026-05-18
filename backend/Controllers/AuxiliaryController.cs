@@ -120,15 +120,12 @@ namespace backend.Controllers
             return Ok(stations);
         }
 
-        // ── Live alerts for a station (RecentAlerts tab) ───────────────────────
         [HttpGet("auxiliary/alerts")]
         public async Task<IActionResult> GetAlertsByStation([FromQuery] string? stationId)
         {
             var (userId, authError) = RequireUserId();
             if (authError != null) return authError;
 
-            // 1. Shift Verification
-            // ShiftDate stores MYT calendar dates (imported as-is from CSV)
             var nowMyt = DateTime.UtcNow.AddHours(8);
             var todayMyt = nowMyt.Date;
             var nowTimeMyt = nowMyt.TimeOfDay;
@@ -138,21 +135,19 @@ namespace backend.Controllers
                 .OrderBy(s => s.StartTime)
                 .ToListAsync();
 
-            // Pick the currently on-duty shift first; fall back to the first shift of the day
             var shift = todayShifts.FirstOrDefault(s => IsShiftOnDuty(s.StartTime, s.EndTime, nowTimeMyt))
                      ?? todayShifts.FirstOrDefault();
 
             if (shift == null)
-                return Ok(new List<object>()); // No shift today
+                return Ok(new List<object>()); 
 
             bool isOnDuty = IsShiftOnDuty(shift.StartTime, shift.EndTime, nowTimeMyt);
 
             if (!isOnDuty)
-                return Ok(new List<object>()); // Not currently on duty
+                return Ok(new List<object>()); 
 
             var activeStationId = shift.StationId;
 
-            // 2. Proximity Range Calculation (+/- 2 stations)
             var userLines = await _context.LineStations
                 .Where(ls => ls.StationId == activeStationId)
                 .Select(ls => new { ls.LineId, ls.SequenceOrder })
@@ -161,18 +156,11 @@ namespace backend.Controllers
             if (!userLines.Any())
                 return Ok(new List<object>());
 
-            // Get all stations on those lines to check their sequences
             var lineIds = userLines.Select(ul => ul.LineId).Distinct().ToList();
             var allLineStations = await _context.LineStations
                 .Where(ls => lineIds.Contains(ls.LineId))
                 .ToListAsync();
 
-            // Collect all stationIds within ±2 sequence positions across every line
-            // the officer's assigned station belongs to.
-            // We use a plain HashSet<string> of stationIds so that incidents tagged to
-            // *any* line at a physically nearby station are still surfaced (a station can
-            // belong to multiple lines, and the incident's own lineId may differ from the
-            // line used to derive proximity).
             var allowedStationIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var ul in userLines)
             {
@@ -184,10 +172,8 @@ namespace backend.Controllers
                     allowedStationIds.Add(sid);
             }
 
-            // 3. Fetch incidents whose station falls within the allowed set — filter at DB level
             var nowUtc = DateTime.UtcNow;
-            var allowedList = allowedStationIds.ToList(); // EF Core translates List to SQL IN
-
+            var allowedList = allowedStationIds.ToList(); 
             var incidents = await _context.Incidents
                 .AsNoTracking()
                 .AsSplitQuery()

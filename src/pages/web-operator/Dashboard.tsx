@@ -12,6 +12,7 @@ import { useTime } from '../../context/TimeContext';
 import { formatClockTime } from '../../utils/Time';
 import { getLineColor, STATUS_THEME } from '../../utils/reportUtils';
 import { API } from '../../api/config';
+import { fetchOperatorAlerts } from '../../api/alerts';
 
 interface DashboardProps {
   onNavigate?: (page: NavPage, id?: string | number) => void;
@@ -140,7 +141,14 @@ export function Dashboard({ onNavigate, session }: DashboardProps) {
       });
       const data = await res.json();
       setStats(data.stats);
-      setAlerts(data.recentAlerts ?? []);
+
+      if (selectedRange === 'today') {
+        // Use the same endpoint as LiveAlerts — it's proven to return alerts newest-first
+        const liveData = await fetchOperatorAlerts(token);
+        setAlerts((liveData.alerts ?? []) as RecentAlert[]);
+      } else {
+        setAlerts(data.recentAlerts ?? []);
+      }
     } catch (err) {
       console.error('Dashboard fetch failed:', err);
     } finally {
@@ -316,9 +324,9 @@ export function Dashboard({ onNavigate, session }: DashboardProps) {
       {/* ── Recent Alerts ── */}
       {(() => {
         const isToday = selectedRange === 'today';
-        const sortedAlerts = [...alerts].sort(
-          (a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime()
-        );
+        const sortedAlerts = isToday
+          ? alerts  // /operator/alerts already returns newest-first, same as LiveAlerts
+          : [...alerts].sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
         const visibleAlerts = isToday
           ? sortedAlerts.slice(0, 5)
           : sortedAlerts.slice((alertPage - 1) * PAGE_SIZE, alertPage * PAGE_SIZE);

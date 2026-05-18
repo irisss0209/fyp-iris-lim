@@ -76,7 +76,6 @@ namespace backend.Controllers
 
             try
             {
-                // Parse composite FK values sent from the frontend
                 if (req.CoachId <= 0)
                     return BadRequest(new { error = "Coach selection is required." });
 
@@ -101,7 +100,6 @@ namespace backend.Controllers
                 _context.UserReports.Add(report);
                 await _context.SaveChangesAsync();
 
-                // Auto-create incident atomically with the report
                 var incident = new Incident
                 {
                     Source    = IncidentSource.USER_REPORT,
@@ -152,7 +150,6 @@ namespace backend.Controllers
             if (report == null || report.UserId != userId)
                 return NotFound(new { error = "Report not found." });
 
-            // Derive extension from the validated content-type, not the user-controlled filename
             var ext = image.ContentType.ToLowerInvariant() switch
             {
                 "image/jpeg" => ".jpg",

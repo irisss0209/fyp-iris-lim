@@ -9,9 +9,7 @@ interface LocationOptions {
   maximumAge?: number;
 }
 
-/**
- * Common logic to get current geolocation
- */
+
 const getCurrentPosition = (options: LocationOptions = {}): Promise<GeolocationPosition> => {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -36,10 +34,7 @@ export const fetchNearbyStations = async (lat: number, lng: number, count: numbe
   return await res.json();
 };
 
-/**
- * HIGH-LEVEL UTILITY: Detect nearby lines (unique names only)
- * Used by Home and IncidentNearMe
- */
+
 export const detectNearbyLines = async (
   setIsLocating: (loading: boolean) => void,
   onSuccess: (lines: string[]) => void,
@@ -49,11 +44,11 @@ export const detectNearbyLines = async (
   try {
     const pos = await getCurrentPosition();
     const data = await fetchNearbyStations(pos.coords.latitude, pos.coords.longitude);
-    
+
     const lines = Array.from(
       new Set(data.flatMap((s: any) => s.lines.map((l: any) => l.name)))
     ) as string[];
-    
+
     if (lines.length > 0) {
       onSuccess(lines);
     } else {
@@ -82,7 +77,7 @@ export const detectNearbyStations = async (
   try {
     const pos = await getCurrentPosition();
     const data = await fetchNearbyStations(pos.coords.latitude, pos.coords.longitude);
-    
+
     if (data && data.length > 0) {
       onSuccess(data);
     } else {

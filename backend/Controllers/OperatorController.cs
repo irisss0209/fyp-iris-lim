@@ -219,7 +219,6 @@ namespace backend.Controllers
                         await _pushService.SafeNotifyReEscalation(incident.IncidentId, userId, _logger);
                         return Ok(new { incidentId = incident.IncidentId, status = incident.Status.ToString().ToLower() });
                     }
-                    // First escalation: operator — Verified only
                     if (previousStatus != IncidentStatus.Verified)
                     {
                         incident.Status = previousStatus;
@@ -268,9 +267,7 @@ namespace backend.Controllers
         [HttpGet("operator/dashboard")]
         public async Task<IActionResult> GetOperatorDashboard([FromQuery] DateTime? from, [FromQuery] DateTime? to)
         {
-            // Ensure UTC kind — ASP.NET query-string binding may produce DateTimeKind.Unspecified
-            // or DateTimeKind.Local even for ISO-8601 strings ending with 'Z'. We must convert
-            // properly: Unspecified is assumed UTC (value is already correct), Local is converted.
+
             DateTime? fromUtc = from.HasValue
                 ? DateTime.SpecifyKind(
                     from.Value.Kind == DateTimeKind.Local ? from.Value.ToUniversalTime() : from.Value,
@@ -282,10 +279,9 @@ namespace backend.Controllers
                     DateTimeKind.Utc)
                 : null;
 
-            // If no range supplied at all, default to today in MYT (UTC+8)
             if (!fromUtc.HasValue && !toUtc.HasValue)
             {
-                fromUtc = MytTodayUtc; // MYT midnight → UTC
+                fromUtc = MytTodayUtc;
                 toUtc   = fromUtc.Value.AddDays(1);
             }
 
@@ -294,7 +290,6 @@ namespace backend.Controllers
             if (toUtc.HasValue)   baseIncidents = baseIncidents.Where(i => i.CreatedAt <  toUtc.Value);
 
 
-            // Stats — single GROUP BY per table instead of 6 separate round-trips
             var statusCounts = await baseIncidents
                 .GroupBy(i => i.Status)
                 .Select(g => new { Status = g.Key, Count = g.Count() })
@@ -360,7 +355,6 @@ namespace backend.Controllers
         [HttpGet("operator/alerts")]
         public async Task<IActionResult> GetOperatorAlerts()
         {
-            // All lines + stations for filter dropdowns (also used for station resolution)
             var lineStations = await _context.LineStations
                 .Include(ls => ls.Station)
                 .OrderBy(ls => ls.SequenceOrder)
@@ -383,7 +377,6 @@ namespace backend.Controllers
                     }).ToList()
                 }).ToList();
 
-            // All incidents from today in MYT (UTC+8)
             var today = MytTodayUtc;
             var incidents = await _context.Incidents
                 .AsNoTracking()
@@ -466,7 +459,6 @@ namespace backend.Controllers
             [FromQuery] int year  = 0,
             [FromQuery] int month = 0)
         {
-            // Default to current month if not specified
             var now = DateTime.UtcNow;
             var nowMyt = now.AddHours(8);
             if (year  == 0) year  = nowMyt.Year;
@@ -476,7 +468,6 @@ namespace backend.Controllers
             var from = DateTime.SpecifyKind(fromMyt.AddHours(-8), DateTimeKind.Utc);
             var to   = from.AddMonths(1);
 
-            // Pre-load station→line mapping; bypasses composite FK nav that fails when line_id is null
             var allLineStations = await _context.LineStations
                 .Include(ls => ls.TrainLine)
                 .ToListAsync();
@@ -484,7 +475,6 @@ namespace backend.Controllers
                 .GroupBy(ls => ls.StationId)
                 .ToDictionary(g => g.Key, g => (lineId: g.First().LineId, lineName: g.First().TrainLine.LineName));
 
-            // ── Load all incidents for the month ──────────────────────────────
             var incidents = await _context.Incidents
                 .AsNoTracking()
                 .AsSplitQuery()
@@ -494,7 +484,6 @@ namespace backend.Controllers
                 .OrderByDescending(i => i.CreatedAt)
                 .ToListAsync();
 
-            // ── Summary stats ─────────────────────────────────────────────────
             var total      = incidents.Count;
             var dismissed  = incidents.Count(i => i.Status == IncidentStatus.Dismissed);
             var resolved   = incidents.Count(i => i.Status == IncidentStatus.Resolved);
@@ -506,18 +495,15 @@ namespace backend.Controllers
             double falseAlarmRate = total > 0 ? Math.Round(dismissed * 100.0 / total, 1) : 0;
             double resolutionRate = total > 0 ? Math.Round(resolved * 100.0 / total, 1) : 0;
 
-            // Avg response time (verified_at - created_at)
             var verifiedIncidents = incidents.Where(i => i.VerifiedAt != null).ToList();
             double avgResponseMinutes = verifiedIncidents.Count > 0
                 ? Math.Round(verifiedIncidents.Average(i => (i.VerifiedAt!.Value - i.CreatedAt).TotalMinutes), 1)
                 : 0;
 
-            // Compliance score: % of incidents NOT still pending
             double complianceScore = total > 0
                 ? Math.Round((total - pending) * 100.0 / total, 1)
                 : 100.0;
 
-            // ── Previous month for delta calculations ─────────────────────────
             var prevFrom = from.AddMonths(-1);
             var prevTo   = from;
             var prevIncidents = await _context.Incidents
@@ -543,15 +529,12 @@ namespace backend.Controllers
                 ? Math.Round(prevVerifiedIncidents.Average(i => (i.VerifiedAt!.Value - i.CreatedAt).TotalMinutes), 1)
                 : 0;
 
-            // ── Helper: resolve line name + lineId per incident ───────────────
             (string lineId, string lineName) ResolveLineInfo(Incident inc)
             {
-                // Primary: station_id → pre-loaded lookup (works even when line_id is null on Detection/UserReport)
                 var sid = inc.Detection?.StationId ?? inc.UserReport?.StationId;
                 if (sid != null && stationLineMap.TryGetValue(sid, out var fromStation))
                     return fromStation;
 
-                // Secondary: direct line_id scalar → name lookup in pre-loaded list
                 var knownLineId = inc.Detection?.LineId ?? inc.UserReport?.LineId;
                 if (knownLineId != null)
                 {
@@ -559,7 +542,6 @@ namespace backend.Controllers
                     if (ls != null) return (ls.LineId, ls.TrainLine.LineName);
                 }
 
-                // Fallback: TrainAsset navigation chain (loaded via Include above)
                 var tl = inc.Detection?.Camera?.TrainCoach?.TrainAsset?.TrainLine
                          ?? inc.UserReport?.TrainCoach?.TrainAsset?.TrainLine;
                 if (tl != null) return (tl.LineId, tl.LineName);
@@ -567,13 +549,10 @@ namespace backend.Controllers
                 return ("unknown", "Unknown");
             }
 
-            // ── Daily bar-chart data (by day-of-week, grouped by line) ────────
             var dayNames = new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 
-            // Pre-compute line info per incident once — avoids O(n × lines × 7) ResolveLineInfo calls inside the loop
             var incidentLineCache = incidents.ToDictionary(i => i.IncidentId, i => ResolveLineInfo(i));
 
-            // Get unique lines present in this month's data
             var lineGroups = incidentLineCache.Values
                 .GroupBy(x => x.lineId)
                 .Select(g => (lineId: g.Key, lineName: g.First().lineName))
@@ -598,14 +577,12 @@ namespace backend.Controllers
                 new { name = "Escalated",           value = escalated + verified,         color = "#D34026" },
             }.Where(s => s.value > 0).ToList();
 
-            // ── Incident list ─────────────────────────────────────────────────
 
             var incidentList = incidents.Select(i =>
             {
                 var dto = _alertService.MapToAlertDTO(i, now);
                 var (resolvedLineId, resolvedLineName) = ResolveLineInfo(i);
 
-                // Force detection of image URL from the source models if DTO fails
                 string? fallbackUrl = i.Source == IncidentSource.AI_DETECTION 
                     ? i.Detection?.ImageUrl 
                     : i.UserReport?.ImageUrl;
@@ -642,7 +619,6 @@ namespace backend.Controllers
                     imageUrl         = dto.ImageUrl ?? fallbackUrl,
                 };
             }).ToList();
-            // ── Available months (for the date picker) ────────────────────────
             var oldestIncident = await _context.Incidents
                 .OrderBy(i => i.CreatedAt)
                 .Select(i => (DateTime?)i.CreatedAt)
@@ -738,7 +714,6 @@ namespace backend.Controllers
                 if (Uri.TryCreate(imageUrl, UriKind.Absolute, out var uri))
                 {
                     var key = uri.AbsolutePath.TrimStart('/');
-                    // Handle bucket name in path if present
                     if (key.StartsWith("railly/")) key = key.Substring("railly/".Length);
 
                     var presignedUrl = _s3Service.GeneratePresignedUrl(key, 900); // 15 min expiry

@@ -94,7 +94,6 @@ export function Insights({ session }: { session?: UserSession }) {
     );
   };
 
-  // Fetch alerts + lines
   useEffect(() => {
     let alive = true;
     async function load() {
@@ -126,25 +125,20 @@ export function Insights({ session }: { session?: UserSession }) {
     if (!lines.includes(selectedLine)) setSelectedLine('All Lines');
   }, [lines, selectedLine]);
 
-  // Dates
   const todayStr = useMemo(() => toMalaysiaDate(new Date()), []);
   const weekAgoStr = useMemo(() => {
     const d = new Date(); d.setDate(d.getDate() - 7);
     return toMalaysiaDate(d);
   }, []);
 
-  // Filtered by selected line
   const filtered = useMemo(() =>
     selectedLine === 'All Lines' ? alerts : alerts.filter(a => a.line === selectedLine),
     [alerts, selectedLine]);
 
-  // Today's alerts
   const todayAlerts = useMemo(() => filtered.filter(a => a.date === todayStr), [filtered, todayStr]);
 
-  // Active (not resolved/dismissed) today
   const activeNow = useMemo(() => todayAlerts.filter(isActive), [todayAlerts]);
 
-  // Per-line active count for "All Lines" view
   const lineStatus = useMemo(() => {
     const map: Record<string, number> = {};
     lines.filter(l => l !== 'All Lines').forEach(name => {
@@ -153,7 +147,6 @@ export function Insights({ session }: { session?: UserSession }) {
     return map;
   }, [lines, alerts, todayStr]);
 
-  // Train to avoid — train with most active incidents today
   const trainToAvoid = useMemo(() => {
     const map = new Map<number, number>();
     activeNow.forEach(a => { if (a.trainId != null) map.set(a.trainId, (map.get(a.trainId) ?? 0) + 1); });
@@ -162,12 +155,10 @@ export function Insights({ session }: { session?: UserSession }) {
     return { id, count };
   }, [activeNow]);
 
-  // Live feed — last 3 active today, newest first
   const liveFeed = useMemo(() =>
     [...activeNow].sort((a, b) => (b.time ?? '').localeCompare(a.time ?? '')).slice(0, 3),
     [activeNow]);
 
-  // Best travel window from past 7 days (6 AM–10 PM only)
   const bestWindow = useMemo(() => {
     const past = filtered.filter(a => a.date && a.date >= weekAgoStr && a.date < todayStr);
     if (!past.length) return null;
@@ -180,7 +171,6 @@ export function Insights({ session }: { session?: UserSession }) {
     return best === -1 ? null : `${fmtHour(best)} – ${fmtHour(best + 1)}`;
   }, [filtered, todayStr, weekAgoStr]);
 
-  // Fetch AI travel tip when data is ready or selected line changes
   useEffect(() => {
     if (loading || !session) return;
     setAiAdvice(null);

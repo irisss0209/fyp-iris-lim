@@ -17,10 +17,6 @@ namespace backend.Services
             _logger = logger;
             _region = config["AWS:Region"] ?? "ap-southeast-1";
             _bucketName = config["AWS:BucketName"] ?? "railly";
-
-            // Always use the Default Credential Provider Chain (IAM role on EC2/ECS,
-            // environment variables in CI, ~/.aws/credentials locally).
-            // Never use static access keys in configuration.
             _s3Client = new AmazonS3Client(RegionEndpoint.GetBySystemName(_region));
             _logger.LogInformation("[S3] Initialized — bucket: {Bucket}, region: {Region}", _bucketName, _region);
         }

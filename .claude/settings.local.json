@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(unzip -p /tmp/fyp_temp.docx word/document.xml)"
+    ]
+  }
+}

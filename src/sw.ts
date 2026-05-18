@@ -147,14 +147,14 @@ self.addEventListener('push', (event: PushEvent) => {
   let data: { title?: unknown; body?: unknown; url?: unknown; tag?: unknown } = {}
   try { data = event.data?.json() ?? {} } catch { /* malformed payload — use defaults */ }
   const title = typeof data.title === 'string' ? data.title : 'Railly Alert'
-  const options: NotificationOptions = {
+  const options = {
     body: typeof data.body === 'string' ? data.body : '',
     icon: '/Railly_logo.png',
     badge: '/Railly_logo.png',
     data: { url: typeof data.url === 'string' ? data.url : '/' },
     tag: typeof data.tag === 'string' ? data.tag : 'railly-alert',
     renotify: true,
-  }
+  } as NotificationOptions
   event.waitUntil(self.registration.showNotification(title, options))
 })
 

@@ -28,13 +28,13 @@ interface ReportData {
 }
 
 export function Reports({ session }: { session?: { token?: string } | null }) {
-  const [activeTab, setActiveTab]         = useState<ReportTab>('overview');
-  const [data, setData]                   = useState<ReportData | null>(null);
-  const [months, setMonths]               = useState<MonthOption[]>([]);
+  const [activeTab, setActiveTab] = useState<ReportTab>('overview');
+  const [data, setData] = useState<ReportData | null>(null);
+  const [months, setMonths] = useState<MonthOption[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<MonthOption | null>(null);
-  const [loading, setLoading]             = useState(true);
-  const [pickerOpen, setPickerOpen]       = useState(false);
-  const [aiSummary, setAiSummary]         = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
   const [aiSummaryError, setAiSummaryError] = useState(false);
   const [isPdfGenerating, setIsPdfGenerating] = useState(false);
@@ -51,7 +51,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
   useEffect(() => {
     (async () => {
       try {
-        const res  = await fetch(`${API}/operator/reports`, {
+        const res = await fetch(`${API}/operator/reports`, {
           headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
           credentials: 'include',
         });
@@ -61,8 +61,10 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
           setSelectedMonth(json.months[0]);
         } else {
           const now = new Date();
-          const cur = { year: now.getFullYear(), month: now.getMonth() + 1,
-            label: now.toLocaleDateString('en-MY', { timeZone: 'Asia/Kuala_Lumpur', month: 'short', year: 'numeric' }) };
+          const cur = {
+            year: now.getFullYear(), month: now.getMonth() + 1,
+            label: now.toLocaleDateString('en-MY', { timeZone: 'Asia/Kuala_Lumpur', month: 'short', year: 'numeric' })
+          };
           setMonths([cur]);
           setSelectedMonth(cur);
         }
@@ -78,7 +80,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
   const fetchReport = useCallback(async (m: MonthOption) => {
     setLoading(true);
     try {
-      const res  = await fetch(`${API}/operator/reports?year=${m.year}&month=${m.month}`, {
+      const res = await fetch(`${API}/operator/reports?year=${m.year}&month=${m.month}`, {
         headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
         credentials: 'include',
       });
@@ -94,11 +96,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
 
   useEffect(() => { if (selectedMonth) fetchReport(selectedMonth); }, [selectedMonth, fetchReport]);
 
-  // ── AI summary ───────────────────────────────────────────────────────────────
-  // Deps: `data` only (not `selectedMonth`) so the effect fires once the fetched
-  // data reflects the chosen month. topInsights is intentionally omitted from deps
-  // because it is declared later in the function body — reading it in the dep array
-  // would cause a TDZ error. It is safe in the callback body (effects run after render).
+
   useEffect(() => {
     if (loading || !data?.stats) return;
     const controller = new AbortController();
@@ -112,15 +110,15 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
       credentials: 'include',
       signal: controller.signal,
       body: JSON.stringify({
-        total:              s.total,
-        totalDelta:         s.totalDelta,
-        resolutionRate:     s.resolutionRate,
-        falseAlarmRate:     s.falseAlarmRate,
+        total: s.total,
+        totalDelta: s.totalDelta,
+        resolutionRate: s.resolutionRate,
+        falseAlarmRate: s.falseAlarmRate,
         avgResponseMinutes: s.avgResponseMinutes,
-        mostAffectedLine:   topInsights.find(i => i.label === 'Most Affected Line')?.value ?? '',
-        highestRiskTrain:   topInsights.find(i => i.label === 'Highest Risk Train')?.value ?? '',
-        peakTime:           topInsights.find(i => i.label === 'Peak Time of Day')?.value ?? '',
-        month:              selectedMonth?.label ?? '',
+        mostAffectedLine: topInsights.find(i => i.label === 'Most Affected Line')?.value ?? '',
+        highestRiskTrain: topInsights.find(i => i.label === 'Highest Risk Train')?.value ?? '',
+        peakTime: topInsights.find(i => i.label === 'Peak Time of Day')?.value ?? '',
+        month: selectedMonth?.label ?? '',
       }),
     })
       .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
@@ -132,7 +130,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
 
   // ── Derived analytics ────────────────────────────────────────────────────────
   const allIncidents = data?.incidents ?? [];
-  const stats        = data?.stats;
+  const stats = data?.stats;
 
   const byTrain = useMemo<ByTrainItem[]>(() => {
     const groups: Record<string, ByTrainItem> = {};
@@ -147,15 +145,15 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
   }, [allIncidents]);
 
   const sourceSplit = useMemo<StatusSlice[]>(() => {
-    const ai     = allIncidents.filter(i => i.type === 'AI Detection').length;
+    const ai = allIncidents.filter(i => i.type === 'AI Detection').length;
     const report = allIncidents.filter(i => i.type === 'Passenger Report').length;
     return [
-      { name: 'AI Detection',    value: ai,     color: '#0B4F6C' },
+      { name: 'AI Detection', value: ai, color: '#0B4F6C' },
       { name: 'Passenger Report', value: report, color: '#D34026' },
     ].filter(s => s.value > 0);
   }, [allIncidents]);
 
-  const resolvedCount  = useMemo(() => allIncidents.filter(i => i.status?.toLowerCase() === 'resolved').length, [allIncidents]);
+  const resolvedCount = useMemo(() => allIncidents.filter(i => i.status?.toLowerCase() === 'resolved').length, [allIncidents]);
   const resolutionRate = stats?.total ? Math.round(resolvedCount * 100 / stats.total) : 0;
 
   const topInsights = useMemo(() => {
@@ -163,7 +161,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
 
     const lineMap: Record<string, number> = {};
     allIncidents.forEach(i => { if (i.line) lineMap[i.line] = (lineMap[i.line] || 0) + 1; });
-    const topLine  = Object.entries(lineMap).sort((a, b) => b[1] - a[1])[0];
+    const topLine = Object.entries(lineMap).sort((a, b) => b[1] - a[1])[0];
     const topTrain = byTrain[0];
 
     const dayTotals = (data?.dailyData ?? []).map(d => ({
@@ -195,11 +193,11 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
     Object.entries(dateTotals).forEach(([k, v]) => { if (v > peakDateCount) { peakDateCount = v; peakDateStr = k; } });
 
     return [
-      topLine  ? { color: '#7B5EA7', label: 'Most Affected Line',  value: topLine[0],       sub: `${topLine[1]} incidents`  } : null,
-      topTrain ? { color: '#D34026', label: 'Highest Risk Train',  value: topTrain.train,   sub: `${topTrain.count} incidents` } : null,
-      peakDay?.total > 0      ? { color: '#B45309', label: 'Peak Day of Week',   value: peakDay.day,    sub: `${peakDay.total} incidents`    } : null,
-      maxIncidents > 0        ? { color: '#0B4F6C', label: 'Peak Time of Day',   value: peakTimeLabel,  sub: `${maxIncidents} incidents`     } : null,
-      peakDateCount > 0       ? { color: '#2D7A5D', label: 'Peak Day of Month',  value: peakDateStr,    sub: `${peakDateCount} incidents`    } : null,
+      topLine ? { color: '#7B5EA7', label: 'Most Affected Line', value: topLine[0], sub: `${topLine[1]} incidents` } : null,
+      topTrain ? { color: '#D34026', label: 'Highest Risk Train', value: topTrain.train, sub: `${topTrain.count} incidents` } : null,
+      peakDay?.total > 0 ? { color: '#B45309', label: 'Peak Day of Week', value: peakDay.day, sub: `${peakDay.total} incidents` } : null,
+      maxIncidents > 0 ? { color: '#0B4F6C', label: 'Peak Time of Day', value: peakTimeLabel, sub: `${maxIncidents} incidents` } : null,
+      peakDateCount > 0 ? { color: '#2D7A5D', label: 'Peak Day of Month', value: peakDateStr, sub: `${peakDateCount} incidents` } : null,
     ].filter(Boolean) as { color: string; label: string; value: string; sub: string }[];
   }, [allIncidents, byTrain, data]);
 
@@ -212,8 +210,8 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
     return allIncidents.filter(inc => {
       const matchStatus = !filter.status || inc.status?.toLowerCase() === filter.status;
       const matchSource = !filter.source || inc.type === filter.source;
-      const matchLine   = !filter.line   || inc.lineId === filter.line;
-      const matchTrain  = !filter.train  || String(inc.trainId) === filter.train;
+      const matchLine = !filter.line || inc.lineId === filter.line;
+      const matchTrain = !filter.train || String(inc.trainId) === filter.train;
       const matchSearch = !q
         || inc.id?.toLowerCase().includes(q)
         || String(inc.trainId).includes(q)
@@ -224,7 +222,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
   }, [allIncidents, filter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated  = filtered.slice((filter.page - 1) * PAGE_SIZE, filter.page * PAGE_SIZE);
+  const paginated = filtered.slice((filter.page - 1) * PAGE_SIZE, filter.page * PAGE_SIZE);
 
   // ── Exports ──────────────────────────────────────────────────────────────────
   const exportCSV = () => {
@@ -251,10 +249,10 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
         (i.imageUrl || (i as any).ImageUrl) && i.id ? `${import.meta.env.VITE_API_BASE}/api/data/incident/${i.id.replace('ALT-', '').replace('RPT-', '')}/image-redirect` : 'No Image',
       ]),
     ];
-    const csv  = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
     a.href = url; a.download = `incidents-full-${selectedMonth?.label ?? 'report'}.csv`; a.click();
     URL.revokeObjectURL(url);
   };
@@ -262,7 +260,6 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
   const downloadPDF = async () => {
     if (!stats) return;
     try {
-      // Disable Recharts animation so html2canvas doesn't capture a mid-sweep state
       setIsCapturing(true);
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
@@ -297,8 +294,8 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
         />
       ).toBlob();
       const url = URL.createObjectURL(blob);
-      const a   = document.createElement('a');
-      a.href     = url;
+      const a = document.createElement('a');
+      a.href = url;
       a.download = `railly-report-${selectedMonth?.label ?? 'report'}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
@@ -312,7 +309,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
 
   // ── Render ───────────────────────────────────────────────────────────────────
   const tabs = [
-    { id: 'overview'  as ReportTab, label: 'Overview'         },
+    { id: 'overview' as ReportTab, label: 'Overview' },
     { id: 'incidents' as ReportTab, label: 'Incident Reports' },
   ];
 
@@ -342,8 +339,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
                 <button
                   key={`${m.year}-${m.month}`}
                   onClick={() => { setSelectedMonth(m); setPickerOpen(false); setFilter(f => ({ ...f, page: 1 })); }}
-                  className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                    selectedMonth?.year === m.year && selectedMonth?.month === m.month
+                  className={`w-full text-left px-4 py-2 text-sm transition-colors ${selectedMonth?.year === m.year && selectedMonth?.month === m.month
                       ? 'bg-[#EFF6FF] text-[#0B4F6C] font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
                 >
                   {m.label}
