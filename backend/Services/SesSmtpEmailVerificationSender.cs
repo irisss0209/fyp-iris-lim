@@ -20,7 +20,7 @@ namespace backend.Services
             var regionEndpoint = RegionEndpoint.GetBySystemName(region);
 
           if (!string.IsNullOrEmpty(accessKey) && !string.IsNullOrEmpty(secretKey) && 
-                accessKey != "your-access-key-id" && secretKey != "your-secret-access-key")
+                accessKey != "access-key-id" && secretKey != "your-secret-access-key")
             {
                 var credentials = new BasicAWSCredentials(accessKey, secretKey);
                 _client = new AmazonSimpleEmailServiceClient(credentials, regionEndpoint);

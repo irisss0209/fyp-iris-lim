@@ -195,9 +195,7 @@ namespace backend.Controllers
                     return (lat, lng, $"Wikipedia ({pageTitle})");
                 }
 
-                // prop=coordinates only exposes top-level {{coord}} tags.
-                // Many Malaysian station pages have coords only inside infoboxes,
-                // so parse the raw wikitext as a fallback.
+
                 return await FetchWikitextCoords(pageTitle);
             }
             catch
@@ -206,7 +204,6 @@ namespace backend.Controllers
             }
         }
 
-        // Fetches raw wikitext and extracts {{coord|...}} patterns
         private async Task<(double lat, double lng, string source)?> FetchWikitextCoords(string pageTitle)
         {
             try

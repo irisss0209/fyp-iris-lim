@@ -11,7 +11,7 @@ namespace backend.Controllers
 {
     [ApiController]
     [Authorize(Roles = "auxiliary")]
-    [Route("api/data")] // Maintained original route to not break frontend links
+    [Route("api/data")] 
     public class AuxiliaryController : BaseApiController
     {
         private readonly AppDbContext _context;
