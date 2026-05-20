@@ -1,6 +1,6 @@
-# Railly Mobile
+# Railly 
 
-Real-time transit safety monitoring for operators, passengers, and police.
+Edge to cloud gender compliance system for WOCs
 
 ## Getting Started
 
