@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getMYTHours } from '../../utils/myt';
-import { useTime } from '../../context/TimeContext';
 import {
   AlertCircleIcon,
   CheckCircleIcon,
@@ -45,10 +44,9 @@ function parseHour(time?: string) {
   return Number.isFinite(h) && h >= 0 && h <= 23 ? h : null;
 }
 
-function fmtHour(h: number, format: '12h' | '24h') {
+function fmtHour(h: number) {
   return new Date(Date.UTC(2000, 0, 1, h))
-    .toLocaleTimeString('en-MY', { hour: 'numeric', hour12: format === '12h', timeZone: 'UTC' })
-    .replace(' ', '');
+    .toLocaleTimeString('en-MY', { hour: 'numeric', hour12: true, timeZone: 'UTC' });
 }
 
 function isActive(a: OperatorAlert) {
@@ -76,7 +74,6 @@ function statusStyle(status?: string) {
 }
 
 export function Insights({ session }: { session?: UserSession }) {
-  const { format } = useTime();
   const [selectedLine, setSelectedLine] = useState('All Lines');
   const [lines, setLines] = useState<string[]>(['All Lines']);
   const [loading, setLoading] = useState(true);
@@ -167,10 +164,10 @@ export function Insights({ session }: { session?: UserSession }) {
     const counts = new Array(24).fill(0);
     past.forEach(a => { const h = parseHour(a.time); if (h !== null) counts[h]++; });
     let min = Infinity, best = -1;
-    for (let h = 6; h < 22; h++) {
+    for (let h = 6; h < 24; h++) {
       if (counts[h] < min) { min = counts[h]; best = h; }
     }
-    return best === -1 ? null : `${fmtHour(best, format)} – ${fmtHour(best + 1, format)}`;
+    return best === -1 ? null : `${fmtHour(best)} – ${fmtHour(best + 1)}`;
   }, [filtered, todayStr, weekAgoStr]);
 
   useEffect(() => {

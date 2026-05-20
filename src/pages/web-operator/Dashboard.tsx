@@ -101,7 +101,6 @@ export function Dashboard({ onNavigate, session }: DashboardProps) {
       let fromDate: Date | null = null;
       let toDate: Date | null = null;
 
-      // Returns a UTC Date representing midnight MYT (UTC+8) for the given local date
       const toMytMidnightUtc = (d: Date): Date => {
         const mytStr = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kuala_Lumpur' });
         return new Date(`${mytStr}T00:00:00+08:00`);
@@ -143,7 +142,6 @@ export function Dashboard({ onNavigate, session }: DashboardProps) {
       setStats(data.stats);
 
       if (selectedRange === 'today') {
-        // Use the same endpoint as LiveAlerts — it's proven to return alerts newest-first
         const liveData = await fetchOperatorAlerts(token);
         setAlerts((liveData.alerts ?? []) as RecentAlert[]);
       } else {

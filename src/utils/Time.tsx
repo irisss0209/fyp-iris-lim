@@ -20,7 +20,6 @@ export function formatClockTime(
 ) {
   if (!value) return value;
 
-  // Handles values like "13:45" or "13:45:00" from the API — treated as MYT shift times.
   const match = value.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if (match) {
     const date = new Date(
@@ -53,7 +52,6 @@ export function formatDateTimeLabel(
 ) {
   if (!value) return value;
 
-  // Handles labels like "7 Apr 2026, 13:45" by replacing only the time suffix.
   const match = value.match(/(\d{1,2}:\d{2}(?::\d{2})?)$/);
   if (!match) return value;
 

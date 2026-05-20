@@ -77,7 +77,7 @@ export function Report({ session }: { session: UserSession }) {
     if (view === 'dashboard') fetchHistory();
   }, [view, fetchHistory]);
 
-  useAlertHub(fetchHistory, view === 'dashboard');
+  useAlertHub(fetchHistory, undefined, view === 'dashboard');
 
   useEffect(() => {
     clearInterval(tickRef.current);
@@ -117,7 +117,6 @@ export function Report({ session }: { session: UserSession }) {
         alert(error.error || 'Failed to update status');
         return;
       }
-      // Only patch state after confirmed success to avoid false audit trail flash
       const newStatus = action === 'Cancel' ? 'dismissed' : 'escalated';
       const now = new Date().toISOString();
       const byName = session.userName ?? 'You';
@@ -143,7 +142,6 @@ export function Report({ session }: { session: UserSession }) {
     return <CreateReport session={session} onBack={() => setView('dashboard')} />;
   }
 
-  // Computed synchronously on every render so buttons are never briefly enabled.
   const escalateSecondsLeft = (() => {
     if (!selectedReport) return 0;
     const isPending = selectedReport.status === 'pending';
@@ -155,7 +153,7 @@ export function Report({ session }: { session: UserSession }) {
         ? parseMYTDatetime(selectedReport.verifiedAt).getTime()
         : null;
     if (!base) return 0;
-    return Math.max(0, Math.ceil((2 * 60 * 1000 - (Date.now() - base)) / 1000));
+    return Math.min(2 * 60, Math.max(0, Math.ceil((2 * 60 * 1000 - (Date.now() - base)) / 1000)));
   })();
 
   const reEscalateSecondsLeft = (() => {
@@ -164,7 +162,7 @@ export function Report({ session }: { session: UserSession }) {
       ? parseMYTDatetime(selectedReport.escalatedAt).getTime()
       : null;
     if (!base) return 0;
-    return Math.max(0, Math.ceil((2 * 60 * 1000 - (Date.now() - base)) / 1000));
+    return Math.min(2 * 60, Math.max(0, Math.ceil((2 * 60 * 1000 - (Date.now() - base)) / 1000)));
   })();
 
   const filteredHistory = history.filter(r => {
@@ -378,7 +376,7 @@ export function Report({ session }: { session: UserSession }) {
                   </div>
                 )}
 
-                {/* Actions — pending: cancel + escalate countdown/button */}
+                {/*  pending: cancel + escalate countdown/button */}
                 {selectedReport.status === 'pending' && (
                   <div className="pt-2 border-t border-gray-100 space-y-3">
                     <textarea
@@ -417,7 +415,7 @@ export function Report({ session }: { session: UserSession }) {
                   </div>
                 )}
 
-                {/* Actions — verified: escalate countdown/button */}
+                {/* verified: escalate countdown/button */}
                 {selectedReport.status === 'verified' && (
                   <div className="pt-2 border-t border-gray-100 space-y-3">
                     <textarea
@@ -447,7 +445,7 @@ export function Report({ session }: { session: UserSession }) {
                   </div>
                 )}
 
-                {/* Actions: re-escalate countdown/button */}
+                {/*re-escalate countdown/button */}
                 {selectedReport.status === 'escalated' && (
                   <div className="pt-2 border-t border-gray-100 space-y-3">
                     <textarea

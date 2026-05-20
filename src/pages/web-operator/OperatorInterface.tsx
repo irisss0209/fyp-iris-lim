@@ -211,7 +211,6 @@ export function OperatorInterface({
   const [unreadAlertIds, setUnreadAlertIds] = useState<Set<string>>(new Set());
   const { showWarning, secondsLeft, extendSession } = useInactivityLogout(onLogout);
 
-  // Use a ref so the SignalR callback stays stable (no reconnects on page change)
   const activePageRef = useRef(activePage);
   useEffect(() => { activePageRef.current = activePage; }, [activePage]);
 
@@ -254,7 +253,7 @@ export function OperatorInterface({
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#FAF9F5]">
 
-      {/* ── Desktop-only wall ── shown on any viewport narrower than 1024 px */}
+      {/* Desktop-only restrictions shown on any viewport narrower than 1024 px */}
       <div className="lg:hidden fixed inset-0 z-[100] flex flex-col items-center justify-center gap-6 bg-[#FAF9F5] p-8 text-center">
         <div className="w-20 h-20 rounded-2xl flex items-center justify-center" style={{ backgroundColor: '#0B4F6C1A' }}>
           <MonitorIcon size={40} style={{ color: '#0B4F6C' }} />

@@ -107,7 +107,7 @@ export function AlertsHistory({ userId, token }: { userId: string; token?: strin
   if (selectedAlert) {
     return (
       <div className="absolute inset-0 bg-white z-50 overflow-hidden flex flex-col h-[calc(100vh-145px)] sm:h-[710px]">
-        <AlertDetailView alert={selectedAlert} onBack={() => setSelectedAlert(null)} onAction={() => { }} readOnly />
+        <AlertDetailView alert={selectedAlert} onBack={() => setSelectedAlert(null)} onAction={() => { }} />
       </div>
     );
   }

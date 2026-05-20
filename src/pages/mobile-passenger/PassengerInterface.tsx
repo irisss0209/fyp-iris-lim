@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import {
   HomeIcon,
@@ -44,7 +44,7 @@ export function PassengerInterface({ session, onLogout }: PassengerInterface) {
         height: '100dvh'
       }}
     >
-      {/* ── Mobile-only wall ── shown on any viewport wider than 640 px */}
+      {/* Mobile-only restriction:  shown on any viewport wider than 640 px */}
       <div className="hidden sm:flex fixed inset-0 z-[100] flex-col items-center justify-center gap-6 bg-[#FAF9F5] p-8 text-center">
         <div className="w-20 h-20 rounded-2xl flex items-center justify-center" style={{ backgroundColor: '#0B4F6C1A' }}>
           <SmartphoneIcon size={40} style={{ color: '#0B4F6C' }} />

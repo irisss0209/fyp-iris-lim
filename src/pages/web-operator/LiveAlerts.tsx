@@ -630,7 +630,7 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
                       ? parseMYTDatetime(selectedAlert.verifiedAt).getTime()
                       : null;
                     const secondsLeft = vAtMs
-                      ? Math.max(0, Math.ceil((2 * 60 * 1000 - (Date.now() - vAtMs)) / 1000))
+                      ? Math.min(2 * 60, Math.max(0, Math.ceil((2 * 60 * 1000 - (Date.now() - vAtMs)) / 1000)))
                       : 0;
                     return secondsLeft > 0 ? (
                       <div className="text-center">
@@ -655,7 +655,7 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
                       ? parseMYTDatetime(selectedAlert.escalatedAt).getTime()
                       : null;
                     const secondsLeft = eAtMs
-                      ? Math.max(0, Math.ceil((2 * 60 * 1000 - (Date.now() - eAtMs)) / 1000))
+                      ? Math.min(2 * 60, Math.max(0, Math.ceil((2 * 60 * 1000 - (Date.now() - eAtMs)) / 1000)))
                       : 0;
                     return secondsLeft > 0 ? (
                       <div className="text-center">

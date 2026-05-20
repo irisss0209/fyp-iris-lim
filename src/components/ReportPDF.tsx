@@ -84,7 +84,7 @@ export function ReportPDF({ month, stats, topInsights, statusBreakdown, aiSummar
     { label: 'False Alarm Rate',      value: `${stats.falseAlarmRate}%`,                  d: delta(stats.falseAlarmDelta, true) },
     { label: 'Avg Response Time',     value: `${stats.avgResponseMinutes.toFixed(1)} min`, d: delta(stats.avgResponseDelta, true) },
     { label: 'Compliance Score',      value: `${stats.complianceScore}%`,                 d: delta(stats.complianceDelta) },
-    { label: 'Unresolved',            value: String(stats.unresolvedCount),               d: null },
+    { label: 'Unresolved',            value: String(stats.unresolvedCount),               d: delta(stats.unresolvedDelta, true) },
   ];
 
   const hasCharts = chartImages && (chartImages.daily || chartImages.status || chartImages.train || chartImages.source);

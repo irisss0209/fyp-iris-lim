@@ -1,4 +1,4 @@
-// ── Shared types ──────────────────────────────────────────────────────────────
+// Shared types
 
 export interface ReportStats {
   total: number;
@@ -52,7 +52,7 @@ export interface ByTrainItem {
   line: string;
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+//  Constants
 
 export const ACCENT = '#0B4F6C';
 export const LINE_PALETTE = ['#D34026', '#0B4F6C', '#2D7A5D', '#7B5EA7', '#B45309', '#0E7490'];
@@ -77,8 +77,7 @@ export function getLineColor(lineId: string) {
   return lineColorCache[lineId];
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
+//  Helpers 
 export const statusColor = (status: string) => {
   const s = status?.toLowerCase() ?? '';
   if (s === 'resolved') return { bg: '#F0FBF6', text: '#2D7A5D' };
