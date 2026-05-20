@@ -151,7 +151,7 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
           className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex-shrink-0"
           style={{
             backgroundImage: 'url(/Railly_logo.png)',
-            backgroundSize: '160%',
+            backgroundSize: '100%',
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
           }}
@@ -159,15 +159,13 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
         />
         <div>
           <div className="text-lg sm:text-xl font-bold text-gray-900 leading-tight">Railly</div>
-          <div className="text-xs text-gray-400">Integrated Transit Safety</div>
+          <div className="text-xs text-gray-400">For Safer Commute</div>
         </div>
       </div>
 
-      {/* Card */}
       <div
         className="w-full max-w-sm sm:max-w-md bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden"
       >
-          {/* ── STEP 1: Details ── */}
           {step === 'details' && (
             <div
               className="p-5 sm:p-8"
@@ -300,7 +298,6 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
             </div>
           )}
 
-          {/* ── STEP 2: MFA ── */}
           {step === 'mfa' && (
             <MfaVerification
               email={email}
@@ -311,7 +308,6 @@ export function SignupPage({ onSignupSuccess, onNavigateLogin }: SignupPageProps
             />
           )}
 
-          {/* ── STEP 3: Success ── */}
           {step === 'success' && (
             <div
               className="p-8 flex flex-col items-center justify-center text-center py-12 sm:py-14"

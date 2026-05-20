@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   CameraIcon,
   ChevronLeftIcon,
   XIcon,
 } from 'lucide-react';
 import { Alert, AlertStatus } from '../../type/Alert';
+import { formatTime } from '../../utils/Time';
+import { useTime } from '../../context/TimeContext';
 
 const ACCENT = '#0B4F6C';
 const RED = '#D34026';
@@ -16,10 +19,11 @@ interface AlertDetailViewProps {
 }
 
 export function AlertDetailView({ alert, onBack, onAction }: AlertDetailViewProps) {
+  const { format } = useTime();
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const steps: { label: string, by?: string | null, at?: string | null, comment?: string | null, color: string, bg: string }[] = [];
 
-  // ── 1. Initial Report ──
+  //Initial Report 
   if (alert.source === 'ai') {
     steps.push({
       label: 'Detected',
@@ -40,7 +44,7 @@ export function AlertDetailView({ alert, onBack, onAction }: AlertDetailViewProp
     });
   }
 
-  // ── 2. Handling Steps ──
+  //Handling Steps 
   if (alert.verifiedAt || alert.verifiedBy)
     steps.push({ label: 'Verified', by: alert.verifiedBy, at: alert.verifiedAt, comment: alert.verifiedComment, color: '#2D7A5D', bg: '#F0FBF6' });
   if (alert.escalatedAt || alert.escalatedBy)
@@ -54,7 +58,6 @@ export function AlertDetailView({ alert, onBack, onAction }: AlertDetailViewProp
 
   return (
     <div className="flex flex-col h-full  relative z-10">
-      {/* ── Header ── */}
       <div className="bg-white flex items-center justify-between px-5 py-3 border-b border-gray-100 flex-shrink-0 ">
         <div className="flex items-center gap-3">
           <button
@@ -84,7 +87,6 @@ export function AlertDetailView({ alert, onBack, onAction }: AlertDetailViewProp
       </div>
 
       <div className="flex-1 overflow-y-auto pb-20 custom-scrollbar p-5 space-y-5 bg-[#faf9f5]">
-        {/* ── Snapshot ── */}
         <div className="rounded-xl overflow-hidden bg-gray-900 shadow-sm border border-gray-100" style={{ aspectRatio: '21/9' }}>
           {alert.snapshotUrl || alert.imageUrl ? (
             <img
@@ -102,7 +104,6 @@ export function AlertDetailView({ alert, onBack, onAction }: AlertDetailViewProp
           )}
         </div>
 
-        {/* ── Violation Details Grid ── */}
         <div className="space-y-4">
           <div className="grid grid-cols-3 gap-2">
             {[
@@ -121,7 +122,6 @@ export function AlertDetailView({ alert, onBack, onAction }: AlertDetailViewProp
           </div>
 
 
-          {/* Audit Trail */}
           {steps.length > 0 && (
             <div className="space-y-3">
               <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Audit Trail</div>
@@ -130,7 +130,7 @@ export function AlertDetailView({ alert, onBack, onAction }: AlertDetailViewProp
                   <div key={s.label} className="rounded-xl px-4 py-3.5" style={{ backgroundColor: s.bg }}>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-bold" style={{ color: s.color }}>{s.label} By: {s.by || 'System'}</span>
-                      {s.at && <span className="text-[10px] font-medium opacity-60" style={{ color: s.color }}>{s.at}</span>}
+                      {s.at && <span className="text-[10px] font-medium opacity-60" style={{ color: s.color }}>{formatTime(s.at, format)}</span>}
                     </div>
                     <div className="text-[11px] leading-relaxed italic text-gray-700 border-l-2 pl-3" style={{ borderColor: s.color + '40' }}>
                       {s.comment ? `"${s.comment}"` : 'No additional notes provided.'}
@@ -141,9 +141,8 @@ export function AlertDetailView({ alert, onBack, onAction }: AlertDetailViewProp
             </div>
           )}
 
-          {/* ── Action Buttons (Scrollable) ── */}
           {(alert.status === 'pending' || alert.status === 'verified' || alert.status === 'escalated' || alert.status === 'en_route') && (
-            <div className="pt-2 space-y-2">
+            <div className="pt-2 pb-6 space-y-2">
               {alert.status !== 'en_route' && (
                 <button
                   onClick={() => onAction(alert.id, 'en_route')}
@@ -174,25 +173,25 @@ export function AlertDetailView({ alert, onBack, onAction }: AlertDetailViewProp
         </div>
       </div>
 
-      {/* Lightbox */}
-      {lightboxUrl && (
+      {lightboxUrl && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black"
           onClick={() => setLightboxUrl(null)}
         >
           <button
-            className="absolute top-5 right-5 text-white/70 hover:text-white transition-colors"
+            className="absolute top-5 right-5 w-9 h-9 flex items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors"
             onClick={() => setLightboxUrl(null)}
           >
-            <XIcon size={26} />
+            <XIcon size={20} />
           </button>
           <img
             src={lightboxUrl}
             alt="Snapshot fullscreen"
-            className="max-w-[95vw] max-h-[90vh] rounded-xl object-contain"
+            className="max-w-full max-h-full object-contain"
             onClick={e => e.stopPropagation()}
           />
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -71,7 +71,7 @@ export function AuxiliaryProfile({ session, onLogout, onChangePassword }: Auxili
 
   return (
     <div className="h-full overflow-y-auto px-4 py-6 space-y-6">
-      {/* Profile Header */}
+      {/*  Header */}
       <div className="flex flex-col items-center">
         <div
           className="w-24 h-24 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg mb-4"

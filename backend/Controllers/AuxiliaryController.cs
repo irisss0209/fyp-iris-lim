@@ -40,12 +40,11 @@ namespace backend.Controllers
             var (userId, authError) = RequireUserId();
             if (authError != null) return authError;
 
-            // Shifts are stored in MYT (UTC+8), so always compare against MYT time
             var now = DateTime.UtcNow.AddHours(8);
             var today = now.Date;
             var nowTime = now.TimeOfDay;
 
-            // 1. Load all of today's shifts, pick the active one first
+            // 1. Load all of today's shifts
             var todayShifts = await _context.AuxiliaryShifts
                 .Include(s => s.Station)
                 .Where(s => s.UserId == userId && s.ShiftDate.Date == today)
@@ -53,8 +52,8 @@ namespace backend.Controllers
                 .ToListAsync();
 
             var shift = todayShifts.FirstOrDefault(s => IsShiftOnDuty(s.StartTime, s.EndTime, nowTime))
-                     ?? todayShifts.FirstOrDefault(s => s.StartTime > nowTime)   // next upcoming today
-                     ?? todayShifts.LastOrDefault();                              // most recently completed today
+                     ?? todayShifts.FirstOrDefault(s => s.StartTime > nowTime)   
+                     ?? todayShifts.LastOrDefault();                              
 
             // 2. If no shift today, try next upcoming shift
             if (shift == null)

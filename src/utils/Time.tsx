@@ -24,7 +24,7 @@ export function formatClockTime(
   const match = value.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if (match) {
     const date = new Date(
-      `1970-01-01T${match[1].padStart(2, '0')}:${match[2]}:${match[3] ?? '00'}+08:00`
+      `2000-01-01T${match[1].padStart(2, '0')}:${match[2]}:${match[3] ?? '00'}+08:00`
     );
     return date.toLocaleTimeString("en-MY", {
       ...MYT_TZ,

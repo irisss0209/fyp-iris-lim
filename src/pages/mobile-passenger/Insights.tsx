@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getMYTHours } from '../../utils/myt';
+import { useTime } from '../../context/TimeContext';
 import {
   AlertCircleIcon,
   CheckCircleIcon,
@@ -44,9 +45,9 @@ function parseHour(time?: string) {
   return Number.isFinite(h) && h >= 0 && h <= 23 ? h : null;
 }
 
-function fmtHour(h: number) {
+function fmtHour(h: number, format: '12h' | '24h') {
   return new Date(Date.UTC(2000, 0, 1, h))
-    .toLocaleTimeString('en-MY', { hour: 'numeric', hour12: true, timeZone: 'UTC' })
+    .toLocaleTimeString('en-MY', { hour: 'numeric', hour12: format === '12h', timeZone: 'UTC' })
     .replace(' ', '');
 }
 
@@ -75,6 +76,7 @@ function statusStyle(status?: string) {
 }
 
 export function Insights({ session }: { session?: UserSession }) {
+  const { format } = useTime();
   const [selectedLine, setSelectedLine] = useState('All Lines');
   const [lines, setLines] = useState<string[]>(['All Lines']);
   const [loading, setLoading] = useState(true);
@@ -168,7 +170,7 @@ export function Insights({ session }: { session?: UserSession }) {
     for (let h = 6; h < 22; h++) {
       if (counts[h] < min) { min = counts[h]; best = h; }
     }
-    return best === -1 ? null : `${fmtHour(best)} – ${fmtHour(best + 1)}`;
+    return best === -1 ? null : `${fmtHour(best, format)} – ${fmtHour(best + 1, format)}`;
   }, [filtered, todayStr, weekAgoStr]);
 
   useEffect(() => {
@@ -195,7 +197,7 @@ export function Insights({ session }: { session?: UserSession }) {
       .then(d => setAiAdvice(d.advice))
       .catch(() => setAiAdvice(null))
       .finally(() => setAiLoading(false));
-  }, [loading, selectedLine]); // re-runs when line changes
+  }, [loading, selectedLine]); 
 
   const overallLevel = safetyLevel(activeNow.length);
   const overallStyle = safetyStyle(overallLevel);

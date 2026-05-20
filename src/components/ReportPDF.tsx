@@ -57,7 +57,7 @@ function fmtStatus(s: string) {
 function delta(v: number, invert = false) {
   if (v === 0) return null;
   const good = invert ? v < 0 : v > 0;
-  return { label: `${v > 0 ? '▲' : '▼'} ${Math.abs(v)}%`, color: good ? '#2D7A5D' : RED };
+  return { label: `${v > 0 ? '+' : '-'}${Math.abs(v)}%`, color: good ? '#2D7A5D' : RED };
 }
 
 interface ChartImages {

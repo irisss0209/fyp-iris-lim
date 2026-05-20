@@ -80,10 +80,8 @@ export function Home({ onNavigate, session }: HomeProps) {
   const todayDate = getMYTDateStr();
 
   const filteredIncidents = incidents.filter(i => {
-    // Only show if it happened today
     if (i.date !== todayDate) return false;
 
-    // Filter by selected line
     if (selectedLine !== 'All Lines' && i.line !== selectedLine) return false;
 
     return true;
@@ -96,17 +94,15 @@ export function Home({ onNavigate, session }: HomeProps) {
 
       className="px-5 pt-0 pb-10 space-y-2"
     >
-      {/* ── 1. DASHBOARD: Curved Header Container ── */}
+      {/*  DASHBOARD:  Header Container */}
       <div
         className={`relative -mx-5 px-5 pt-5 pb-12 rounded-b-[300px] ${activeIncident ? 'bg-red-100' : 'bg-[#0B4F6C]/10'
           } z-30 flex flex-col items-center shadow-sm mb-6`}
       >
         <div className="w-full max-w- flex flex-col items-center space-y-2">
-          {/* 1.1 Integrated Control Row */}
           <div className={`relative w-full bg-[#FAF9F5]/100 backdrop-blur-md border border-[#FAF9F5]/40 transition-all  ${showLinePicker ? 'rounded-t-[8px] rounded-b-none' : 'rounded-[28px]'
             }`}>
             <div className="flex items-center gap-2 p-1">
-              {/* Action 1: Detect Location (Clean Transparent Style) */}
               <button
                 onClick={handleDetectLocation}
                 disabled={isLocating}
@@ -126,7 +122,6 @@ export function Home({ onNavigate, session }: HomeProps) {
                 </div>
               </button>
 
-              {/* Action 2: Line Trigger */}
               <button
                 onClick={() => setShowLinePicker(!showLinePicker)}
                 className="flex-grow flex flex-col items-start text-left pl-3 pr-4 py-2 rounded-2xl hover:bg-white/10 active:scale-[0.98] transition-all"
@@ -139,7 +134,6 @@ export function Home({ onNavigate, session }: HomeProps) {
               </button>
             </div>
 
-            {/* Floating Dropdown (Full-Width, Connected Style) */}
             {showLinePicker && (
               <div className="absolute top-[calc(100%-1px)] left-[-1px] right-[-1px] bg-[#FAF9F5]  rounded-b-[28px] border-x border-b border-white/20 shadow-2xl z-[100] overflow-hidden">
                 <div className="p-2 max-h-[280px] overflow-y-auto">
@@ -158,7 +152,6 @@ export function Home({ onNavigate, session }: HomeProps) {
             )}
           </div>
 
-          {/* 1.2 Status Display */}
           <div className="flex flex-col items-center justify-center text-center py-1">
             <h2 className={`text-[100px] font-black  ${activeIncident ? 'text-red-600' : 'text-[#0B4F6C]'}`}>
               {filteredIncidents.length}
@@ -170,10 +163,10 @@ export function Home({ onNavigate, session }: HomeProps) {
         </div>
       </div>
 
-      {/* ── 2. ACTIONS: Main Content Area ── */}
+      {/* AMain Content Area ── */}
       <div className="space-y-4">
 
-        {/* Recent Report Card */}
+        {/* Recent Report  */}
         {recentReport && (
           <button
             onClick={() => onNavigate('report')}
@@ -202,25 +195,8 @@ export function Home({ onNavigate, session }: HomeProps) {
           </button>
         )}
 
-        {/*
-        <button
-          onClick={() => onNavigate('incident')}
-          className={`w-full py-5 px-8 rounded-3xl flex items-center justify-between transition-all group ${activeIncident ? 'bg-white border-red-100' : 'bg-white border-[#0B4F6C]/20'} border shadow-sm active:scale-[0.98]`}
-        >
-          <div className="flex flex-col items-start text-left">
-            <span className={`text-[10px] font-black uppercase tracking-widest ${activeIncident ? 'text-red-600' : 'text-[#0B4F6C]'}`}>
-              View Safety Details
-            </span>
-            <span className="text-[10px] font-medium text-gray-400">
-              {activeIncident ? `Tracking at ${activeIncident.stationName}` : "Monitoring all local lines"}
-            </span>
-          </div>
-          <div className={`p-1.5 rounded-lg transition-transform group-hover:translate-x-1 ${activeIncident ? 'bg-red-100 text-red-600' : 'bg-[#0B4F6C]/10 text-[#0B4F6C]'}`}>
-            <ChevronRightIcon size={14} />
-          </div>
-        </button>
-*/}
-        {/* 2.2 Report Incident */}
+
+        {/*  Report Incident */}
         <button
           onClick={() => onNavigate('report')}
           className="w-full rounded-[24px] p-5 text-left active:scale-[0.98] transition-transform shadow-sm"
@@ -236,7 +212,7 @@ export function Home({ onNavigate, session }: HomeProps) {
           </div>
         </button>
 
-        {/* 2.3 Safety Guidance */}
+        {/*  Safety Guidance */}
         <section
           onClick={() => window.location.href = "tel:999"}
           className="bg-[#0B4F6C]/5 rounded-[32px] p-6 border border-[#0B4F6C]/10 cursor-pointer active:scale-[0.98] transition-transform"

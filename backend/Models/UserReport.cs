@@ -43,7 +43,6 @@ public class UserReport
     [MaxLength(50)]
     public string StationId { get; set; } = null!;
 
-    // Navigation
     public User User { get; set; } = null!;
 
     public TrainCoach? TrainCoach { get; set; }

@@ -315,7 +315,7 @@ namespace backend.Controllers
                     return Ok(new { success = true, status = incident.Status.ToString() });
                 }
 
-                // First escalation: passenger — Pending or Verified only
+                // First escalation: passenger (Pending or Verified only)
                 if (!isPending && !isVerified)
                     return BadRequest(new { error = "You can only escalate pending or verified reports." });
 
@@ -367,7 +367,7 @@ namespace backend.Controllers
 
             return Ok(stations);
         }
-
+        //prompt for gemini
         [Authorize(Roles = "passenger")]
         [HttpPost("ai/travel-advice")]
         public async Task<IActionResult> GetTravelAdvice([FromBody] TravelAdviceRequest req, CancellationToken ct)
@@ -418,9 +418,9 @@ namespace backend.Controllers
     public class SubmitReportRequest
     {
         public string Line  { get; set; } = null!;
-        public string Coach { get; set; } = null!;  // display label (may be "Unknown")
-        public int    TrainId  { get; set; }         // integer FK
-        public int    CoachId  { get; set; }         // integer FK
+        public string Coach { get; set; } = null!;  
+        public int    TrainId  { get; set; }         
+        public int    CoachId  { get; set; }         
         public string Desc    { get; set; } = null!;
         public string? LineId   { get; set; }
         public string? StationId { get; set; }

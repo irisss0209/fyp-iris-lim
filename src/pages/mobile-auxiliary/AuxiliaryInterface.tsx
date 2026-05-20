@@ -40,7 +40,6 @@ export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterface) {
         height: '100dvh'
       }}
     >
-      {/* ── Mobile-only wall ── shown on any viewport wider than 640 px */}
       <div className="hidden sm:flex fixed inset-0 z-[100] flex-col items-center justify-center gap-6 bg-[#FAF9F5] p-8 text-center">
         <div className="w-20 h-20 rounded-2xl flex items-center justify-center" style={{ backgroundColor: '#0B4F6C1A' }}>
           <SmartphoneIcon size={40} style={{ color: '#0B4F6C' }} />
@@ -57,20 +56,13 @@ export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterface) {
         </div>
       </div>
 
-      {/* ── Top Header (Inactive) ── */}
-      {/* 
-      <div className="flex items-center justify-between px-5 pt-12 pb-4 flex-shrink-0">
-         ... logo and time ...
-      </div>
-      */}
+
 
       <div className="pt-6">
         <AuxiliaryShift userId={session.userId} token={session.token} onStationDetected={handleStationDetected} />
       </div>
 
-      {/* ── Shift Banner ── */}
 
-      {/* ── Scrollable Content ── */}
       <div className="flex-1 relative overflow-y-auto" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
         <AnimatePresence mode="wait">
           {activeTab === 'alerts' && (
@@ -102,7 +94,6 @@ export function AuxiliaryInterface({ session, onLogout }: AuxiliaryInterface) {
         </AnimatePresence>
       </div>
 
-      {/* ── Bottom Nav ── */}
       <div
         className="fixed bottom-0 left-0 right-0 sm:absolute w-full bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] border-t border-gray-100 flex p-1.5 z-20 flex-shrink-0"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}

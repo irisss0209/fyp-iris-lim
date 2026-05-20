@@ -21,7 +21,7 @@ import { parseMYTDatetime } from '../../utils/myt';
 interface LineOption { lineId: string; lineName: string; }
 interface StationsByLine { lineId: string; stations: { stationId: string; stationName: string }[]; }
 
-// ── Stat box config (one entry per status) ──────────────────────────────────
+// ── Stat box config
 const STAT_CONFIGS: {
   key: keyof StatsState;
   label: string;
@@ -54,7 +54,6 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const { format } = useTime();
 
-  // ── UI state ──────────────────────────────────────────────────────────────────
   const [activeFilter, setActiveFilter] = useState<AlertStatus | 'all'>('all');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'ai' | 'passenger'>('all');
   const [lineFilter, setLineFilter] = useState('all');
@@ -64,7 +63,6 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
   const [pendingAction, setPendingAction] = useState<{ type: 'verify' | 'dismiss' | 'escalate'; alertId: string } | null>(null);
   const [, setTick] = useState(0); // force re-render for timer
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-  // ── Fetch all alerts from DB ──────────────────────────────────────────────────
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
     try {
@@ -74,7 +72,6 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
       setLines(data.lines ?? []);
       setStationsByLine(data.stationsByLine ?? []);
       setStats(data.stats ?? { pending: 0, verified: 0, escalated: 0, enRoute: 0, resolved: 0, dismissed: 0 });
-      // Keep selected alert if it still exists
       setSelectedAlert(prev => {
         if (prev) {
           const updated = (data.alerts as Alert[]).find(a => a.id === prev.id);
@@ -92,13 +89,11 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
 
   useEffect(() => { fetchAlerts(); }, [fetchAlerts]);
 
-  // Polling fallback — keeps the list fresh if SignalR drops
   useEffect(() => {
     const id = setInterval(fetchAlerts, 30_000);
     return () => clearInterval(id);
   }, [fetchAlerts]);
 
-  // Handle initial selection from navigation
   useEffect(() => {
     if (initialAlertId && alerts.length > 0) {
       const targetId = initialAlertId.toString();
@@ -110,16 +105,14 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
     }
   }, [initialAlertId, alerts, onClearInitial]);
 
-  useAlertHub(fetchAlerts);
+  useAlertHub(fetchAlerts, fetchAlerts);
 
-  // ── Tick every second for verified countdown and re-escalate timer ──
   useEffect(() => {
     if (!selectedAlert || (selectedAlert.status !== 'verified' && selectedAlert.status !== 'escalated')) return;
     const timer = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(timer);
   }, [selectedAlert?.id, selectedAlert?.status]);
 
-  // ── Derived filter options ────────────────────────────────────────────────────
   const availableStations = useMemo(() => {
     if (lineFilter === 'all') {
       const all = stationsByLine.flatMap(s => s.stations);
@@ -130,7 +123,6 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
 
   const handleLineChange = (line: string) => { setLineFilter(line); setStationFilter('all'); };
 
-  // ── Filtered alerts ───────────────────────────────────────────────────────────
   const filtered = useMemo(() => alerts.filter(a => {
     if (activeFilter !== 'all' && a.status !== activeFilter) return false;
     if (sourceFilter !== 'all' && a.source !== sourceFilter) return false;
@@ -149,7 +141,7 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
     { id: 'dismissed', label: 'Dismissed' },
   ];
 
-  // ── Status update ─────────────────────────────────────────────────────────────
+  //  Status update 
   const handleModalConfirm = async (comment: string) => {
     if (!pendingAction) return;
 
@@ -166,7 +158,6 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
     const token: string | undefined = session?.token;
     const operatorName: string = session?.userName ?? 'Operator';
 
-    // Build full optimistic patch: status + audit trail fields
     const patch: Partial<Alert> = { status: newStatus };
     if (pendingAction.type === 'verify') {
       patch.verifiedAt = now;
@@ -187,10 +178,8 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
       patch.enrouteComment = comment || null;
     }
 
-    // Capture old status for stats update before mutating
     const oldStatus = alerts.find(a => a.id === id)?.status;
 
-    // Optimistic update — status, audit trail, and stats all at once
     setAlerts(prev => prev.map(a => a.id === id ? { ...a, ...patch } : a));
     setSelectedAlert(prev => prev?.id === id ? { ...prev, ...patch } : prev);
     setStats(prev => {
@@ -212,7 +201,6 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
       await updateAlertStatus(id, newStatus, comment, token);
     } catch (err) {
       console.error('[STATUS UPDATE] Failed:', err);
-      // Next auto-refresh (30s) will reconcile any drift
     }
   };
 
@@ -226,7 +214,7 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: '#FAF9F5' }}>
 
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="px-6 pt-6 pb-2 bg-[#FAF9F5] border-b border-gray-100">
         <div className="flex items-center justify-between">
           <div>
@@ -250,7 +238,7 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
           </button>
         </div>
 
-        {/* ── Stats: 6 boxes in one row ── */}
+        {/*  Stats */}
         <div className="grid grid-cols-6 gap-2 mt-4">
           {STAT_CONFIGS.map(s => (
             <div
@@ -291,7 +279,7 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
 
           <div className="w-px h-6 bg-gray-200 flex-shrink-0" />
 
-          {/* Filters (SHARE SPACE) */}
+          {/* Filters  */}
           <div className="flex items-center gap-2 flex-1 min-w-0">
 
             {/* Source */}
@@ -514,7 +502,6 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
                 </button>
               </div>
 
-              {/* Unified Scrollable Container */}
               <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
                 {/* Snapshot / image */}
                 <div className="rounded-lg overflow-hidden bg-gray-800" style={{ aspectRatio: '21/9' }}>
@@ -609,7 +596,6 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
 
 
 
-                              {/* Always display the comment block to maintain the aesthetic */}
                               <div className="mt-1.5 text-[11px] italic text-gray-600 border-l-2 pl-2" style={{ borderColor: s.color + '60' }}>
                                 {s.comment ? `"${s.comment}"` : 'No comment'}
                               </div>
@@ -620,7 +606,7 @@ export function LiveAlerts({ initialAlertId, onClearInitial, session }: { initia
                     )
                   })()}
 
-                  {/* ── Actions ── */}
+                  {/*Actions  */}
                   {selectedAlert.status === 'pending' && (
                     <div className="space-y-2 pt-2">
                       <button

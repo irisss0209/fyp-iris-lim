@@ -51,7 +51,6 @@ function Sidebar({ activePage, onNavigate, onLogout, alertCount = 0, user, colla
       className="flex flex-col h-full bg-[#FAF9F5] border-r border-gray-200 transition-all duration-300"
       style={{ width: collapsed ? '64px' : '260px', minWidth: collapsed ? '64px' : '260px' }}
     >
-      {/* Brand + collapse button */}
       <div className="flex items-center border-b border-gray-100 px-3 py-4" style={{ minHeight: '72px' }}>
         {!collapsed && (
           <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -209,16 +208,18 @@ export function OperatorInterface({
   const [activePage, setActivePage] = useState<NavPage>('dashboard');
   const [initialAlertId, setInitialAlertId] = useState<string | number | null>(null);
   const [collapsed, setCollapsed] = useState(false);
-  const [unreadAlerts, setUnreadAlerts] = useState(0);
+  const [unreadAlertIds, setUnreadAlertIds] = useState<Set<string>>(new Set());
   const { showWarning, secondsLeft, extendSession } = useInactivityLogout(onLogout);
 
   // Use a ref so the SignalR callback stays stable (no reconnects on page change)
   const activePageRef = useRef(activePage);
   useEffect(() => { activePageRef.current = activePage; }, [activePage]);
 
-  const handleAlertEvent = useCallback(() => {
+  const handleAlertEvent = useCallback((data?: any) => {
     if (activePageRef.current !== 'live-alerts') {
-      setUnreadAlerts(prev => prev + 1);
+      const id = String(data?.id ?? data?.incidentId ?? data?.alertId ?? '');
+      if (!id) return;
+      setUnreadAlertIds(prev => prev.has(id) ? prev : new Set([...prev, id]));
     }
   }, []);
 
@@ -226,7 +227,7 @@ export function OperatorInterface({
 
   const handleNavigate = (page: NavPage, id?: string | number) => {
     setActivePage(page);
-    if (page === 'live-alerts') setUnreadAlerts(0);
+    if (page === 'live-alerts') setUnreadAlertIds(new Set());
     if (id) setInitialAlertId(id);
   };
 
@@ -274,7 +275,7 @@ export function OperatorInterface({
         activePage={activePage}
         onNavigate={handleNavigate}
         onLogout={onLogout}
-        alertCount={unreadAlerts}
+        alertCount={unreadAlertIds.size}
         user={session}
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed(c => !c)}

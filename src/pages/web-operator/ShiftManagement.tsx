@@ -28,7 +28,7 @@ function getShiftStatus(shift: ShiftRow): 'upcoming' | 'in_progress' | 'complete
   const shiftEnd = new Date(`${dateStr}T${shift.endTime}+08:00`);
 
   if (shiftEnd < shiftStart) {
-    shiftEnd.setDate(shiftEnd.getDate() + 1); // Handle overnight shifts
+    shiftEnd.setDate(shiftEnd.getDate() + 1); 
   }
 
   if (now < shiftStart) return 'upcoming';
@@ -45,7 +45,6 @@ export function ShiftManagementPanel({ session }: { session?: { token?: string }
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ── filter state ──
   const [search, setSearch] = useState('');
   const [filterLine, setFilterLine] = useState('');
   const [filterStation, setFilterStation] = useState('');
@@ -71,7 +70,6 @@ export function ShiftManagementPanel({ session }: { session?: { token?: string }
 
   useEffect(() => { fetchShifts(); }, []);
 
-  // ── derived filter options ──
   const uniqueLines = [...new Set(shifts.map(s => s.lineName).filter(Boolean))] as string[];
   const uniqueStations = [...new Set(
     shifts
@@ -79,7 +77,6 @@ export function ShiftManagementPanel({ session }: { session?: { token?: string }
       .map(s => s.stationName)
   )];
 
-  // ── filtering logic ──
   const filtered = shifts.filter(s => {
     const q = search.toLowerCase();
     const displayDate = new Date(s.shiftDate).toLocaleDateString('en-MY', {
@@ -126,7 +123,6 @@ export function ShiftManagementPanel({ session }: { session?: { token?: string }
     setFilterStation('');
   };
 
-  // ── download template ──
   const downloadTemplate = async () => {
     const ExcelJS = (await import('exceljs')).default;
     const workbook = new ExcelJS.Workbook();
@@ -140,7 +136,6 @@ export function ShiftManagementPanel({ session }: { session?: { token?: string }
       { header: 'end_time', key: 'end_time', width: 16 },
     ];
 
-    // Style header row
     ws.getRow(1).eachCell(cell => {
       cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0B4F6C' } };
@@ -149,7 +144,6 @@ export function ShiftManagementPanel({ session }: { session?: { token?: string }
     // Sample data row
     ws.addRow(['AUX001', 'STN001', '2026-05-01', '06:00:00', '15:00:00']);
 
-    // Dropdowns for rows 2–100
     for (let row = 2; row <= 100; row++) {
       ws.getCell(`D${row}`).dataValidation = {
         type: 'list',
@@ -277,7 +271,6 @@ export function ShiftManagementPanel({ session }: { session?: { token?: string }
         </div>
       </div>
 
-      {/* ── Search + Filters ── */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-4">
         <div className="flex items-end gap-3">
 

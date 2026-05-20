@@ -160,7 +160,6 @@ export function Dashboard({ onNavigate, session }: DashboardProps) {
 
   useAlertHub(fetchDashboard);
 
-  // ── Dynamic subtitle ──────────────────────────────────────────────────────────
   const getSubtitle = () => {
     const now = new Date();
     const yesterday = new Date(now);
@@ -325,7 +324,7 @@ export function Dashboard({ onNavigate, session }: DashboardProps) {
       {(() => {
         const isToday = selectedRange === 'today';
         const sortedAlerts = isToday
-          ? alerts  // /operator/alerts already returns newest-first, same as LiveAlerts
+          ? alerts  
           : [...alerts].sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
         const visibleAlerts = isToday
           ? sortedAlerts.slice(0, 5)
@@ -474,7 +473,6 @@ export function Dashboard({ onNavigate, session }: DashboardProps) {
               </div>
             )}
 
-            {/* Pagination — non-today only */}
             {!isToday && !loading && totalPages > 1 && (
               <div className="flex items-center justify-between mt-5 pt-4 border-t border-gray-100">
                 <span className="text-xs text-gray-400">

@@ -3,9 +3,7 @@ using System.Security.Cryptography;
 
 namespace backend.Services
 {
-    // NOTE (M1): This store is in-memory and singleton. All challenges are lost on restart
-    // and this is incompatible with horizontal scaling. Replace with Redis + TTL keys when
-    // moving to a multi-instance deployment.
+
     public class AuthChallengeStore
     {
         private sealed class ChallengeEntry
@@ -111,7 +109,6 @@ namespace backend.Services
             return (true, metadata);
         }
 
-        // Called by ChallengeCleanupService every 5 minutes to prevent unbounded memory growth.
         public int RemoveExpired()
         {
             var now = DateTime.UtcNow;

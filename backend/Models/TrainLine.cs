@@ -16,7 +16,6 @@ namespace backend.Models
         [MaxLength(100)]
         public string LineName { get; set; } = null!;
 
-        // Navigation
         public ICollection<LineStation> LineStations { get; set; } = [];
         public ICollection<TrainAsset> TrainAssets { get; set; } = [];
     }

@@ -44,30 +44,20 @@ export function buildTimelineSteps(inc: TimelineSource): TimelineStep[] {
     steps.push({ label: 'Verified', by: inc.verifiedBy, at: inc.verifiedAt, comment: inc.verifiedComment, color: '#1D4ED8' });
   if (inc.enrouteBy || inc.enrouteAt)
     steps.push({ label: 'En Route', by: inc.enrouteBy, at: inc.enrouteAt, comment: inc.enrouteComment, color: '#0B4F6C' });
-  if (inc.resolvedBy || inc.resolvedAt)
-    steps.push({ label: 'Resolved', by: inc.resolvedBy, at: inc.resolvedAt, comment: inc.resolvedComment, color: '#2D7A5D' });
   if (inc.escalatedBy || inc.escalatedAt)
     steps.push({ label: 'Escalated', by: inc.escalatedBy, at: inc.escalatedAt, comment: inc.escalatedComment, color: '#D34026' });
+  if (inc.resolvedBy || inc.resolvedAt)
+    steps.push({ label: 'Resolved', by: inc.resolvedBy, at: inc.resolvedAt, comment: inc.resolvedComment, color: '#2D7A5D' });
   if (inc.dismissedBy || inc.dismissedAt)
     steps.push({ label: 'Dismissed', by: inc.dismissedBy, at: inc.dismissedAt, comment: inc.dismissedComment, color: '#4A5568' });
   return steps;
 }
 
-import { parseMYTDatetime } from '../utils/myt';
-
-const fmtAt = (d?: string | null) =>
-  d
-    ? parseMYTDatetime(d).toLocaleString('en-MY', {
-        timeZone: 'Asia/Kuala_Lumpur',
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    : null;
+import { formatTime } from '../utils/Time';
+import { useTime } from '../context/TimeContext';
 
 export function StatusTimeline({ steps }: { steps: TimelineStep[] }) {
+  const { format } = useTime();
   return (
     <div className="flex gap-0 flex-wrap">
       {steps.map((step, i) => (
@@ -83,7 +73,7 @@ export function StatusTimeline({ steps }: { steps: TimelineStep[] }) {
           </div>
           <div className="min-w-0 pr-4 pb-2">
             <div className="text-[11px] font-bold" style={{ color: step.color }}>{step.label}</div>
-            {step.at && <div className="text-[10px] text-gray-400 mt-0.5">{fmtAt(step.at)}</div>}
+            {step.at && <div className="text-[10px] text-gray-400 mt-0.5">{formatTime(step.at, format)}</div>}
             {step.by && <div className="text-[10px] text-gray-600 font-medium mt-0.5">by {step.by}</div>}
             {step.comment != null && (
               <div className="text-[10px] text-gray-500 mt-1 italic bg-white rounded px-2 py-1 border border-gray-100">

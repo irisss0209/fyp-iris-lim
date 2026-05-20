@@ -33,7 +33,7 @@ namespace backend.Controllers
             _pushService = pushService;
             _hub = hub;
         }
-
+        // prompt for gemini
         [Authorize(Roles = "operator")]
         [HttpPost("ai/report-summary")]
         public async Task<IActionResult> GetReportSummary([FromBody] ReportSummaryRequest req, CancellationToken ct)
@@ -90,7 +90,7 @@ namespace backend.Controllers
                 .Select(i => _alertService.MapToAlertDTO(i, now))
                 .ToList();
 
-            // Real trend data: incidents grouped by day of week (last 30 days)
+            // Real trend data
             var dayNames = new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
             var since = DateTime.UtcNow.AddDays(-30);
 
@@ -107,11 +107,9 @@ namespace backend.Controllers
             // Helper to resolve lineId for an incident
             string? ResolveLineId(Incident inc)
             {
-                // Prioritize direct fields
                 if (inc.Detection?.LineId != null) return inc.Detection.LineId;
                 if (inc.UserReport?.LineId != null) return inc.UserReport.LineId;
 
-                // Fallback to train-asset link
                 if (inc.Source == IncidentSource.AI_DETECTION && inc.Detection?.Camera?.TrainCoach?.TrainAsset != null)
                     return inc.Detection.Camera.TrainCoach.TrainAsset.LineId;
                 if (inc.UserReport?.TrainCoach?.TrainAsset != null)
@@ -308,7 +306,7 @@ namespace backend.Controllers
             var camerasOnline = cameraCounts.FirstOrDefault(x => x.IsActive)?.Count ?? 0;
             var camerasTotal  = cameraCounts.Sum(x => x.Count);
 
-            // Average response time (verified_at - created_at) for incidents that have been verified
+            // Average response time 
             var verifiedIncidents = await baseIncidents
                 .AsNoTracking()
                 .Where(i => i.VerifiedAt != null)
@@ -319,7 +317,7 @@ namespace backend.Controllers
                 ? verifiedIncidents.Average(i => (i.VerifiedAt!.Value - i.CreatedAt).TotalMinutes)
                 : 0;
 
-            // Recent alerts (last 5)
+            // Recent alerts
             var incidents = await baseIncidents
                 .AsNoTracking()
                 .AsSplitQuery()
@@ -451,7 +449,7 @@ namespace backend.Controllers
             });
         }
 
-        // ── Reports ────────────────────────────────────────────────────────────────
+        //  Reports 
 
         [Authorize(Roles = "operator")]
         [HttpGet("operator/reports")]
@@ -558,7 +556,6 @@ namespace backend.Controllers
                 .Select(g => (lineId: g.Key, lineName: g.First().lineName))
                 .ToList();
 
-            // Build an object per day: { day, [lineName]: count, ... }
             var dailyData = Enumerable.Range(0, 7).Select(d =>
             {
                 var dayIncs = incidents.Where(i => (int)i.CreatedAt.AddHours(8).DayOfWeek == d).ToList();
@@ -568,7 +565,7 @@ namespace backend.Controllers
                 return dayObj;
             }).ToList();
 
-            // ── Pie / status breakdown ────────────────────────────────────────
+            //  Pie / status breakdown 
             var statusBreakdown = new[]
             {
                 new { name = "Resolved",            value = resolved,                     color = "#2D7A5D" },
@@ -636,7 +633,7 @@ namespace backend.Controllers
                         label = cursor.ToString("MMM yyyy") });
                     cursor = cursor.AddMonths(1);
                 }
-                months.Reverse(); // newest first
+                months.Reverse(); 
             }
 
             return Ok(new
@@ -750,7 +747,7 @@ namespace backend.Controllers
                     Email     = u.Email,
                     Role      = u.Role.ToString(),
                     Status    = u.Status.ToString(),
-                    CreatedAt = u.CreatedAt
+                    CreatedAt = DateTime.SpecifyKind(u.CreatedAt, DateTimeKind.Utc)
                 })
                 .ToListAsync();
 
@@ -784,7 +781,7 @@ namespace backend.Controllers
             return Ok(new { userId = user.UserId, status = user.Status.ToString() });
         }
 
-        // ── Shifts with line info ───────────────────────────────────────────────────
+        //  Shifts with line info 
 
         [Authorize(Roles = "operator")]
         [HttpGet("operator/shifts")]
@@ -825,7 +822,7 @@ namespace backend.Controllers
             return Ok(result);
         }
 
-        // ── Helper for  CSV and excel Import ───────────────────────────────────────────────────
+        //  Helper for  CSV and excel Import 
 
         private async Task<(List<string[]> rows, string? error)> ParseFileAsync(IFormFile file)
         {
@@ -878,7 +875,7 @@ namespace backend.Controllers
             return (rows, null);
         }
 
-        // ── Excel bulk import ───────────────────────────────────────────────────────
+        //  Excel bulk import 
 
         [Authorize(Roles = "operator")]
         [HttpPost("operator/shifts/import")]
@@ -989,7 +986,7 @@ if (error != null) return BadRequest(new { error });
             var inserted = 0;
             var errors   = new List<string>();
 
-            for (int i = 1; i < rows.Count; i++) // skip header row
+            for (int i = 1; i < rows.Count; i++) 
             {
                 var cols = rows[i];
 
@@ -1050,7 +1047,7 @@ if (error != null) return BadRequest(new { error });
         }
 
 
-        // ── Operator Settings (DB-backed) ──────────────────────────────────────────
+        //  Operator Settings  
 
         [Authorize(Roles = "operator")]
         [HttpGet("operator/settings")]

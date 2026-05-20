@@ -11,7 +11,6 @@ namespace backend.Models
         [Column("incident_id")]
         public int IncidentId { get; set; }
 
-        // 'AI_DETECTION' | 'USER_REPORT'
         [Required]
         [Column("source")]
         public IncidentSource Source { get; set; }
@@ -22,11 +21,9 @@ namespace backend.Models
         [Column("report_id")]
         public int? ReportId { get; set; }
 
-        // 'Pending' | 'Verified' | 'En_Route' | 'Escalated' | 'Resolved' | 'Dismissed'
         [Column("status")]
         public IncidentStatus Status { get; set; } = IncidentStatus.Pending;
 
-        // --- Who handled each step ---
         [Column("verified_by")]
         [MaxLength(50)]
         public string? VerifiedBy { get; set; }
@@ -47,11 +44,10 @@ namespace backend.Models
         [MaxLength(50)]
         public string? DismissedBy { get; set; }
 
-        // --- When each transition happened ---
         [Column("verified_at")]
         public DateTime? VerifiedAt { get; set; }
 
-        [Column("escalated_at")]          // fixed: was duplicate 'escalated_by' in schema
+        [Column("escalated_at")]          
         public DateTime? EscalatedAt { get; set; }
 
         [Column("enroute_at")]
@@ -79,7 +75,7 @@ namespace backend.Models
 
         [Column("dismissed_comment")]
         public string? DismissedComment { get; set; }
-        // --- Navigation ---
+
         [ForeignKey(nameof(DetectionId))]
         public Detection? Detection { get; set; }
 

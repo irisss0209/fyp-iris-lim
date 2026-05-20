@@ -5,8 +5,7 @@ namespace backend.Data
 {
     public static class IncidentQueryExtensions
     {
-        // Full navigation chain for line/station/coach resolution across both AI-detected
-        // and passenger-reported incidents. Covers all paths used by AlertService.MapToAlertDTO.
+
         public static IQueryable<Incident> WithFullNavigations(this IQueryable<Incident> query) =>
             query
                 .Include(i => i.Detection)
@@ -33,7 +32,7 @@ namespace backend.Data
                 .Include(i => i.UserReport)
                     .ThenInclude(r => r!.User);
 
-        // Audit-trail user refs: who verified / escalated / en-routed / resolved / dismissed.
+        // Audit-trail user refs: who verified / escalated / en-routed / resolved / dismissed
         public static IQueryable<Incident> WithStatusUsers(this IQueryable<Incident> query) =>
             query
                 .Include(i => i.VerifiedByUser)

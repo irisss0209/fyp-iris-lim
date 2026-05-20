@@ -21,7 +21,6 @@ namespace backend.Models
         [Required]
         [Column("longitude")]
         public double Longitude { get; set; }
-        // Navigation
         public ICollection<LineStation> LineStations { get; set; } = [];
     }
 }

@@ -12,12 +12,14 @@ import {
   InfoIcon,
 } from 'lucide-react';
 import { CreateReport } from './CreateReport';
+import { formatTime } from '../../utils/Time';
+import { useTime } from '../../context/TimeContext';
 
 const STATUS_BADGE: Record<string, string> = {
-  verified:  'bg-green-50 text-green-600',
-  resolved:  'bg-green-50 text-green-600',
-  pending:   'bg-yellow-50 text-yellow-600',
-  en_route:  'bg-blue-50 text-blue-600',
+  verified: 'bg-green-50 text-green-600',
+  resolved: 'bg-green-50 text-green-600',
+  pending: 'bg-yellow-50 text-yellow-600',
+  en_route: 'bg-blue-50 text-blue-600',
   escalated: 'bg-red-50 text-red-600',
   dismissed: 'bg-gray-50 text-gray-400',
 };
@@ -47,6 +49,7 @@ function fmtStatus(s: string) {
 }
 
 export function Report({ session }: { session: UserSession }) {
+  const { format } = useTime();
   const [view, setView] = useState<'dashboard' | 'create'>('dashboard');
   const [history, setHistory] = useState<ReportHistoryItem[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -79,9 +82,10 @@ export function Report({ session }: { session: UserSession }) {
   useEffect(() => {
     clearInterval(tickRef.current);
     if (!selectedReport) return;
-    const isPending  = selectedReport.status === 'pending';
+    const isPending = selectedReport.status === 'pending';
     const isVerified = selectedReport.status === 'verified';
-    if (!isPending && !isVerified) return;
+    const isEscalated = selectedReport.status === 'escalated';
+    if (!isPending && !isVerified && !isEscalated) return;
     tickRef.current = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(tickRef.current);
   }, [selectedReport?.id, selectedReport?.status]);
@@ -93,22 +97,7 @@ export function Report({ session }: { session: UserSession }) {
       return;
     }
 
-    const newStatus = action === 'Cancel' ? 'dismissed' : 'escalated';
-    const now = new Date().toISOString();
-    const byName = session.userName ?? 'You';
     const comment = reportComment.trim();
-
-    // Optimistic update — close modal feel + immediate list + audit trail
-    const patch: Partial<ReportHistoryItem> = { status: newStatus };
-    if (action === 'Escalate') {
-      patch.escalatedAt = now; patch.escalatedBy = byName; patch.escalatedComment = comment || null;
-    } else {
-      patch.dismissedAt = now; patch.dismissedBy = byName; patch.dismissedComment = comment;
-    }
-    setHistory(prev => prev.map(r => r.id === selectedReport.id ? { ...r, ...patch } : r));
-    setSelectedReport(prev => prev ? { ...prev, ...patch } : prev);
-    setReportComment('');
-
     setIsUpdatingStatus(true);
     try {
       const res = await fetch(
@@ -126,8 +115,21 @@ export function Report({ session }: { session: UserSession }) {
       if (!res.ok) {
         const error = await res.json();
         alert(error.error || 'Failed to update status');
-        fetchHistory(); // reconcile on error
+        return;
       }
+      // Only patch state after confirmed success to avoid false audit trail flash
+      const newStatus = action === 'Cancel' ? 'dismissed' : 'escalated';
+      const now = new Date().toISOString();
+      const byName = session.userName ?? 'You';
+      const patch: Partial<ReportHistoryItem> = { status: newStatus };
+      if (action === 'Escalate') {
+        patch.escalatedAt = now; patch.escalatedBy = byName; patch.escalatedComment = comment || null;
+      } else {
+        patch.dismissedAt = now; patch.dismissedBy = byName; patch.dismissedComment = comment;
+      }
+      setHistory(prev => prev.map(r => r.id === selectedReport.id ? { ...r, ...patch } : r));
+      setSelectedReport(prev => prev ? { ...prev, ...patch } : prev);
+      setReportComment('');
     } catch (err) {
       console.error(err);
       alert('Network error updating status.');
@@ -141,16 +143,25 @@ export function Report({ session }: { session: UserSession }) {
     return <CreateReport session={session} onBack={() => setView('dashboard')} />;
   }
 
-  // Computed synchronously on every render so the button is never briefly enabled.
+  // Computed synchronously on every render so buttons are never briefly enabled.
   const escalateSecondsLeft = (() => {
     if (!selectedReport) return 0;
-    const isPending  = selectedReport.status === 'pending';
+    const isPending = selectedReport.status === 'pending';
     const isVerified = selectedReport.status === 'verified';
     if (!isPending && !isVerified) return 0;
     const base = isPending && selectedReport.createdAt
-      ? new Date(selectedReport.createdAt).getTime()
+      ? new Date(/[Z+]/.test(selectedReport.createdAt) ? selectedReport.createdAt : selectedReport.createdAt + 'Z').getTime()
       : isVerified && selectedReport.verifiedAt
-      ? parseMYTDatetime(selectedReport.verifiedAt).getTime()
+        ? parseMYTDatetime(selectedReport.verifiedAt).getTime()
+        : null;
+    if (!base) return 0;
+    return Math.max(0, Math.ceil((2 * 60 * 1000 - (Date.now() - base)) / 1000));
+  })();
+
+  const reEscalateSecondsLeft = (() => {
+    if (!selectedReport || selectedReport.status !== 'escalated') return 0;
+    const base = selectedReport.escalatedAt
+      ? parseMYTDatetime(selectedReport.escalatedAt).getTime()
       : null;
     if (!base) return 0;
     return Math.max(0, Math.ceil((2 * 60 * 1000 - (Date.now() - base)) / 1000));
@@ -165,17 +176,17 @@ export function Report({ session }: { session: UserSession }) {
 
   const displayedHistory = isExpanded ? filteredHistory : filteredHistory.slice(0, 3);
 
-  // Build audit trail steps for the currently selected report
+  //  audit trail 
   const auditSteps: { label: string; by?: string | null; at?: string | null; comment?: string | null; color: string; bg: string }[] = [];
   if (selectedReport) {
     if (selectedReport.verifiedAt || selectedReport.verifiedBy)
-      auditSteps.push({ label: 'Verified',  by: selectedReport.verifiedBy,  at: selectedReport.verifiedAt,  comment: selectedReport.verifiedComment,  ...STATUS_THEME.verified });
+      auditSteps.push({ label: 'Verified', by: selectedReport.verifiedBy, at: selectedReport.verifiedAt, comment: selectedReport.verifiedComment, ...STATUS_THEME.verified });
     if (selectedReport.escalatedAt || selectedReport.escalatedBy)
       auditSteps.push({ label: 'Escalated', by: selectedReport.escalatedBy, at: selectedReport.escalatedAt, comment: selectedReport.escalatedComment, ...STATUS_THEME.escalated });
     if (selectedReport.enrouteAt || selectedReport.enrouteBy)
-      auditSteps.push({ label: 'En Route',  by: selectedReport.enrouteBy,   at: selectedReport.enrouteAt,  comment: selectedReport.enrouteComment,   ...STATUS_THEME.en_route });
+      auditSteps.push({ label: 'En Route', by: selectedReport.enrouteBy, at: selectedReport.enrouteAt, comment: selectedReport.enrouteComment, ...STATUS_THEME.en_route });
     if (selectedReport.resolvedAt || selectedReport.resolvedBy)
-      auditSteps.push({ label: 'Resolved',  by: selectedReport.resolvedBy,  at: selectedReport.resolvedAt,  comment: selectedReport.resolvedComment,  ...STATUS_THEME.resolved });
+      auditSteps.push({ label: 'Resolved', by: selectedReport.resolvedBy, at: selectedReport.resolvedAt, comment: selectedReport.resolvedComment, ...STATUS_THEME.resolved });
     if (selectedReport.dismissedAt || selectedReport.dismissedBy)
       auditSteps.push({ label: 'Dismissed', by: selectedReport.dismissedBy, at: selectedReport.dismissedAt, comment: selectedReport.dismissedComment, ...STATUS_THEME.dismissed });
   }
@@ -211,7 +222,7 @@ export function Report({ session }: { session: UserSession }) {
         Create New Report
       </button>
 
-      {/* My Report History */}
+      {/*  Report History */}
       <div className="pt-2">
         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider px-1 mb-2">My Reports</p>
         <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
@@ -355,7 +366,7 @@ export function Report({ session }: { session: UserSession }) {
                               {s.label} By: {s.by ?? 'N/A'}
                             </span>
                             {s.at && (
-                              <span className="text-[10px] font-medium opacity-60" style={{ color: s.color }}>{s.at}</span>
+                              <span className="text-[10px] font-medium opacity-60" style={{ color: s.color }}>{formatTime(s.at, format)}</span>
                             )}
                           </div>
                           <div className="text-[11px] italic text-gray-700 border-l-2 pl-3" style={{ borderColor: s.color + '50' }}>
@@ -367,41 +378,106 @@ export function Report({ session }: { session: UserSession }) {
                   </div>
                 )}
 
-                {/* Actions — pending (cancel + escalate) or verified (escalate only) */}
-                {(selectedReport.status === 'pending' || selectedReport.status === 'verified') && (
+                {/* Actions — pending: cancel + escalate countdown/button */}
+                {selectedReport.status === 'pending' && (
                   <div className="pt-2 border-t border-gray-100 space-y-3">
                     <textarea
                       value={reportComment}
                       onChange={e => setReportComment(e.target.value)}
-                      placeholder={
-                        selectedReport.status === 'pending'
-                          ? 'Add a comment… (optional for escalate, required for cancel)'
-                          : 'Add a comment explaining why you\'re escalating… (optional)'
-                      }
+                      placeholder="Add a comment… (optional for escalate, required for cancel)"
                       className="w-full text-sm p-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/20"
                       rows={2}
                     />
                     <div className="flex gap-2">
-                      {selectedReport.status === 'pending' && (
+                      <button
+                        onClick={() => handleUpdateStatus('Cancel')}
+                        disabled={isUpdatingStatus || !reportComment.trim()}
+                        className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold disabled:opacity-50"
+                      >
+                        Cancel Report
+                      </button>
+                      {escalateSecondsLeft > 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center py-2">
+                          <p className="text-[10px] text-gray-400">Escalate in</p>
+                          <p className="text-sm font-bold" style={{ color: '#D34026' }}>
+                            {Math.floor(escalateSecondsLeft / 60)}:{String(escalateSecondsLeft % 60).padStart(2, '0')}
+                          </p>
+                        </div>
+                      ) : (
                         <button
-                          onClick={() => handleUpdateStatus('Cancel')}
-                          disabled={isUpdatingStatus || !reportComment.trim()}
-                          className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold disabled:opacity-50"
+                          onClick={() => handleUpdateStatus('Escalate')}
+                          disabled={isUpdatingStatus}
+                          className="flex-1 py-3 text-white rounded-xl text-sm font-bold disabled:opacity-60 tracking-wide"
+                          style={{ backgroundColor: '#D34026' }}
                         >
-                          Cancel Report
+                          Escalate
                         </button>
                       )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions — verified: escalate countdown/button */}
+                {selectedReport.status === 'verified' && (
+                  <div className="pt-2 border-t border-gray-100 space-y-3">
+                    <textarea
+                      value={reportComment}
+                      onChange={e => setReportComment(e.target.value)}
+                      placeholder="Add a comment explaining why you're escalating… (optional)"
+                      className="w-full text-sm p-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/20"
+                      rows={2}
+                    />
+                    {escalateSecondsLeft > 0 ? (
+                      <div className="text-center py-2">
+                        <p className="text-xs text-gray-400">Escalate available if no response in</p>
+                        <p className="text-sm font-bold mt-0.5" style={{ color: '#D34026' }}>
+                          {Math.floor(escalateSecondsLeft / 60)}:{String(escalateSecondsLeft % 60).padStart(2, '0')}
+                        </p>
+                      </div>
+                    ) : (
                       <button
                         onClick={() => handleUpdateStatus('Escalate')}
-                        disabled={isUpdatingStatus || escalateSecondsLeft > 0}
-                        className="flex-1 py-3 text-white rounded-xl text-sm font-bold disabled:opacity-60 tracking-wide"
+                        disabled={isUpdatingStatus}
+                        className="w-full py-3 text-white rounded-xl text-sm font-bold disabled:opacity-60 tracking-wide"
                         style={{ backgroundColor: '#D34026' }}
                       >
-                        {escalateSecondsLeft > 0
-                          ? `Escalate in ${Math.floor(escalateSecondsLeft / 60)}:${String(escalateSecondsLeft % 60).padStart(2, '0')}`
-                          : 'Escalate'}
+                        Escalate
                       </button>
-                    </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Actions: re-escalate countdown/button */}
+                {selectedReport.status === 'escalated' && (
+                  <div className="pt-2 border-t border-gray-100 space-y-3">
+                    <textarea
+                      value={reportComment}
+                      onChange={e => setReportComment(e.target.value)}
+                      placeholder="Add a comment for re-escalation… (optional)"
+                      className="w-full text-sm p-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#0B4F6C]/20"
+                      rows={2}
+                    />
+                    {reEscalateSecondsLeft > 0 ? (
+                      <div className="text-center py-2">
+                        <p className="text-xs text-gray-400">Waiting for auxiliary response…</p>
+                        <p className="text-sm font-bold mt-0.5" style={{ color: '#D34026' }}>
+                          {Math.floor(reEscalateSecondsLeft / 60)}:{String(reEscalateSecondsLeft % 60).padStart(2, '0')}
+                        </p>
+                        <p className="text-[10px] text-gray-300 mt-0.5">Re-escalate available after 2 minutes</p>
+                      </div>
+                    ) : (
+                      <div>
+                        <button
+                          onClick={() => handleUpdateStatus('Escalate')}
+                          disabled={isUpdatingStatus}
+                          className="w-full py-3 text-white rounded-xl text-sm font-bold disabled:opacity-60 tracking-wide"
+                          style={{ backgroundColor: '#D34026' }}
+                        >
+                          Re-Escalate
+                        </button>
+                        <p className="text-[10px] text-gray-400 text-center mt-1">No response received after 2 minutes</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

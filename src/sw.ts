@@ -15,7 +15,6 @@ clientsClaim()
 
 precacheAndRoute(self.__WB_MANIFEST)
 
-// API reads — serve last cached response when offline
 registerRoute(
   ({ url }) => url.pathname.startsWith('/api/data'),
   new NetworkFirst({
@@ -28,7 +27,6 @@ registerRoute(
   })
 )
 
-// Google Fonts
 registerRoute(
   ({ url }) => url.origin === 'https://fonts.googleapis.com',
   new CacheFirst({
@@ -51,7 +49,6 @@ registerRoute(
   })
 )
 
-// S3 assets (app icons, images) — cache for 30 days so they work offline
 registerRoute(
   ({ url }) => url.hostname === 'railly.s3.ap-southeast-1.amazonaws.com',
   new CacheFirst({
@@ -63,7 +60,6 @@ registerRoute(
   })
 )
 
-// Offline fallback — serve /offline.html for any uncached navigation request
 setCatchHandler(async ({ event }) => {
   if ((event as FetchEvent).request.destination === 'document') {
     return (await matchPrecache('/offline.html')) ?? Response.error()
@@ -71,7 +67,6 @@ setCatchHandler(async ({ event }) => {
   return Response.error()
 })
 
-// ── Background Sync — flush queued offline reports ─────────────────────────
 
 const IDB_NAME = 'railly-offline';
 const IDB_STORE = 'pending-reports';
@@ -87,14 +82,24 @@ function openIDB(): Promise<IDBDatabase> {
 
 async function flushQueuedReports(): Promise<void> {
   const db = await openIDB();
+
   const reports: any[] = await new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE, 'readonly');
-    const req = tx.objectStore(IDB_STORE).getAll();
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    const store = tx.objectStore(IDB_STORE);
+    const getReq = store.getAll();
+    getReq.onsuccess = () => {
+      const rows = getReq.result as any[];
+      rows.forEach(r => store.delete(r.id));
+      tx.oncomplete = () => resolve(rows);
+      tx.onerror = () => reject(tx.error);
+    };
+    getReq.onerror = () => reject(getReq.error);
   });
 
+  if (reports.length === 0) { db.close(); return; }
+
   const apiBase = import.meta.env.VITE_API_BASE as string;
+  const requeue: any[] = [];
 
   for (const report of reports) {
     try {
@@ -104,7 +109,7 @@ async function flushQueuedReports(): Promise<void> {
         body: JSON.stringify(report.payload),
         credentials: 'include',
       });
-      if (!res.ok) continue;
+      if (!res.ok) { requeue.push(report); continue; }
 
       const { reportId } = await res.json().catch(() => ({}));
 
@@ -121,17 +126,22 @@ async function flushQueuedReports(): Promise<void> {
           });
         } catch { /* photo upload failure is non-fatal */ }
       }
-
-      await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(IDB_STORE, 'readwrite');
-        tx.objectStore(IDB_STORE).delete(report.id);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
     } catch {
-      break; // still offline
+      requeue.push(report);
+      for (let i = reports.indexOf(report) + 1; i < reports.length; i++) requeue.push(reports[i]);
+      break;
     }
   }
+
+  if (requeue.length > 0) {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      requeue.forEach(r => tx.objectStore(IDB_STORE).put(r));
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
   db.close();
 }
 
@@ -141,7 +151,6 @@ self.addEventListener('sync', (event: Event) => {
   }
 });
 
-// ── Push notifications ─────────────────────────────────────────────────────
 
 self.addEventListener('push', (event: PushEvent) => {
   let data: { title?: unknown; body?: unknown; url?: unknown; tag?: unknown } = {}

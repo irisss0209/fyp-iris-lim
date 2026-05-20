@@ -112,8 +112,6 @@ export function ForgotPasswordPage({ onBack }: ForgotPasswordPageProps) {
   };
 
   const verifyOtp = async (code: string): Promise<boolean> => {
-    // Validate the OTP format client-side; the code is verified by the server
-    // when the user submits their new password via handlePasswordSubmit.
     if (!code || code.trim().length === 0) return false;
     setVerifiedCode(code.trim());
     setStep('password');
@@ -131,7 +129,6 @@ export function ForgotPasswordPage({ onBack }: ForgotPasswordPageProps) {
       const data = await response.json();
       if (response.ok) setChallengeId(data.challengeId);
     } catch {
-      // silently fail — MfaVerification handles the resend countdown
     }
   };
 

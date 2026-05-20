@@ -15,7 +15,6 @@ namespace backend.Models
         [MaxLength(50)]
         public string LineId { get; set; } = null!;
 
-        // 'Active' | 'Inactive' | 'Maintenance'
         [Required]
         [Column("status")]
         public AssetStatus Status { get; set; } = AssetStatus.Active;
@@ -23,7 +22,6 @@ namespace backend.Models
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        // Navigation
         [ForeignKey(nameof(LineId))]
         public TrainLine TrainLine { get; set; } = null!;
 

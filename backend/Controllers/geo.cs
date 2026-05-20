@@ -45,7 +45,6 @@ namespace backend.Controllers
         }
 
         // POST /api/stations/geocode
-        // Fallback chain: Wikipedia (coordinates + wikitext) → Wikidata → Overpass → Nominatim → Google
         [Authorize(Roles = "operator")]
         [HttpPost("geocode")]
         public async Task<IActionResult> GeocodeStations()
@@ -108,7 +107,7 @@ namespace backend.Controllers
                     failed.Add(new { station.StationId, station.StationName, reason = "No results from any source" });
                 }
 
-                await Task.Delay(300); // Nominatim policy: max 1 req/sec
+                await Task.Delay(300); 
             }
 
             await _context.SaveChangesAsync();
@@ -121,7 +120,7 @@ namespace backend.Controllers
             });
         }
 
-        // ── Wikipedia ─────────────────────────────────────────────────────────────
+        // Wikipedia 
 
         private async Task<(double lat, double lng, string source)?> SearchWikipedia(string cleanName, string typeHint)
         {
@@ -142,7 +141,6 @@ namespace backend.Controllers
                     if (result.HasValue) return result;
                 }
 
-                // Fall back to Wikipedia search API
                 var searchUrl = $"https://en.wikipedia.org/w/api.php" +
                                 $"?action=query&list=search" +
                                 $"&srsearch={Uri.EscapeDataString($"{cleanName} {typeHint} station Malaysia")}" +
@@ -168,7 +166,6 @@ namespace backend.Controllers
             }
         }
 
-        // Tries prop=coordinates first; falls back to raw wikitext parsing for infobox coords
         private async Task<(double lat, double lng, string source)?> FetchWikipediaCoords(string pageTitle)
         {
             try
@@ -226,12 +223,10 @@ namespace backend.Controllers
 
                     string wikitext;
                     var rev = revs[0];
-                    // New-style slot API
                     if (rev.TryGetProperty("slots", out var slots) &&
                         slots.TryGetProperty("main", out var main) &&
                         main.TryGetProperty("*", out var content))
                         wikitext = content.GetString() ?? "";
-                    // Legacy API
                     else if (rev.TryGetProperty("*", out var legacyContent))
                         wikitext = legacyContent.GetString() ?? "";
                     else
@@ -250,7 +245,6 @@ namespace backend.Controllers
             }
         }
 
-        // Parses {{coord|3|06|15|N|101|38|16|E}} (DMS) or {{coord|3.104|N|101.638|E}} (decimal)
         private static (double lat, double lng)? ParseCoordsFromWikitext(string wikitext)
         {
             var m = Regex.Match(wikitext, @"\{\{[Cc]oord\|([^}]+)\}\}");
@@ -260,7 +254,6 @@ namespace backend.Controllers
 
             try
             {
-                // DMS: deg|min|sec|N/S|deg|min|sec|E/W
                 if (parts.Length >= 8 &&
                     (parts[3] == "N" || parts[3] == "S") &&
                     (parts[7] == "E" || parts[7] == "W"))
@@ -272,7 +265,6 @@ namespace backend.Controllers
                     return (lat, lng);
                 }
 
-                // DM: deg|min|N/S|deg|min|E/W
                 if (parts.Length >= 6 &&
                     (parts[2] == "N" || parts[2] == "S") &&
                     (parts[5] == "E" || parts[5] == "W"))
@@ -282,7 +274,6 @@ namespace backend.Controllers
                     return (lat, lng);
                 }
 
-                // Decimal: lat|N/S|lon|E/W
                 if (parts.Length >= 4 &&
                     (parts[1] == "N" || parts[1] == "S") &&
                     (parts[3] == "E" || parts[3] == "W"))
@@ -297,9 +288,7 @@ namespace backend.Controllers
             return null;
         }
 
-        // ── Wikidata ───────────────────────────────────────────────────────────────
 
-        // Searches Wikidata entity API then fetches P625 (coordinate location)
         private async Task<(double lat, double lng, string source)?> SearchWikidata(string cleanName, string typeHint)
         {
             try
@@ -329,7 +318,6 @@ namespace backend.Controllers
                         var qid   = item.GetProperty("id").GetString()!;
                         var label = item.TryGetProperty("label", out var lbl) ? lbl.GetString() ?? "" : "";
 
-                        // Skip items that clearly aren't stations
                         if (!label.Contains("station", StringComparison.OrdinalIgnoreCase) &&
                             !label.Contains(cleanName, StringComparison.OrdinalIgnoreCase))
                             continue;
@@ -366,13 +354,12 @@ namespace backend.Controllers
             }
         }
 
-        // ── Overpass / OSM ─────────────────────────────────────────────────────────
+        //  Overpass / OSM 
 
         private async Task<(double lat, double lng, string source)?> SearchOverpass(string cleanName)
         {
             try
             {
-                // Try exact name first, then case-insensitive regex
                 foreach (var nameFilter in new[]
                 {
                     $"[\"name\"=\"{cleanName}\"]",
@@ -411,7 +398,7 @@ namespace backend.Controllers
             }
         }
 
-        // ── Nominatim ──────────────────────────────────────────────────────────────
+        //  Nominatim 
 
         private async Task<(double lat, double lng, string source)?> SearchNominatim(string cleanName, string originalName)
         {
@@ -439,7 +426,7 @@ namespace backend.Controllers
             }
         }
 
-        // ── Google Geocoding ───────────────────────────────────────────────────────
+        //  Google Geocoding 
 
         private async Task<(double lat, double lng, string source)?> SearchGoogle(string stationName, string apiKey)
         {
@@ -469,13 +456,11 @@ namespace backend.Controllers
             }
         }
 
-        // ── Helpers ────────────────────────────────────────────────────────────────
+        //  Helpers 
 
         private static string CleanStationName(string name)
         {
-            // Remove parenthetical transit types first
             var cleaned = Regex.Replace(name, @"\s*\((MRT|Monorail|LRT)\)", "", RegexOptions.IgnoreCase);
-            // Remove standalone transit types at the end of the name
             cleaned = Regex.Replace(cleaned, @"\s+(MRT|Monorail|LRT)$", "", RegexOptions.IgnoreCase);
             return cleaned.Trim();
         }
@@ -490,7 +475,7 @@ namespace backend.Controllers
         private static bool IsWithinMalaysia(double lat, double lng) =>
             lat is >= 0.8 and <= 7.5 && lng is >= 99.6 and <= 119.5;
 
-        // ── GET /api/stations/nearby ───────────────────────────────────────────────
+        //  GET /api/stations/nearby 
 
         [Authorize]
         [HttpGet("nearby")]

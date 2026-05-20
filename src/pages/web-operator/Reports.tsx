@@ -47,7 +47,6 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
 
   const getToken = () => session?.token;
 
-  // ── Data fetching ────────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
       try {
@@ -126,9 +125,8 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
       .catch(err => { if (err.name !== 'AbortError') setAiSummaryError(true); })
       .finally(() => setAiSummaryLoading(false));
     return () => controller.abort();
-  }, [loading, data]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, data]); 
 
-  // ── Derived analytics ────────────────────────────────────────────────────────
   const allIncidents = data?.incidents ?? [];
   const stats = data?.stats;
 
@@ -224,7 +222,6 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((filter.page - 1) * PAGE_SIZE, filter.page * PAGE_SIZE);
 
-  // ── Exports ──────────────────────────────────────────────────────────────────
   const exportCSV = () => {
     const headers = [
       'Case ID', 'Train', 'Coach', 'Line', 'Type',
@@ -307,7 +304,6 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
     }
   };
 
-  // ── Render ───────────────────────────────────────────────────────────────────
   const tabs = [
     { id: 'overview' as ReportTab, label: 'Overview' },
     { id: 'incidents' as ReportTab, label: 'Incident Reports' },
@@ -384,7 +380,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
         </div>
       )}
 
-      {/* ── Overview Tab ────────────────────────────────────────────────────────── */}
+      {/*  Overview Tab */}
       {!loading && activeTab === 'overview' && (
         <div className="space-y-5">
 
@@ -449,7 +445,7 @@ export function Reports({ session }: { session?: { token?: string } | null }) {
         </div>
       )}
 
-      {/* ── Incidents Tab ────────────────────────────────────────────────────────── */}
+      {/* Incidents Tab */}
       {!loading && activeTab === 'incidents' && (
         <div className="space-y-4">
           <div className="flex items-center gap-2 flex-wrap">

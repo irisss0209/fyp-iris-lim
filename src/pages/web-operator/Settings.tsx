@@ -18,8 +18,7 @@ export function Settings({ onNavigate }: { onNavigate: (page: Page) => void }) {
   }, [format]);
 
   useEffect(() => {
-    // We no longer need to check for a token here because the global fetch patch
-    // handles credentials (cookies) automatically.
+
     fetch(`${API}/operator/settings`, { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
@@ -34,7 +33,6 @@ export function Settings({ onNavigate }: { onNavigate: (page: Page) => void }) {
   const handleSave = async () => {
     setIsSaving(true);
 
-    // Apply locally first so format updates immediately across the app.
     setFormat(timeFormat);
     localStorage.setItem("soundAlerts", soundAlerts);
     localStorage.setItem("timeFormat", timeFormat);
@@ -57,7 +55,6 @@ export function Settings({ onNavigate }: { onNavigate: (page: Page) => void }) {
         return;
       }
 
-      // Sync browser push subscription with the saved preference
       if (soundAlerts === 'off') {
         await unsubscribeFromPush();
       } else {
@@ -84,7 +81,7 @@ export function Settings({ onNavigate }: { onNavigate: (page: Page) => void }) {
 
       <div className="w-full space-y-4">
 
-        {/* SOUND ALERTS - DROPDOWN */}
+        {/* SOUND ALERTS  */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4 flex-1">
             <div className="w-12 h-12 rounded-xl bg-[#0B4F6C]/10 flex items-center justify-center text-[#0B4F6C] flex-shrink-0">
@@ -127,7 +124,7 @@ export function Settings({ onNavigate }: { onNavigate: (page: Page) => void }) {
           </div>
         </div>
 
-        {/* TIME FORMAT - TOGGLE */}
+        {/* TIME FORMAT*/}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4 flex-1">
             <div className="w-12 h-12 rounded-xl bg-[#0B4F6C]/10 flex items-center justify-center text-[#0B4F6C] flex-shrink-0">

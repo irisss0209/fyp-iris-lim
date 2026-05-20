@@ -27,27 +27,25 @@ export function App() {
   const [setupEmail, setSetupEmail] = useState('');
   const [pendingMfa, setPendingMfa] = useState<any>(null);
 
-  // On mount, restore session from HttpOnly cookie only
   useEffect(() => {
     localStorage.removeItem('user_session'); // clear any legacy stored session
     fetch(`${API_BASE}/api/auth/me`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.userId) setSession(data); })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setIsLoading(false));
   }, []);
 
-  // Subscribe to push notifications after login
   useEffect(() => {
     if (!session?.userId) return;
     requestAndSubscribe();
   }, [session?.userId]);
 
-  // Auto-flush queued offline reports when connection is restored
   useEffect(() => {
     if (!session) return;
     const handleOnline = () => flushPendingReports(API_BASE);
     window.addEventListener('online', handleOnline);
+    if (navigator.onLine) flushPendingReports(API_BASE);
     return () => window.removeEventListener('online', handleOnline);
   }, [session]);
 
@@ -60,14 +58,13 @@ export function App() {
     fetch(`${API_BASE}/api/auth/logout`, {
       method: 'POST',
       credentials: 'include'
-    }).catch(() => {});
-    unsubscribeFromPush().catch(() => {});
+    }).catch(() => { });
+    unsubscribeFromPush().catch(() => { });
     navigator.serviceWorker?.controller?.postMessage({ type: 'CLEAR_SENSITIVE_CACHES' });
     setSession(null);
     setAuthView('login');
   };
 
-  // Auto-logout when any API call returns 401 (cookie expired)
   useEffect(() => {
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
@@ -147,7 +144,6 @@ export function App() {
           )}
         </>
       ) : (
-        // ✅ Logged in → route based on role
         (() => {
           switch (session.role) {
             case 'operator':

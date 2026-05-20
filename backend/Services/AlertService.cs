@@ -70,7 +70,7 @@ namespace backend.Services
                 source = "unknown";
             }
 
-            // --- IMAGE URL PRESIGNING ---
+            // s3 image presigned URLs
             if (!string.IsNullOrEmpty(imageUrl) && imageUrl.Contains(".amazonaws.com/"))
             {
                 try
@@ -79,7 +79,6 @@ namespace backend.Services
                     {
                         var key = uri.AbsolutePath.TrimStart('/');
                         
-                        // Handle cases where the bucket name might be in the path (path-style URLs)
                         if (key.StartsWith("railly/"))
                         {
                             key = key.Substring("railly/".Length);
@@ -98,7 +97,7 @@ namespace backend.Services
 
             const string isoFmt = "yyyy-MM-ddTHH:mm:ss";
             
-            // Apply +8h offset for display (Malaysia/Singapore time)
+            // +8h offset for MYT 
             var localTime = i.CreatedAt.AddHours(8);
 
             static string? LocalFmt(DateTime? dt) =>

@@ -15,7 +15,6 @@ import { IncidentNearMe } from './IncidentNearMe';
 import { Insights } from './Insights';
 import { ChangePasswordPage } from '../auth/ChangePasswordPage';
 import { UserSession } from '../../types/session';
-import { flushPendingReports } from '../../utils/offlineQueue';
 
 export interface PassengerInterface {
   session: UserSession;
@@ -35,16 +34,6 @@ const TABS: { id: Tab; icon: React.ElementType; label: string }[] = [
 export function PassengerInterface({ session, onLogout }: PassengerInterface) {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [showChangePassword, setShowChangePassword] = useState(false);
-
-  useEffect(() => {
-    const handleOnline = async () => {
-      await flushPendingReports(import.meta.env.VITE_API_BASE);
-    };
-    window.addEventListener('online', handleOnline);
-    // Also try on mount in case they were offline and came back
-    if (navigator.onLine) handleOnline();
-    return () => window.removeEventListener('online', handleOnline);
-  }, []);
 
   return (
     <div
@@ -71,30 +60,6 @@ export function PassengerInterface({ session, onLogout }: PassengerInterface) {
           Please use a mobile device
         </div>
       </div>
-
-      {/* ── Top Header (Commented Out) ── */}
-      {/* 
-      <div
-        className="flex items-center justify-between px-5 pt-12 pb-4 flex-shrink-0"
-        style={{ background: '#FAF9F5' }}
-      >
-        <div className="flex items-center gap-2.5">
-          <div
-            className="w-9 h-9 rounded-lg flex-shrink-0"
-            style={{
-              backgroundImage: 'url(/Railly_logo.png)',
-              backgroundSize: '100%',
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat',
-            }}
-          />
-          <div>
-            <p className="text-black font-bold text-sm leading-none">Railly</p>
-            <p className="text-gray-400 text-xs mt-0.5">For Safer Transit</p>
-          </div>
-        </div>
-      </div> 
-      */}
 
       {/* ── Scrollable Content ── */}
       <div className="flex-1 overflow-y-auto" style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}>

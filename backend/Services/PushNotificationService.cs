@@ -134,7 +134,6 @@ namespace backend.Services
             await NotifyOperators(context, opTitle, opBody, alertId, actedByUserId);
         }
 
-        // ── Passenger: notify the reporter ────────────────────────────────────────
 
         private async Task NotifyReporter(AppDbContext context, string userId, string title, string body, string alertId, string? actedByUserId)
         {
@@ -172,7 +171,7 @@ namespace backend.Services
                 foreach (var sid in nearby) allowedStationIds.Add(sid);
             }
 
-            var todayMyt = DateTime.UtcNow.AddHours(8).Date; // ShiftDate stores MYT calendar dates
+            var todayMyt = DateTime.UtcNow.AddHours(8).Date; 
             var auxUserIds = await context.AuxiliaryShifts
                 .Where(s => s.ShiftDate.Date == todayMyt && allowedStationIds.Contains(s.StationId))
                 .Select(s => s.UserId)
@@ -198,7 +197,6 @@ namespace backend.Services
             await Task.WhenAll(sendTasks);
         }
 
-        // ── Operator: notify all, respecting their preference ──────────────────────
 
         private async Task NotifyOperators(AppDbContext context, string title, string body, string alertId, string? actedByUserId)
         {
@@ -239,8 +237,7 @@ namespace backend.Services
             await Task.WhenAll(sendTasks);
         }
 
-        // ── VAPID push sender ──────────────────────────────────────────────────────
-
+        //VAPID push
         private async Task SendPush(AppDbContext context, Models.PushSubscription sub, string title, string body, string url, string tag)
         {
             var subscription = new WebPushSub(sub.Endpoint, sub.P256DH, sub.Auth);

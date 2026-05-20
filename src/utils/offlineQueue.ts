@@ -82,11 +82,29 @@ export async function removeReport(id: string): Promise<void> {
   db.close();
 }
 
+async function claimAllReports(): Promise<PendingReport[]> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    const store = tx.objectStore(STORE);
+    const getReq = store.getAll();
+    getReq.onsuccess = () => {
+      const reports: PendingReport[] = getReq.result;
+      reports.forEach(r => store.delete(r.id));
+      tx.oncomplete = () => { db.close(); resolve(reports); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    };
+    getReq.onerror = () => { db.close(); reject(getReq.error); };
+  });
+}
+
 export async function flushPendingReports(apiBase: string): Promise<number> {
-  const pending = await getPendingReports();
+  const pending = await claimAllReports();
   if (pending.length === 0) return 0;
 
   let flushed = 0;
+  const requeue: PendingReport[] = [];
+
   for (const report of pending) {
     try {
       const res = await fetch(`${apiBase}/api/data/report`, {
@@ -95,7 +113,7 @@ export async function flushPendingReports(apiBase: string): Promise<number> {
         body: JSON.stringify(report.payload),
         credentials: 'include',
       });
-      if (!res.ok) continue;
+      if (!res.ok) { requeue.push(report); continue; }
 
       const { reportId } = await res.json().catch(() => ({}));
 
@@ -115,11 +133,25 @@ export async function flushPendingReports(apiBase: string): Promise<number> {
         } catch { /* photo upload failure is non-fatal */ }
       }
 
-      await removeReport(report.id);
       flushed++;
     } catch {
-      break; // still offline
+      requeue.push(report);
+      // Re-add remaining reports we haven't tried yet
+      for (let i = pending.indexOf(report) + 1; i < pending.length; i++) requeue.push(pending[i]);
+      break;
     }
   }
+
+  // Put back anything that failed
+  if (requeue.length > 0) {
+    const db = await openDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      requeue.forEach(r => tx.objectStore(STORE).put(r));
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    });
+  }
+
   return flushed;
 }

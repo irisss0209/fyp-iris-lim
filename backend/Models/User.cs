@@ -45,7 +45,6 @@ namespace backend.Models
         [Column("MfaEnabled")]
         public bool IsMfaEnabled { get; set; } = false;
 
-        // Navigation
         public ICollection<UserReport> UserReports { get; set; } = [];
     }
 }

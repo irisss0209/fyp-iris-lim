@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { HubConnectionBuilder } from '@microsoft/signalr';
 
-export function useAlertHub(onUpdate: () => void, enabled = true) {
+export function useAlertHub(onSignalR: (data?: any) => void, onVisible?: () => void, enabled = true) {
   useEffect(() => {
     if (!enabled) return;
 
@@ -10,16 +10,19 @@ export function useAlertHub(onUpdate: () => void, enabled = true) {
       .withAutomaticReconnect()
       .build();
 
-    connection.on('IncidentStatusChanged', onUpdate);
-    connection.on('NewIncident', onUpdate);
+    connection.on('IncidentStatusChanged', onSignalR);
+    connection.on('NewIncident', onSignalR);
     connection.start().catch(console.error);
 
-    const onVisible = () => { if (document.visibilityState === 'visible') onUpdate(); };
-    document.addEventListener('visibilitychange', onVisible);
+    if (onVisible) {
+      const handleVisible = () => { if (document.visibilityState === 'visible') onVisible(); };
+      document.addEventListener('visibilitychange', handleVisible);
+      return () => {
+        connection.stop();
+        document.removeEventListener('visibilitychange', handleVisible);
+      };
+    }
 
-    return () => {
-      connection.stop();
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [onUpdate, enabled]);
+    return () => { connection.stop(); };
+  }, [onSignalR, onVisible, enabled]);
 }

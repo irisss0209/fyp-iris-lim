@@ -38,7 +38,6 @@ namespace backend.Models
         [MaxLength(50)]
         public string StationId { get; set; } = null!;
 
-        // Navigation
         [ForeignKey(nameof(CameraId))]
         public Camera? Camera { get; set; }
 

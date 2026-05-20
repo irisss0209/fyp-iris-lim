@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { ClockIcon, MapPinIcon } from 'lucide-react';
 import { getMYTDateStr } from '../../utils/myt';
+import { formatClockTime } from '../../utils/Time';
+import { useTime } from '../../context/TimeContext';
 
 const ACCENT = '#0B4F6C';
 
@@ -21,6 +23,7 @@ export interface AuxiliaryShiftProps {
 }
 
 export function AuxiliaryShift({ userId, token, onStationDetected }: AuxiliaryShiftProps) {
+  const { format } = useTime();
   const [shift, setShift] = useState<ShiftData | null>(null);
 
   useEffect(() => {
@@ -61,7 +64,6 @@ export function AuxiliaryShift({ userId, token, onStationDetected }: AuxiliarySh
     );
   }
 
-  // Determine status label
   const todayStr = getMYTDateStr();
   let statusLabel = "Upcoming Shift";
   if (shift.onDuty) {
@@ -121,7 +123,7 @@ export function AuxiliaryShift({ userId, token, onStationDetected }: AuxiliarySh
               className="text-sm font-black"
               style={{ color: shift.onDuty ? 'white' : '#1E293B' }}
             >
-              {shift.shiftStart} – {shift.shiftEnd}
+              {formatClockTime(shift.shiftStart ?? '', format)} – {formatClockTime(shift.shiftEnd ?? '', format)}
             </span>
           </div>
 

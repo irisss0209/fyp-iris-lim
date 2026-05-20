@@ -175,7 +175,6 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
 
             var frontendRole = MapFrontendRole(user.Role);
 
-            // Passenger: single-factor — password alone is enough, no OTP step.
             if (user.Role == UserRole.Passenger)
             {
                 var token = GenerateJwtToken(user, frontendRole);
@@ -305,7 +304,7 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
             var uri = _totpService.GetQrCodeUri(user.Email, secret);
 
             user.MfaSecret = secret;
-            user.IsMfaEnabled = false; // Ensure it's not active yet
+            user.IsMfaEnabled = false; 
             await _context.SaveChangesAsync();
 
             return Ok(new MfaSetupResponse
@@ -366,7 +365,6 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
                 return BadRequest(new { error = "Password has already been set for this account." });
             }
 
-            // Validate new password strength
             var missing = ValidatePasswordStrength(request.Password);
             if (missing.Any())
             {
@@ -442,7 +440,7 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
             if (!result.IsValid)
                 return Unauthorized(new { error = "Invalid or expired verification code." });
 
-            // 2. Re-verify current password (replay attack protection)
+            // 2. Re-verify current password 
             if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
                 return BadRequest(new { error = "Incorrect current password." });
 
@@ -514,7 +512,7 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
                 return Unauthorized(new { error = "Invalid or expired verification code." });
             }
 
-            // 2. Final check for existing user (double safety)
+            // 2. Final check for existing user 
             var existing = await _context.Users.AnyAsync(u => u.Email.ToLower() == request.Email.ToLower());
             if (existing)
             {
@@ -748,7 +746,7 @@ public async Task<IActionResult> CheckAccount([FromBody] CheckAccountRequest req
             {
                 finalChallengeId = challengeId;
                 code = existingCode;
-                expiresInSeconds = 900; // 15 mins for setup
+                expiresInSeconds = 900; 
             }
             else
             {

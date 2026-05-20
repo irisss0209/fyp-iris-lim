@@ -25,13 +25,13 @@ namespace backend.Controllers
         [HttpGet("incident-alerts")]
         public async Task<IActionResult> IncidentAlerts([FromQuery] string? assignedStationId = null)
         {
-            // Preload all line→station mappings once (first station per line by sequence)
+            // Preload all line tostation mappings once 
             var lineStations = await _context.LineStations
                 .Include(ls => ls.Station)
                 .OrderBy(ls => ls.SequenceOrder)
                 .ToListAsync();
 
-            // Resolve lines passing through the assigned station if provided
+            // Resolve lines passing through the assigned station 
             List<string>? allowedLines = null;
             if (!string.IsNullOrEmpty(assignedStationId))
             {
@@ -41,8 +41,7 @@ namespace backend.Controllers
                     .ToList();
             }
 
-            // Default window: last 35 days (covers today + last-week comparison + current month
-            // that the Insights page needs). Filter at DB level — never return all-time data.
+
             var windowStart = MytTodayUtc.AddDays(-35);
 
             var incidentsQuery = _context.Incidents

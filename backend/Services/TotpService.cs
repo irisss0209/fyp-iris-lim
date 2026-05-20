@@ -22,11 +22,9 @@ namespace backend.Services
                 var secretBytes = Base32Encoding.ToBytes(base32Secret);
                 var totp = new Totp(secretBytes);
 
-                // Allow 1 window of drift (30 seconds before/after)
                 var valid = totp.VerifyTotp(code, out _, new VerificationWindow(1, 1));
                 if (!valid) return false;
 
-                // Reject replayed codes within the 90-second acceptance window (RFC 6238)
                 return _usedCodeCache.TryMarkUsed(base32Secret, code);
             }
             catch

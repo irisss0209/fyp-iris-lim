@@ -17,7 +17,6 @@ namespace backend.Models
         [Column("sequence_order")]
         public int SequenceOrder { get; set; }
 
-        // Navigation
         [ForeignKey(nameof(LineId))]
         public TrainLine TrainLine { get; set; } = null!;
 

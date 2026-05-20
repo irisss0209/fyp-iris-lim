@@ -7,7 +7,7 @@ namespace backend.Data
     {
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
-        // ── DbSets ──────────────────────────────────────────────────────────────
+        //  DbSets 
         public DbSet<User>        Users        => Set<User>();
         public DbSet<TrainLine>   TrainLines   => Set<TrainLine>();
         public DbSet<Station>     Stations     => Set<Station>();
@@ -28,11 +28,9 @@ namespace backend.Data
             modelBuilder.Entity<User>()
                 .Property(u => u.Role)
                 .HasColumnType("user_role");
-            // ── Line_Station: composite primary key ──────────────────────────────
             modelBuilder.Entity<LineStation>()
                 .HasKey(ls => new { ls.LineId, ls.StationId });
 
-            // ── Train_Coach: composite primary key (train_id, coach_id) ──────────
             modelBuilder.Entity<TrainCoach>()
                 .HasKey(tc => new { tc.TrainId, tc.CoachId });
 
@@ -42,21 +40,18 @@ namespace backend.Data
                 .HasForeignKey(tc => tc.TrainId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ── Train_Asset → Train_Line FK (uses explicit line_id column) ────────
             modelBuilder.Entity<TrainAsset>()
                 .HasOne(ta => ta.TrainLine)
                 .WithMany(l => l.TrainAssets)
                 .HasForeignKey(ta => ta.LineId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ── Camera: composite FK → Train_Coach ───────────────────────────────
             modelBuilder.Entity<Camera>()
                 .HasOne(c => c.TrainCoach)
                 .WithMany(tc => tc.Cameras)
                 .HasForeignKey(c => new { c.TrainId, c.CoachId })
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ── UserReport: composite FK → Train_Coach ───────────────────────────
             modelBuilder.Entity<UserReport>()
                 .HasOne(r => r.TrainCoach)
                 .WithMany(tc => tc.UserReports)
@@ -64,7 +59,6 @@ namespace backend.Data
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ── Incident: multiple FKs to User need explicit relationship names ──
             modelBuilder.Entity<Incident>()
                 .HasOne(i => i.VerifiedByUser)
                 .WithMany()
@@ -96,14 +90,12 @@ namespace backend.Data
                 .HasForeignKey(i => i.DismissedBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ── PushSubscription → User ──────────────────────────────────────────
             modelBuilder.Entity<PushSubscription>()
                 .HasOne(ps => ps.User)
                 .WithMany()
                 .HasForeignKey(ps => ps.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // ── NotificationPreference → User (PK is also the FK) ────────────────
             modelBuilder.Entity<NotificationPreference>()
                 .ToTable("Notification_Preferences")
                 .HasOne(np => np.User)
@@ -115,7 +107,6 @@ namespace backend.Data
                 .Property(np => np.SoundAlerts)
                 .HasColumnType("sound_alert_mode");
 
-            // ── Incident: one-to-one with Detection / UserReport ─────────────────
             modelBuilder.Entity<Incident>()
                 .HasOne(i => i.Detection)
                 .WithOne(d => d.Incident)
@@ -128,19 +119,16 @@ namespace backend.Data
                 .HasForeignKey<Incident>(i => i.ReportId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ── CHECK constraints (PostgreSQL) ───────────────────────────────────
             modelBuilder.Entity<Incident>()
                 .ToTable(t => t.HasCheckConstraint("chk_incident_source",
                     "detection_id IS NOT NULL OR report_id IS NOT NULL"));
 
-            // ── Detection: composite FK to Line_Station ─────────────────────────
             modelBuilder.Entity<Detection>()
                 .HasOne(d => d.LineStation)
                 .WithMany()
                 .HasForeignKey(d => new { d.LineId, d.StationId })
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ── UserReport: composite FK to Line_Station ────────────────────────
             modelBuilder.Entity<UserReport>()
                 .HasOne(r => r.LineStation)
                 .WithMany()

@@ -87,10 +87,9 @@ export function IncidentNearMe() {
         <h2 className="text-xl font-black text-gray-900 mb-1">Incident Near Me</h2>
         <p className="text-sm text-gray-500">See incidents happening near you.</p>
       </div>
-      {/* Integrated Control Row */}
       <div className={`relative w-full bg-white backdrop-blur-md border border-white/20 transition-all duration-300 ${showLinePicker ? 'rounded-t-[28px] rounded-b-none z-50' : 'rounded-[28px] z-30'}`}>
         <div className="flex items-center gap-2 p-2">
-          {/* Action 1: Detect Location (Simplified Grey-out state) */}
+          {/*  Detect Location */}
           <button
             onClick={handleDetectLocation}
             disabled={isLocating}
@@ -106,7 +105,7 @@ export function IncidentNearMe() {
             </div>
           </button>
 
-          {/* Action 2: Line Trigger */}
+          {/* Line Trigger */}
           <button
             onClick={() => setShowLinePicker(!showLinePicker)}
             className="flex-grow flex flex-col items-start text-left pl-3 pr-4 py-2 rounded-2xl hover:bg-white/10 active:scale-[0.98] transition-all"
@@ -119,7 +118,6 @@ export function IncidentNearMe() {
           </button>
         </div>
 
-        {/* Floating Dropdown (Full-Width, Connected Style) */}
         {showLinePicker && (
           <div className="absolute top-[calc(100%-1px)] left-[-1px] right-[-1px] bg-[#FAF9F5] rounded-b-[28px] border-x border-b border-white/20 shadow-2xl z-[100] overflow-hidden">
             <div className="p-2 max-h-[280px] overflow-y-auto">
@@ -163,7 +161,7 @@ export function IncidentNearMe() {
         </select>
       </div>
 
-      {/* Train ID Hint */}
+      {/* Train ID instruc */}
       <div className="pt-1">
         <button
           type="button"

@@ -29,7 +29,6 @@ const mapToBackendStatus = (action: string) => {
   }
 };
 
-// ── Status badge ────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
   const normalized = status?.toLowerCase();
 
@@ -120,11 +119,10 @@ export function UserManagement({ session }: { session: { userId?: string; token?
     }
   };
 
-  // Compute allowed next statuses per current status
   const allowedTransitions = (status: string): string[] => {
     if (status === 'Active') return ['Suspend', 'Archive'];
     if (status === 'Suspended') return ['Reactivate', 'Archive'];
-    return []; // Archived → nothing
+    return [];
   };
 
   const filtered = users.filter(u => {
@@ -203,16 +201,13 @@ export function UserManagement({ session }: { session: { userId?: string; token?
       { header: 'employee_id', key: 'employee_id', width: 18 },
     ];
 
-    // Style header row
     ws.getRow(1).eachCell(cell => {
       cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0B4F6C' } };
     });
 
-    // Sample data row
     ws.addRow(['John Doe', 'john@example.com', 'Auxiliary', 'EMP-001']);
 
-    // Dropdown for role column rows 2–100
     for (let row = 2; row <= 100; row++) {
       ws.getCell(`C${row}`).dataValidation = {
         type: 'list',
@@ -297,7 +292,6 @@ export function UserManagement({ session }: { session: { userId?: string; token?
         </div>
       </div>
 
-      {/* Search + Filters Card */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-4">
         <div className="flex items-end gap-3">
 
@@ -384,7 +378,7 @@ export function UserManagement({ session }: { session: { userId?: string; token?
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/50">
-                {['User Details', 'Role', 'Joined', 'Status', 'Actions'].map(h => (
+                {['User Details', 'User ID', 'Role', 'Joined', 'Status', 'Actions'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">{h}</th>
                 ))}
               </tr>
@@ -409,6 +403,9 @@ export function UserManagement({ session }: { session: { userId?: string; token?
                           <div className="text-[12px] text-gray-400 font-mono">{u.email}</div>
                         </div>
                       </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="font-mono text-xs text-gray-500 select-all">{u.userId}</span>
                     </td>
                     <td className="px-4 py-3 text-gray-700 text-sm">{u.role}</td>
                     <td className="px-4 py-3 text-gray-700 text-sm">

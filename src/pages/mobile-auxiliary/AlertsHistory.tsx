@@ -57,8 +57,8 @@ function caseToAlert(c: Case): Alert {
     status: c.status as Alert['status'], source: c.source as Alert['source'],
     type: c.source === 'ai' ? 'AI Detection' : 'Passenger Report',
     confidence: c.confidence,
-    imageUrl: undefined, // Hidden in history for privacy
-    snapshotUrl: undefined, // Hidden in history for privacy
+    imageUrl: undefined, 
+    snapshotUrl: undefined, 
     reportedBy: c.reportedBy, passengerComment: c.passengerComment,
     verifiedBy: c.verifiedBy, verifiedAt: c.verifiedAt, verifiedComment: c.verifiedComment,
     enrouteBy: c.enrouteBy, enrouteAt: c.enrouteAt, enrouteComment: c.enrouteComment,
