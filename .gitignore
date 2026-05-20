@@ -24,12 +24,14 @@ dist-ssr
 *.sw?
 .vs/
 
-# Local secrets — never commit real credentials
+# Local secrets 
 .env
 .env.production
 .env.local
 .env.*.local
 backend/appsettings.Development.json
+
+
 
 # .NET Build Artifacts
 **/bin/
